@@ -1,0 +1,369 @@
+﻿@model BusManagement.ViewModels.TripRequest.TripRequestApprovalPageViewModel
+@{
+    ViewData["Title"] = Model.StageTitle;
+}
+
+<style>
+    .approval-card { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .05); }
+    .bus-status-row-pending { background-color: #f3f4f6; }
+    .bus-status-row-processing { background-color: #dbeafe; }
+    .bus-status-row-approved { background-color: #dcfce7; }
+    .bus-status-row-rejected { background-color: #fee2e2; }
+    .lottie-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.25); display: none; align-items: center; justify-content: center; z-index: 2000; }
+    .lottie-overlay.show { display: flex; }
+    #approvalSuccessLottie { width: 280px; height: 280px; }
+</style>
+
+<div class="approval-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">@Model.StageTitle</h5>
+        <div class="btn-group">
+            <a class="btn btn-outline-primary @(Model.Stage=="qlsc"?"active":"")" asp-action="Index" asp-route-stage="qlsc">QLSC</a>
+            <a class="btn btn-outline-primary @(Model.Stage=="qltc"?"active":"")" asp-action="Index" asp-route-stage="qltc">QLTC</a>
+            <a class="btn btn-outline-primary @(Model.Stage=="ga-quote"?"active":"")" asp-action="Index" asp-route-stage="ga-quote">GA điền báo giá</a>
+            <a class="btn btn-outline-primary @(Model.Stage=="employee"?"active":"")" asp-action="Index" asp-route-stage="employee">CNV phản hồi báo giá</a>
+            <a class="btn btn-outline-primary @(Model.Stage=="ga-driver"?"active":"")" asp-action="Index" asp-route-stage="ga-driver">GA điền info lái xe</a>
+        </div>
+    </div>
+
+    @if (!Model.CanProcess)
+    {
+        <div class="alert alert-warning mb-0">@Model.AccessDeniedMessage</div>
+    }
+    else
+    {
+        <form id="approvalActionForm" show-loading method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Stage" value="@Model.Stage" />
+            <input type="hidden" name="SelectedIds" id="selectedIdsInput" />
+            <input type="hidden" name="RejectReason" id="rejectReasonInput" />
+            <input type="hidden" name="DriverInfo" id="driverInfoInput" />
+
+            <div class="table-responsive mb-4">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px;"><input type="checkbox" class="request-check-all" id="checkAll" /></th>
+                            <th>STT</th>
+                            <th>Lịch sử</th>
+                            <th>Trạng thái</th>
+                            <th>Phòng ban</th>
+                            <th>MNV</th>
+                            <th>Họ tên</th>
+                            <th>SĐT</th>
+                            <th>Loại chuyến</th>
+                            <th>Chiều đi</th>
+                            <th>Chiều về</th>
+                            <th>Mục đích</th>
+                            <th>Báo giá</th>
+                            <th>Lái xe</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Requests.Any())
+                        {
+                            <tr><td colspan="14" class="text-center text-muted">Không có bản ghi chờ xử lý.</td></tr>
+                        }
+                        else
+                        {
+                            for (var i = 0; i < Model.Requests.Count; i++)
+                            {
+                                var item = Model.Requests[i];
+                                <tr class="@item.StatusRowClass">
+                                    <td><input type="checkbox" class="request-check" value="@item.Id" /></td>
+                                    <td>@(i + 1)</td>
+                                    <td>
+                                        <button type="button" class="btn btn-primary btn-sm js-history-btn" data-history-url="@Url.Action("History", "TripRequestApproval", new { id = item.Id, modal = true })"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                                    </td>
+                                    <td><span class="badge @item.StatusBadgeClass">@item.StatusText</span></td>
+                                    <td>@item.DepartmentName</td>
+                                    <td>@item.EmployeeCode</td>
+                                    <td>@item.EmployeeName</td>
+                                    <td>@item.Phone</td>
+                                    <td>@item.TripType</td>
+                                    <td>@item.PickupGo?.ToString("dd/MM/yyyy HH:mm")<br /><small>@item.FromGo → @item.ToGo</small></td>
+                                    @if (item.PickupReturn.HasValue)
+                                    {
+                                        <td>@item.PickupReturn?.ToString("dd/MM/yyyy HH:mm")<br /><small>@item.FromReturn → @item.ToReturn</small></td>
+                                    }
+                                    else
+                                    {
+                                        <td></td>
+                                    }
+
+                                    <td>@item.Purpose</td>
+                                    <td>@if (!string.IsNullOrWhiteSpace(item.QuotePath)) { <a href="@item.QuotePath" target="_blank">File</a> }</td>
+                                    <td>@item.DriverInfo</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-center gap-3">
+                @if (Model.Stage == "ga-quote")
+                {
+                    <button type="button" class="btn btn-secondary" onclick="downloadImportTemplate();"><i class="fa-solid fa-download me-1"></i>Tải biểu mẫu</button>
+                    <button type="button" class="btn btn-success" onclick="openImportModal();"><i class="fa-solid fa-file-import me-1"></i>Import báo giá</button>
+                    <button type="button" class="btn btn-danger" onclick="openRejectModal();"><i class="fa-solid fa-circle-xmark me-1"></i>Từ chối</button>
+                    <button type="button" class="btn btn-primary" onclick="openQuoteModal();"><i class="fa-solid fa-file-arrow-up me-1"></i>Nhập báo giá và gửi</button>
+                }
+                else if (Model.Stage == "ga-driver")
+                {
+                    <button type="button" class="btn btn-secondary" onclick="downloadImportTemplate();"><i class="fa-solid fa-download me-1"></i>Tải mẫu import</button>
+                    <button type="button" class="btn btn-success" onclick="openImportModal();"><i class="fa-solid fa-file-import me-1"></i>Import lái xe</button>
+                    <button type="button" class="btn btn-danger" onclick="openRejectModal();"><i class="fa-solid fa-circle-xmark me-1"></i>Từ chối</button>
+                    <button type="button" class="btn btn-success" onclick="openDriverModal();"><i class="fa-solid fa-circle-check me-1"></i>Điền lái xe & hoàn tất</button>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-danger" onclick="openRejectModal();"><i class="fa-solid fa-circle-xmark me-1"></i>Từ chối</button>
+                    <button type="submit" class="btn btn-success" formaction="@Url.Action("Approve", "TripRequestApproval")" onclick="return prepareAction();"><i class="fa-solid fa-circle-check me-1"></i>Đồng ý</button>
+                }
+            </div>
+
+        </form>
+
+<div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import dữ liệu hàng loạt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" show-loading asp-action="ImportGaBatch" asp-controller="TripRequestApproval" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="stage" value="@Model.Stage" />
+                    <input type="file" class="form-control" name="importFile" accept=".xlsx" required />
+                    <div class="small text-muted mt-2">
+                        @if (Model.Stage == "ga-quote")
+                        {
+                            @:Biểu mẫu đã có sẵn danh sách bản ghi được chọn. Chỉ cần điền cột `QuoteFileLink` (shared/http). Nếu lỗi hệ thống sẽ trả file lỗi có cột `ImportResult`.
+                        }
+                        else if (Model.Stage == "ga-driver")
+                        {
+                            @:Biểu mẫu đã có sẵn danh sách bản ghi được chọn. Chỉ cần điền cột `DriverInfo`. Nếu lỗi hệ thống sẽ trả file lỗi có cột `ImportResult`.
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+    }
+</div>
+
+<div class="modal fade" id="quoteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Nhập file báo giá</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <form method="post" show-loading asp-action="SubmitQuote" asp-controller="TripRequestApproval" enctype="multipart/form-data" onsubmit="return submitQuoteForm(this);">
+            @Html.AntiForgeryToken()
+            <div class="modal-body">
+                <input type="hidden" name="Stage" value="@Model.Stage" />
+                <input type="hidden" name="SelectedIds" id="quoteSelectedIdsInput" />
+                <input type="file" class="form-control" name="quoteFile" required />
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Gửi báo giá</button></div>
+        </form>
+    </div></div>
+</div>
+
+<div class="modal fade" id="driverModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Thông tin lái xe</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body"><textarea id="driverInfoText" class="form-control" rows="4" placeholder="Nhập thông tin xe/lái xe"></textarea></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="button" class="btn btn-success" onclick="submitDriverApprove();">Xác nhận hoàn tất</button></div>
+    </div></div>
+</div>
+
+<div class="modal fade" id="rejectReasonModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Lý do từ chối</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body"><textarea id="rejectReasonText" class="form-control" rows="4" maxlength="1000"></textarea></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="button" class="btn btn-danger" onclick="submitReject();">Xác nhận từ chối</button></div>
+    </div></div>
+</div>
+
+<div class="modal fade" id="approvalHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Lịch sử xử lý</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="approvalHistoryModalBody"></div></div></div>
+</div>
+
+<div id="lottieOverlay" class="lottie-overlay">
+    <div id="approvalSuccessLottie"></div>
+</div>
+
+@section Scripts {
+    @if (TempData["TripRequestApprovalSuccess"] is string s) { <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(s)));</script> }
+    @if (TempData["TripRequestApprovalError"] is string e) { <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(e)));</script> }
+
+    <script>
+        (function(){
+            var checkAll = document.getElementById('checkAll');
+            var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.request-check'));
+            var tableBody = document.querySelector('#approvalActionForm .table tbody');
+
+            function isInteractiveTarget(el) {
+                return !!el.closest('a,button,input,select,textarea,label,.btn,[data-bs-toggle]');
+            }
+
+            if (checkAll) {
+                checkAll.addEventListener('change', function(){ checkboxes.forEach(function(cb){ cb.checked = checkAll.checked; }); });
+            }
+
+            if (tableBody) {
+                tableBody.addEventListener('click', function (e) {
+                    if (isInteractiveTarget(e.target)) return;
+
+                    var row = e.target.closest('tr');
+                    if (!row) return;
+
+                    var rowCheckbox = row.querySelector('.request-check');
+                    if (!rowCheckbox) return;
+
+                    rowCheckbox.checked = !rowCheckbox.checked;
+                });
+            }
+
+            function getSelected() {
+                return checkboxes.filter(function(cb){ return cb.checked; }).map(function(cb){ return cb.value; });
+            }
+
+            window.prepareAction = function(){
+                var selected = getSelected();
+                if (!selected.length) {
+                    window.AppCommon && AppCommon.error('Vui lòng chọn ít nhất 1 bản ghi.');
+                    return false;
+                }
+                document.getElementById('selectedIdsInput').value = selected.join(',');
+                document.getElementById('rejectReasonInput').value = '';
+                document.getElementById('driverInfoInput').value = '';
+                return true;
+            };
+
+            window.openRejectModal = function(){
+                if (!window.prepareAction()) return;
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('rejectReasonModal')).show();
+            };
+
+            window.submitReject = function(){
+                var reason = (document.getElementById('rejectReasonText').value || '').trim();
+                if (!reason) {
+                    window.AppCommon && AppCommon.error('Vui lòng nhập lý do từ chối.');
+                    return;
+                }
+
+                document.getElementById('rejectReasonInput').value = reason;
+                var form = document.getElementById('approvalActionForm');
+                form.action = '@Url.Action("Reject", "TripRequestApproval")';
+                form.submit();
+            };
+
+            window.openQuoteModal = function(){
+                var selected = getSelected();
+                if (!selected.length) {
+                    window.AppCommon && AppCommon.error('Vui lòng chọn ít nhất 1 bản ghi.');
+                    return;
+                }
+                document.getElementById('quoteSelectedIdsInput').value = selected.join(',');
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('quoteModal')).show();
+            };
+
+            window.openImportModal = function(){
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+            };
+
+            window.downloadImportTemplate = function(){
+                var selected = getSelected();
+                if (!selected.length) {
+                    window.AppCommon && AppCommon.error('Vui lòng chọn ít nhất 1 bản ghi để tải biểu mẫu.');
+                    return;
+                }
+
+                var url = '@Url.Action("DownloadImportTemplate", "TripRequestApproval")'
+                    + '?stage=' + encodeURIComponent('@Model.Stage')
+                    + '&selectedIds=' + encodeURIComponent(selected.join(','));
+
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+                window.location.href = url;
+
+                setTimeout(function () {
+                    if (typeof window.hideLoading === 'function') {
+                        window.hideLoading();
+                    }
+                }, 1200);
+            };
+
+            window.submitQuoteForm = function(form){
+                var selected = document.getElementById('quoteSelectedIdsInput').value;
+                if (!selected) {
+                    window.AppCommon && AppCommon.error('Vui lòng chọn ít nhất 1 bản ghi.');
+                    return false;
+                }
+                return true;
+            };
+
+            window.openDriverModal = function(){
+                if (!window.prepareAction()) return;
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('driverModal')).show();
+            };
+
+            window.submitDriverApprove = function(){
+                var driverInfo = (document.getElementById('driverInfoText').value || '').trim();
+                if (!driverInfo) {
+                    window.AppCommon && AppCommon.error('Vui lòng nhập thông tin lái xe.');
+                    return;
+                }
+                document.getElementById('driverInfoInput').value = driverInfo;
+                var form = document.getElementById('approvalActionForm');
+                form.action = '@Url.Action("Approve", "TripRequestApproval")';
+                form.submit();
+            };
+
+            var historyModalEl = document.getElementById('approvalHistoryModal');
+            var historyModalBody = document.getElementById('approvalHistoryModalBody');
+            if (historyModalEl && historyModalBody) {
+                var historyModal = bootstrap.Modal.getOrCreateInstance(historyModalEl);
+                document.addEventListener('click', async function (e) {
+                    var btn = e.target.closest('.js-history-btn');
+                    if (!btn) return;
+
+                    historyModalBody.innerHTML = '<div class="text-center text-muted py-4">Đang tải...</div>';
+                    historyModal.show();
+                    try {
+                        var response = await fetch(btn.getAttribute('data-history-url'), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        if (!response.ok) throw new Error('Load history failed');
+                        historyModalBody.innerHTML = await response.text();
+                    } catch {
+                        historyModalBody.innerHTML = '<div class="alert alert-danger mb-0">Không thể tải lịch sử xử lý.</div>';
+                    }
+                });
+            }
+
+            var shouldCelebrate = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["TripRequestApprovalCelebrate"] != null));
+            if (shouldCelebrate && window.lottie) {
+                var overlay = document.getElementById('lottieOverlay');
+                var container = document.getElementById('approvalSuccessLottie');
+                if (overlay && container) {
+                    overlay.classList.add('show');
+                    container.innerHTML = '';
+                    lottie.loadAnimation({
+                        container: container,
+                        renderer: 'svg',
+                        loop: false,
+                        autoplay: true,
+                        path: '/lotties/congratulations_smiley.json'
+                    });
+
+                    setTimeout(function () {
+                        overlay.classList.remove('show');
+                    }, 2500);
+                }
+            }
+        })();
+    </script>
+}

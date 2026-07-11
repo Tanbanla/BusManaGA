@@ -1,0 +1,436 @@
+﻿@model List<BusManagement.Model.Dtos.TM_TAXIDTO>
+@{
+    ViewData["Title"] = "Quản lý xe Taxi";
+
+    string? brand = ViewBag.Brand as string;
+    string? category = ViewBag.Category as string;
+    string? licensePlate = ViewBag.LicensePlate as string;
+    string? driverInfo = ViewBag.DriverInfo as string;
+
+    int pageNumber = ViewBag.PageNumber ?? 1;
+    int pageSize = ViewBag.PageSize ?? 10;
+    int totalCount = ViewBag.TotalCount ?? 0;
+    int totalPages = ViewBag.TotalPages ?? 1;
+
+    var startIndex = totalCount == 0 ? 0 : ((pageNumber - 1) * pageSize + 1);
+    var endIndex = Math.Min(pageNumber * pageSize, totalCount);
+}
+
+<style>
+    .taxi-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    .table thead th {
+        white-space: nowrap;
+    }
+</style>
+
+<div class="taxi-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Quản lý xe Taxi</h5>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTaxiModal">
+                <i class="fa-solid fa-plus me-1"></i>Thêm mới
+            </button>
+            <button type="button" id="btnDeleteSelected" class="btn btn-danger d-none">
+                <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+            </button>
+        </div>
+    </div>
+
+    <form method="get" asp-controller="Taxi" asp-action="Management" class="row g-2 mb-3">
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="brand" value="@brand" placeholder="Hãng xe" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="category" value="@category" placeholder="Loại xe" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="licensePlate" value="@licensePlate" placeholder="Biển số xe" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="driverInfo" value="@driverInfo" placeholder="Thông tin lái xe" />
+        </div>
+        <div class="col-12">
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm
+            </button>
+        </div>
+    </form>
+
+    <form id="taxiGridForm" method="post" asp-controller="Taxi" asp-action="SaveGrid">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="brand" value="@brand" />
+        <input type="hidden" name="category" value="@category" />
+        <input type="hidden" name="licensePlate" value="@licensePlate" />
+        <input type="hidden" name="driverInfo" value="@driverInfo" />
+        <input type="hidden" name="page" value="@pageNumber" />
+        <input type="hidden" name="pageSize" value="@pageSize" />
+
+        <div id="deletedIdsContainer"></div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px;">
+                            <input id="chkAllTaxiRows" type="checkbox" class="form-check-input" />
+                        </th>
+                        <th style="width: 70px;">STT</th>
+                        <th>Hãng xe</th>
+                        <th>Loại xe</th>
+                        <th>Biển số xe</th>
+                        <th>Thông tin lái xe</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">Không có dữ liệu.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        for (var i = 0; i < Model.Count; i++)
+                        {
+                            var row = Model[i];
+                            <tr>
+                                <td>
+                                    <input class="form-check-input js-taxi-row-check" type="checkbox" value="@row.ID" />
+                                </td>
+                                <td>
+                                    @(startIndex + i)
+                                </td>
+                                <td>
+                                    @row.NVCHR_BRAND
+                                </td>
+                                <td>
+                                    @row.NVCHR_CATEGORY
+                                </td>
+                                <td>
+                                    @row.CHR_LICENSE_PLATE
+                                </td>
+                                <td>
+                                    @row.NVCHR_DRIVER
+                                </td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-primary ms-1 mb-1" data-bs-toggle="modal" data-bs-target="#editTaxiModal-@row.ID" title="Sửa">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger js-delete-one ms-1 mb-1" data-id="@row.ID" title="Xóa">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </form>
+
+    <form id="deleteOneForm" method="post" asp-controller="Taxi" asp-action="DeleteTaxi" class="d-none">
+        @Html.AntiForgeryToken()
+        <input type="hidden" id="deleteOneId" name="id" />
+        <input type="hidden" name="brand" value="@brand" />
+        <input type="hidden" name="category" value="@category" />
+        <input type="hidden" name="licensePlate" value="@licensePlate" />
+        <input type="hidden" name="driverInfo" value="@driverInfo" />
+        <input type="hidden" name="page" value="@pageNumber" />
+        <input type="hidden" name="pageSize" value="@pageSize" />
+    </form>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @totalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = pageNumber,
+        TotalPages = totalPages,
+        PageSize = pageSize,
+        Action = "Management",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["brand"] = brand,
+            ["category"] = category,
+            ["licensePlate"] = licensePlate,
+            ["driverInfo"] = driverInfo
+        }
+        })
+</div>
+
+@foreach (var row in Model)
+{
+    <div class="modal fade dragable-modal" id="editTaxiModal-@row.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cập nhật xe Taxi</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="Taxi" asp-action="UpdateTaxi">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="id" value="@row.ID" />
+                        <input type="hidden" name="brand" value="@brand" />
+                        <input type="hidden" name="category" value="@category" />
+                        <input type="hidden" name="licensePlate" value="@licensePlate" />
+                        <input type="hidden" name="driverInfo" value="@driverInfo" />
+                        <input type="hidden" name="page" value="@pageNumber" />
+                        <input type="hidden" name="pageSize" value="@pageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Biển số xe</label>
+                                <input class="form-control" name="updateLicensePlate" value="@row.CHR_LICENSE_PLATE" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Loại xe</label>
+                                <input class="form-control" name="updateCategory" value="@row.NVCHR_CATEGORY" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Hãng xe</label>
+                                <input class="form-control" name="updateBrand" value="@row.NVCHR_BRAND" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Dung lượng</label>
+                                <input class="form-control" name="updateCapacity" type="number" min="0" value="@row.INT_CAPACITY" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mã tài xế</label>
+                                <input class="form-control"
+                                       name="updateDriverCode"
+                                       type="text"
+                                       inputmode="numeric"
+                                       pattern="[0-9]*"
+                                       title="Chỉ nhập số"
+                                       maxlength="10"
+                                       oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+                                       value="@row.INT_DRIVER" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Thông tin chi tiết tài xế</label>
+                                <input class="form-control" name="updateDriverInfo" value="@row.NVCHR_DRIVER" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Trạng thái xóa</label>
+                                <select class="form-select" name="updateIsActive">
+                                    @if (row.BIT_IS_ACTIVE == true)
+                                    {
+                                        <option value="true" selected>Không xóa</option>
+                                        <option value="false">Đánh dấu xóa</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="true">Không xóa</option>
+                                        <option value="false" selected>Đánh dấu xóa</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Hủy</button>
+                        <button class="btn btn-primary" type="submit">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="modal fade dragable-modal" id="createTaxiModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm xe Taxi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="createTaxiForm" method="post" asp-controller="Taxi" asp-action="CreateTaxi" novalidate>
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="brand" value="@brand" />
+                    <input type="hidden" name="category" value="@category" />
+                    <input type="hidden" name="licensePlate" value="@licensePlate" />
+                    <input type="hidden" name="driverInfo" value="@driverInfo" />
+                    <input type="hidden" name="page" value="@pageNumber" />
+                    <input type="hidden" name="pageSize" value="@pageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Biển số xe</label>
+                            <input class="form-control js-required" name="createLicensePlate" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Loại xe</label>
+                            <input class="form-control js-required" name="createCategory" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Hãng xe</label>
+                            <input class="form-control js-required" name="createBrand" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Dung lượng</label>
+                            <input class="form-control js-required" name="createCapacity" type="number" min="1" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Mã tài xế</label>
+                            <input class="form-control js-required"
+                                   name="createDriverCode"
+                                   type="text"
+                                   inputmode="numeric"
+                                   pattern="[0-9]+"
+                                   title="Chỉ nhập số"
+                                   maxlength="10"
+                                   oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+                                   required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Thông tin chi tiết tài xế</label>
+                            <input class="form-control js-required" name="createDriverInfo" required />
+                        </div>
+
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Đóng</button>
+                    <button id="btnCreateTaxiSubmit" class="btn btn-primary" type="submit" disabled>Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @if (TempData["TaxiSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.success(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["TaxiError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+    <script>
+                (function () {
+            var $chkAll = $('#chkAllTaxiRows');
+            var $rowChecks = $('.js-taxi-row-check');
+            var $btnDelete = $('#btnDeleteSelected');
+            var $deletedIdsContainer = $('#deletedIdsContainer');
+            var $gridForm = $('#taxiGridForm');
+            var $deleteOneForm = $('#deleteOneForm');
+            var $deleteOneId = $('#deleteOneId');
+            var $createTaxiModal = $('#createTaxiModal');
+            var $createTaxiForm = $('#createTaxiForm');
+            var $btnCreateTaxiSubmit = $('#btnCreateTaxiSubmit');
+
+            function refreshDeleteButtonState() {
+                var selected = $('.js-taxi-row-check:checked').length;
+                $btnDelete.toggleClass('d-none', selected === 0);
+
+                var total = $rowChecks.length;
+                $chkAll.prop('checked', total > 0 && selected === total);
+                $chkAll.prop('indeterminate', selected > 0 && selected < total);
+            }
+
+            $chkAll.on('change', function () {
+                var checked = $(this).is(':checked');
+                $rowChecks.prop('checked', checked);
+                refreshDeleteButtonState();
+            });
+
+            $(document).on('change', '.js-taxi-row-check', refreshDeleteButtonState);
+
+            // Xóa nhiều (style Admin)
+            $btnDelete.on('click', async function () {
+                var selected = $('.js-taxi-row-check:checked');
+                if (!selected.length) {
+                    window.AppCommon && AppCommon.warning('Vui lòng chọn ít nhất 1 xe Taxi.');
+                    return;
+                }
+
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({
+                        title: 'Xóa nhiều xe Taxi',
+                        message: 'Bạn có chắc chắn muốn xóa các xe Taxi đã chọn?',
+                        okText: 'Đồng ý',
+                        cancelText: 'Hủy',
+                        okVariant: 'danger'
+                    });
+                } else {
+                    ok = confirm('Bạn có chắc chắn muốn xóa các xe Taxi đã chọn?');
+                }
+
+                if (!ok) return;
+
+                $deletedIdsContainer.empty();
+                selected.each(function () {
+                    $deletedIdsContainer.append('<input type="hidden" name="deletedIds" value="' + $(this).val() + '" />');
+                });
+
+                $gridForm.trigger('submit');
+            });
+
+            // Xóa 1 dòng (style Admin)
+            $(document).on('click', '.js-delete-one', async function () {
+                var id = $(this).data('id');
+                if (!id) return;
+
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({
+                        title: 'Xóa xe Taxi',
+                        message: 'Bạn có chắc chắn muốn xóa xe Taxi này?',
+                        okText: 'Đồng ý',
+                        cancelText: 'Hủy',
+                        okVariant: 'danger'
+                    });
+                } else {
+                    ok = confirm('Bạn có chắc chắn muốn xóa xe Taxi này?');
+                }
+
+                if (!ok) return;
+
+                $deleteOneId.val(id);
+                $deleteOneForm.trigger('submit');
+            });
+
+            function validateCreateTaxiForm() {
+                if (!$createTaxiForm.length) return;
+                var isValid = true;
+                $createTaxiForm.find('.js-required').each(function () {
+                    if (!this.checkValidity()) {
+                        isValid = false;
+                    }
+                });
+                $btnCreateTaxiSubmit.prop('disabled', !isValid);
+            }
+
+            $(document).on('input change', '#createTaxiForm .js-required', function () {
+                validateCreateTaxiForm();
+            });
+
+            $createTaxiModal.on('shown.bs.modal', function () {
+                $createTaxiForm.removeClass('was-validated');
+                validateCreateTaxiForm();
+            });
+
+            $createTaxiForm.on('submit', function (e) {
+                if (!this.checkValidity()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                $createTaxiForm.addClass('was-validated');
+                validateCreateTaxiForm();
+            });
+
+            refreshDeleteButtonState();
+            validateCreateTaxiForm();
+        })();
+    </script>
+}

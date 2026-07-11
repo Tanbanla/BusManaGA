@@ -1,0 +1,491 @@
+﻿@model BusManagement.ViewModels.Admin.RolesPageViewModel
+@{
+    ViewData["Title"] = "Quản lý vai trò";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+    var orderedMenus = Model.BuildOrderedMenus();
+}
+
+<style>
+    .admin-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    .table thead th { white-space: nowrap; }
+</style>
+
+<div class="admin-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Danh sách vai trò</h5>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRoleModal">
+                <i class="fa-solid fa-plus me-1"></i>Thêm vai trò
+            </button>
+            <form method="get" asp-controller="Admin" asp-action="ExportRoles" class="d-inline js-export-form" data-no-loader>
+                <input type="hidden" name="keyword" value="@Model.Keyword" />
+                <input type="hidden" name="isActive" value="@Model.IsActive" />
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                </button>
+            </form>
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importRoleModal">
+                <i class="fa-solid fa-file-import me-1"></i>Import Excel
+            </button>
+            <button id="btnBulkDeleteRoles" type="button" class="btn btn-danger js-action-button d-none"
+                    data-form-id="bulkDeleteRoleForm"
+                    data-confirm-title="Xóa nhiều quyền"
+                    data-confirm-message="Bạn có chắc chắn muốn xóa các quyền đã chọn?"
+                    data-require-selection="1"
+                    disabled>
+                <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+            </button>
+        </div>
+    </div>
+
+    <form method="get" asp-controller="Admin" asp-action="Roles" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <div class="col-12 col-md-6 col-lg-4">
+            <input class="form-control" name="keyword" value="@Model.Keyword" placeholder="Tên quyền / mô tả" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <select class="form-select" name="isActive">
+                @if (!Model.IsActive.HasValue)
+                {
+                    <option value="" selected>Tất cả trạng thái</option>
+                }
+                else
+                {
+                    <option value="">Tất cả trạng thái</option>
+                }
+                @if (Model.IsActive == true)
+                {
+                    <option value="true" selected>Đang hoạt động</option>
+                }
+                else
+                {
+                    <option value="true">Đang hoạt động</option>
+                }
+                @if (Model.IsActive == false)
+                {
+                    <option value="false" selected>Ngưng hoạt động</option>
+                }
+                else
+                {
+                    <option value="false">Ngưng hoạt động</option>
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3 d-grid d-md-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm</button>
+        </div>
+    </form>
+
+    <form id="bulkDeleteRoleForm" method="post" asp-controller="Admin" asp-action="DeleteRoles" class="js-confirm js-require-selection"
+          data-confirm-title="Xóa nhiều quyền"
+          data-confirm-message="Bạn có chắc chắn muốn xóa các quyền đã chọn?">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="keyword" value="@Model.Keyword" />
+        <input type="hidden" name="searchIsActive" value="@Model.IsActive" />
+        <input type="hidden" name="page" value="@Model.PageNumber" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 40px;"><input id="chkAllRoles" type="checkbox" class="form-check-input" /></th>
+                    <th>Tên quyền</th>
+                    <th>Mô tả</th>
+                    <th>Trạng thái</th>
+                    <th>Màn hình được gán</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Roles.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Không có dữ liệu quyền.</td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var role in Model.Roles)
+                    {
+                        <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input js-role-check" name="ids" value="@role.ID" form="bulkDeleteRoleForm" />
+                            </td>
+                            <td>@role.NVCHR_ROLE_NAME</td>
+                            <td>@role.NVCHR_DESCRIPTION</td>
+                            <td>
+                                @if (role.BIT_IS_ACTIVE == true)
+                                {
+                                    <span class="badge bg-success-subtle text-success">Đang hoạt động</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary">Ngưng hoạt động</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge bg-info-subtle text-info">@Model.GetAssignedMenuCount(role.ID) màn hình</span>
+                            </td>
+                            <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-primary mb-1" data-bs-toggle="modal" data-bs-target="#assignMenusModal-@role.ID" title="Gán màn hình">
+                                        <i class="fa-solid fa-list-check"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-primary ms-1 mb-1" data-bs-toggle="modal" data-bs-target="#editRoleModal-@role.ID">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <form id="deleteRoleForm-@role.ID" method="post" asp-controller="Admin" asp-action="DeleteRole" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@role.ID" />
+                                        <input type="hidden" name="keyword" value="@Model.Keyword" />
+                                        <input type="hidden" name="searchIsActive" value="@Model.IsActive" />
+                                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                        <button class="btn btn-sm btn-danger js-action-button ms-1 mb-1" type="button"
+                                                data-form-id="deleteRoleForm-@role.ID"
+                                                data-confirm-title="Xóa quyền"
+                                                data-confirm-message="Bạn có chắc chắn muốn xóa quyền này?">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Roles",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["keyword"] = Model.Keyword,
+            ["isActive"] = Model.IsActive?.ToString().ToLowerInvariant()
+        }
+    })
+</div>
+
+<div class="modal fade dragable-modal" id="createRoleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm quyền</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-controller="Admin" asp-action="CreateRole" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="Keyword" value="@Model.Keyword" />
+                    <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                    <input type="hidden" name="Page" value="@Model.PageNumber" />
+                    <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Tên quyền</label>
+                            <input class="form-control" name="RoleName" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Trạng thái</label>
+                            <select class="form-select" name="IsActive">
+                                <option value="true">Đang hoạt động</option>
+                                <option value="false">Ngưng hoạt động</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Mô tả</label>
+                            <textarea class="form-control" rows="3" name="Description"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@foreach (var role in Model.Roles)
+{
+    <div class="modal fade dragable-modal" id="editRoleModal-@role.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chỉnh sửa quyền - @role.NVCHR_ROLE_NAME</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="Admin" asp-action="UpdateRole" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="ID" value="@role.ID" />
+                        <input type="hidden" name="Keyword" value="@Model.Keyword" />
+                        <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tên quyền</label>
+                                <input class="form-control" name="RoleName" value="@role.NVCHR_ROLE_NAME" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Trạng thái</label>
+                                <select class="form-select" name="IsActive">
+                                    @if (role.BIT_IS_ACTIVE == true)
+                                    {
+                                        <option value="true" selected>Đang hoạt động</option>
+                                        <option value="false">Ngưng hoạt động</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="true">Đang hoạt động</option>
+                                        <option value="false" selected>Ngưng hoạt động</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Mô tả</label>
+                                <textarea class="form-control" rows="3" name="Description">@role.NVCHR_DESCRIPTION</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade dragable-modal" id="assignMenusModal-@role.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Gán màn hình cho quyền - @role.NVCHR_ROLE_NAME</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="Admin" asp-action="AssignRoleMenus" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="roleId" value="@role.ID" />
+                        <input type="hidden" name="keyword" value="@Model.Keyword" />
+                        <input type="hidden" name="searchIsActive" value="@Model.IsActive" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                        <div class="small text-muted mb-2">Tick chọn các màn hình mà quyền này được phép nhìn thấy.</div>
+                        <div class="table-responsive border rounded p-2" style="max-height: 420px;">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;">Chọn</th>
+                                        <th>Tên màn hình</th>
+                                        <th>Mã menu</th>
+                                        <th>Controller/Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var menu in orderedMenus)
+                                    {
+                                        var level = Model.GetMenuLevel(menu);
+                                        var label = string.Concat(Enumerable.Repeat("— ", level)) + (menu.NVCHR_MENU_NAME ?? "-");
+                                        <tr>
+                                            <td>
+                                                <input type="checkbox" class="form-check-input" name="menuIds" value="@menu.ID" @(Model.IsMenuAssignedToRole(menu.ID, role.ID) ? "checked" : null) />
+                                            </td>
+                                            <td>@label</td>
+                                            <td>@menu.CHR_MENU_CODE</td>
+                                            <td>@menu.CHR_CONTROLLER/@menu.CHR_ACTION</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu phân quyền màn hình</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="modal fade dragable-modal" id="importRoleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import quyền từ Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-controller="Admin" asp-action="ImportRoles" enctype="multipart/form-data" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="keyword" value="@Model.Keyword" />
+                    <input type="hidden" name="searchIsActive" value="@Model.IsActive" />
+                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                    <label class="form-label">Chọn file Excel/CSV</label>
+                    <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                    <div class="small text-muted mt-2">
+                        Định dạng: <code>RoleName,Description,IsActive</code>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-success">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @if (TempData["AdminRoleSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["AdminRoleError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            function ensureAntiForgery(form) {
+                if (!form) return;
+                var tokenInForm = form.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenInForm) return;
+
+                var globalToken = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!globalToken) return;
+
+                var cloned = document.createElement('input');
+                cloned.type = 'hidden';
+                cloned.name = '__RequestVerificationToken';
+                cloned.value = globalToken.value;
+                form.appendChild(cloned);
+            }
+
+            function showLoading() {
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
+            }
+
+            function hideLoading() {
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+            }
+
+            document.querySelectorAll('form.js-post-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    ensureAntiForgery(form);
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-search-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-export-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                    setTimeout(function () {
+                        hideLoading();
+                    }, 2500);
+                });
+            });
+
+            document.addEventListener('click', async function (e) {
+                var btn = e.target.closest('.js-action-button');
+                if (!btn) return;
+
+                var formId = btn.getAttribute('data-form-id');
+                if (!formId) return;
+                var form = document.getElementById(formId);
+                if (!form) return;
+
+                if (btn.getAttribute('data-require-selection') === '1') {
+                    var checked = document.querySelectorAll('.js-role-check:checked');
+                    if (!checked.length) {
+                        if (window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 quyền.');
+                        return;
+                    }
+                }
+
+                var title = btn.getAttribute('data-confirm-title') || 'Xác nhận';
+                var message = btn.getAttribute('data-confirm-message') || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({ title: title, message: message });
+                }
+
+                if (!ok) return;
+                ensureAntiForgery(form);
+                showLoading();
+                form.requestSubmit();
+            });
+
+            var chkAll = document.getElementById('chkAllRoles');
+            var bulkDeleteBtn = document.getElementById('btnBulkDeleteRoles');
+            var roleChecks = Array.prototype.slice.call(document.querySelectorAll('.js-role-check'));
+
+            function updateBulkDeleteState() {
+                if (!bulkDeleteBtn) return;
+
+                var checkedCount = document.querySelectorAll('.js-role-check:checked').length;
+                var hasSelection = checkedCount > 0;
+
+                bulkDeleteBtn.disabled = !hasSelection;
+                bulkDeleteBtn.classList.toggle('d-none', !hasSelection);
+
+                if (chkAll) {
+                    var total = roleChecks.length;
+                    chkAll.checked = total > 0 && checkedCount === total;
+                    chkAll.indeterminate = checkedCount > 0 && checkedCount < total;
+                }
+            }
+
+            if (chkAll) {
+                chkAll.addEventListener('change', function () {
+                    document.querySelectorAll('.js-role-check').forEach(function (c) {
+                        c.checked = chkAll.checked;
+                    });
+                    updateBulkDeleteState();
+                });
+            }
+
+            roleChecks.forEach(function (c) {
+                c.addEventListener('change', updateBulkDeleteState);
+            });
+
+            updateBulkDeleteState();
+        })();
+    </script>
+}

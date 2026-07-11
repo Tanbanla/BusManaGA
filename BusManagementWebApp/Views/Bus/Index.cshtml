@@ -1,0 +1,1061 @@
+﻿@model BusManagement.ViewModels.Bus.BusPageViewModel
+@{
+    ViewData["Title"] = "Quản lý xe bus";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+}
+
+<div class="card border-0 shadow-sm p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Quản lý xe bus</h5>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createBusModal">
+                <i class="fa-solid fa-plus me-1"></i>Thêm mới
+            </button>
+
+            <form method="get" asp-controller="Bus" asp-action="Export" class="d-inline js-export-form" data-no-loader>
+                <input type="hidden" name="busCode" value="@Model.BusCode" />
+                <input type="hidden" name="busName" value="@Model.BusName" />
+                <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                <input type="hidden" name="category" value="@Model.Category" />
+                <input type="hidden" name="brand" value="@Model.Brand" />
+                <input type="hidden" name="model" value="@Model.Model" />
+                <input type="hidden" name="modelYear" value="@Model.ModelYear" />
+                <input type="hidden" name="capacity" value="@Model.Capacity" />
+                <input type="hidden" name="vendorId" value="@Model.VendorId" />
+                <input type="hidden" name="isActive" value="@Model.IsActive" />
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                </button>
+            </form>
+
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importBusModal">
+                <i class="fa-solid fa-file-import me-1"></i>Import Excel
+            </button>
+
+            <button id="btnBulkDeleteBuses" type="button" class="btn btn-danger js-action-button d-none"
+                    data-form-id="bulkDeleteBusForm"
+                    data-confirm-title="Xóa nhiều xe bus"
+                    data-confirm-message="Bạn có chắc chắn muốn xóa các xe bus đã chọn?"
+                    data-require-selection="1"
+                    disabled>
+                <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+            </button>
+        </div>
+    </div>
+
+    <form method="get" asp-controller="Bus" asp-action="Index" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+        <div class="col-12 col-md-4 col-lg-2">
+            <input class="form-control" name="busCode" value="@Model.BusCode" placeholder="Mã xe" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-2">
+            <input class="form-control" name="busName" value="@Model.BusName" placeholder="Tên xe" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-2">
+            <input class="form-control" name="licensePlate" value="@Model.LicensePlate" placeholder="Biển số" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-2">
+            <input class="form-control" name="category" value="@Model.Category" placeholder="Loại xe" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-2">
+            <input class="form-control" name="brand" value="@Model.Brand" placeholder="Hãng xe" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-2">
+            <input class="form-control" name="model" value="@Model.Model" placeholder="Model" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-2">
+            <input class="form-control" name="modelYear" value="@Model.ModelYear" placeholder="Năm sản xuất" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-2">
+            <input type="number" min="1" class="form-control" name="capacity" value="@Model.Capacity" placeholder="Sức chứa" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-3">
+            <select class="form-select" name="vendorId">
+                <option value="">Tất cả nhà cung cấp</option>
+                @foreach (var vendor in Model.Vendors)
+                {
+                    var code = vendor.CHR_VENDOR_CODE?.Trim();
+                    var name = vendor.NVCHR_VENDOR_NAME?.Trim();
+                    var text = !string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(name)
+                    ? $"{name}"
+                    : (!string.IsNullOrWhiteSpace(name) ? name : code);
+
+                    if (string.IsNullOrWhiteSpace(text))
+                    {
+                        continue;
+                    }
+
+                    if (Model.VendorId == vendor.ID)
+                    {
+                        <option value="@vendor.ID" selected>@text</option>
+                    }
+                    else
+                    {
+                        <option value="@vendor.ID">@text</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-4 col-lg-2">
+            <select class="form-select" name="isActive">
+                <option value="">Tất cả trạng thái</option>
+                @if (Model.IsActive == true)
+                {
+                    <option value="true" selected>Đang hoạt động</option>
+                    <option value="false">Ngưng hoạt động</option>
+                }
+                else if (Model.IsActive == false)
+                {
+                    <option value="true">Đang hoạt động</option>
+                    <option value="false" selected>Ngưng hoạt động</option>
+                }
+                else
+                {
+                    <option value="true">Đang hoạt động</option>
+                    <option value="false">Ngưng hoạt động</option>
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-4 col-lg-1 d-grid">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+    </form>
+
+    <form id="bulkDeleteBusForm" method="post" asp-controller="Bus" asp-action="DeleteMany" class="js-confirm js-require-selection"
+          data-confirm-title="Xóa nhiều xe bus"
+          data-confirm-message="Bạn có chắc chắn muốn xóa các xe bus đã chọn?">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="busCode" value="@Model.BusCode" />
+        <input type="hidden" name="busName" value="@Model.BusName" />
+        <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+        <input type="hidden" name="category" value="@Model.Category" />
+        <input type="hidden" name="brand" value="@Model.Brand" />
+        <input type="hidden" name="model" value="@Model.Model" />
+        <input type="hidden" name="modelYear" value="@Model.ModelYear" />
+        <input type="hidden" name="capacity" value="@Model.Capacity" />
+        <input type="hidden" name="vendorId" value="@Model.VendorId" />
+        <input type="hidden" name="isActive" value="@Model.IsActive" />
+        <input type="hidden" name="page" value="@Model.PageNumber" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:40px;"><input id="chkAllBuses" type="checkbox" class="form-check-input" /></th>
+                    <th>STT</th>
+                    <th>Mã xe</th>
+                    <th>Tên xe</th>
+                    <th>Biển số</th>
+                    <th>Loại xe</th>
+                    <th>Hãng xe</th>
+                    <th>Model</th>
+                    <th>Năm SX</th>
+                    <th>Sức chứa</th>
+                    <th>Nhà cung cấp</th>
+                    <th>Đánh giá</th>
+                    <th>Trạng thái</th>
+                    <th>Thời gian cập nhật</th>
+                    <th>Người cập nhật</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Buses.Any())
+                {
+                    <tr>
+                        <td colspan="16" class="text-center text-muted py-4">Không có dữ liệu xe bus.</td>
+                    </tr>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.Buses.Count; i++)
+                    {
+                        var bus = Model.Buses[i];
+                        var vendorText = bus.INT_VENDOR_ID.HasValue && Model.VendorNamesById.TryGetValue(bus.INT_VENDOR_ID.Value, out var mappedVendor)
+                        ? mappedVendor
+                        : "-";
+                        var evaluationCount = Model.EvaluationsByBusId.TryGetValue(bus.ID, out var evaluations) ? evaluations.Count : 0;
+
+                        <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input js-bus-check" name="ids" value="@bus.ID" form="bulkDeleteBusForm" />
+                            </td>
+                            <td>@(startIndex + i)</td>
+                            <td>@bus.CHR_BUS_CODE</td>
+                            <td>@bus.NVCHR_BUS_NAME</td>
+                            <td>@bus.CHR_LICENSE_PLATE</td>
+                            <td>@bus.NVCHR_CATEGORY</td>
+                            <td>@bus.NVCHR_BRAND</td>
+                            <td>@bus.NVCHR_MODEL</td>
+                            <td>@bus.NVCHR_MODEL_YEAR</td>
+                            <td>@(bus.INT_CAPACITY?.ToString() ?? "-")</td>
+                            <td>@vendorText</td>
+                            <td>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#evaluationModal-@bus.ID">
+                                    <i class="fa-regular fa-calendar-check"></i> Xem (@evaluationCount)
+                                </button>
+                            </td>
+                            <td>
+                                @if (bus.BIT_IS_ACTIVE == true)
+                                {
+                                    <span class="badge bg-success">Đang hoạt động</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Ngưng hoạt động</span>
+                                }
+                            </td>
+                            <td>@(bus.DTM_UPDATE?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                            <td>@(bus.CHR_USER_UPDATE ?? "-")</td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editBusModal-@bus.ID">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <form id="deleteBusForm-@bus.ID" method="post" asp-controller="Bus" asp-action="Delete" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@bus.ID" />
+                                    <input type="hidden" name="busCode" value="@Model.BusCode" />
+                                    <input type="hidden" name="busName" value="@Model.BusName" />
+                                    <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                                    <input type="hidden" name="category" value="@Model.Category" />
+                                    <input type="hidden" name="brand" value="@Model.Brand" />
+                                    <input type="hidden" name="model" value="@Model.Model" />
+                                    <input type="hidden" name="modelYear" value="@Model.ModelYear" />
+                                    <input type="hidden" name="capacity" value="@Model.Capacity" />
+                                    <input type="hidden" name="vendorId" value="@Model.VendorId" />
+                                    <input type="hidden" name="isActive" value="@Model.IsActive" />
+                                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                    <button class="btn btn-danger js-action-button ms-1" type="button"
+                                            data-form-id="deleteBusForm-@bus.ID"
+                                            data-confirm-title="Xóa xe bus"
+                                            data-confirm-message="Bạn có chắc chắn muốn xóa xe bus này?">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Index",
+        Controller = "Bus",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["busCode"] = Model.BusCode,
+            ["busName"] = Model.BusName,
+            ["licensePlate"] = Model.LicensePlate,
+            ["category"] = Model.Category,
+            ["brand"] = Model.Brand,
+            ["model"] = Model.Model,
+            ["modelYear"] = Model.ModelYear,
+            ["capacity"] = Model.Capacity?.ToString(),
+            ["vendorId"] = Model.VendorId?.ToString(),
+            ["isActive"] = Model.IsActive?.ToString().ToLowerInvariant()
+        }
+        })
+</div>
+
+<div class="modal fade dragable-modal" id="createBusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm xe bus</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-controller="Bus" asp-action="Create" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="SearchBusCode" value="@Model.BusCode" />
+                    <input type="hidden" name="SearchBusName" value="@Model.BusName" />
+                    <input type="hidden" name="SearchLicensePlate" value="@Model.LicensePlate" />
+                    <input type="hidden" name="SearchCategory" value="@Model.Category" />
+                    <input type="hidden" name="SearchBrand" value="@Model.Brand" />
+                    <input type="hidden" name="SearchModel" value="@Model.Model" />
+                    <input type="hidden" name="SearchModelYear" value="@Model.ModelYear" />
+                    <input type="hidden" name="SearchCapacity" value="@Model.Capacity" />
+                    <input type="hidden" name="SearchVendorId" value="@Model.VendorId" />
+                    <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                    <input type="hidden" name="Page" value="@Model.PageNumber" />
+                    <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Mã xe</label>
+                            <input class="form-control" name="BusCode" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Tên xe</label>
+                            <input class="form-control" name="BusName" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Biển số</label>
+                            <input class="form-control" name="LicensePlate" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Loại xe</label>
+                            <input class="form-control" name="Category" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Hãng xe</label>
+                            <input class="form-control" name="Brand" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Model</label>
+                            <input class="form-control" name="Model" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Năm sản xuất</label>
+                            <input class="form-control" name="ModelYear" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Sức chứa</label>
+                            <input type="number" min="1" class="form-control" name="Capacity" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Nhà cung cấp</label>
+                            <select class="form-select" name="VendorId">
+                                <option value="">Chọn nhà cung cấp</option>
+                                @foreach (var vendor in Model.Vendors)
+                                {
+                                    var code = vendor.CHR_VENDOR_CODE?.Trim();
+                                    var name = vendor.NVCHR_VENDOR_NAME?.Trim();
+                                    var text = !string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(name)
+                                    ? $"{name}"
+                                    : (!string.IsNullOrWhiteSpace(name) ? name : code);
+
+                                    if (!string.IsNullOrWhiteSpace(text))
+                                    {
+                                        <option value="@vendor.ID">@text</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Trạng thái</label>
+                            <select class="form-select" name="IsActive">
+                                <option value="true">Đang hoạt động</option>
+                                <option value="false">Ngưng hoạt động</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade dragable-modal" id="importBusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import xe bus từ Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-controller="Bus" asp-action="Import" enctype="multipart/form-data" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="busCode" value="@Model.BusCode" />
+                    <input type="hidden" name="busName" value="@Model.BusName" />
+                    <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                    <input type="hidden" name="category" value="@Model.Category" />
+                    <input type="hidden" name="brand" value="@Model.Brand" />
+                    <input type="hidden" name="model" value="@Model.Model" />
+                    <input type="hidden" name="modelYear" value="@Model.ModelYear" />
+                    <input type="hidden" name="capacity" value="@Model.Capacity" />
+                    <input type="hidden" name="vendorId" value="@Model.VendorId" />
+                    <input type="hidden" name="isActive" value="@Model.IsActive" />
+                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                    <label class="form-label">Nhà cung cấp áp dụng cho file import</label>
+                    <select class="form-select mb-3" name="importVendorId">
+                        <option value="">Không chọn</option>
+                        @foreach (var vendor in Model.Vendors)
+                        {
+                            var code = vendor.CHR_VENDOR_CODE?.Trim();
+                            var name = vendor.NVCHR_VENDOR_NAME?.Trim();
+                            var text = !string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(name)
+                            ? $"{name}"
+                            : (!string.IsNullOrWhiteSpace(name) ? name : code);
+
+                            if (!string.IsNullOrWhiteSpace(text))
+                            {
+                                <option value="@vendor.ID">@text</option>
+                            }
+                        }
+                    </select>
+
+                    <label class="form-label">Chọn file Excel/CSV</label>
+                    <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                    <div class="small text-muted mt-2">
+                        Định dạng: <code>BusCode,BusName,LicensePlate,Category,Brand,Model,ModelYear,Capacity,Vendor,IsActive</code>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-success">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@foreach (var bus in Model.Buses)
+{
+    var busEvaluations = Model.EvaluationsByBusId.TryGetValue(bus.ID, out var evalRows) ? evalRows : new List<BusManagement.Model.Dtos.TM_BUS_EVALUATIONDTO>();
+
+    <div class="modal fade dragable-modal" id="editBusModal-@bus.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cập nhật xe bus - @bus.CHR_BUS_CODE</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="Bus" asp-action="Update" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="ID" value="@bus.ID" />
+                        <input type="hidden" name="SearchBusCode" value="@Model.BusCode" />
+                        <input type="hidden" name="SearchBusName" value="@Model.BusName" />
+                        <input type="hidden" name="SearchLicensePlate" value="@Model.LicensePlate" />
+                        <input type="hidden" name="SearchCategory" value="@Model.Category" />
+                        <input type="hidden" name="SearchBrand" value="@Model.Brand" />
+                        <input type="hidden" name="SearchModel" value="@Model.Model" />
+                        <input type="hidden" name="SearchModelYear" value="@Model.ModelYear" />
+                        <input type="hidden" name="SearchCapacity" value="@Model.Capacity" />
+                        <input type="hidden" name="SearchVendorId" value="@Model.VendorId" />
+                        <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mã xe</label>
+                                <input class="form-control" name="BusCode" value="@bus.CHR_BUS_CODE" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tên xe</label>
+                                <input class="form-control" name="BusName" value="@bus.NVCHR_BUS_NAME" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Biển số</label>
+                                <input class="form-control" name="LicensePlate" value="@bus.CHR_LICENSE_PLATE" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Loại xe</label>
+                                <input class="form-control" name="Category" value="@bus.NVCHR_CATEGORY" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Hãng xe</label>
+                                <input class="form-control" name="Brand" value="@bus.NVCHR_BRAND" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Model</label>
+                                <input class="form-control" name="Model" value="@bus.NVCHR_MODEL" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Năm sản xuất</label>
+                                <input class="form-control" name="ModelYear" value="@bus.NVCHR_MODEL_YEAR" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Sức chứa</label>
+                                <input type="number" min="1" class="form-control" name="Capacity" value="@bus.INT_CAPACITY" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Nhà cung cấp</label>
+                                <select class="form-select" name="VendorId">
+                                    <option value="">Chọn nhà cung cấp</option>
+                                    @foreach (var vendor in Model.Vendors)
+                                    {
+                                        var code = vendor.CHR_VENDOR_CODE?.Trim();
+                                        var name = vendor.NVCHR_VENDOR_NAME?.Trim();
+                                        var text = !string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(name)
+                                        ? $"{name}"
+                                        : (!string.IsNullOrWhiteSpace(name) ? name : code);
+
+                                        if (string.IsNullOrWhiteSpace(text))
+                                        {
+                                            continue;
+                                        }
+
+                                        if (bus.INT_VENDOR_ID == vendor.ID)
+                                        {
+                                            <option value="@vendor.ID" selected>@text</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@vendor.ID">@text</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Trạng thái</label>
+                                <select class="form-select" name="IsActive">
+                                    @if (bus.BIT_IS_ACTIVE == true)
+                                    {
+                                        <option value="true" selected>Đang hoạt động</option>
+                                        <option value="false">Ngưng hoạt động</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="true">Đang hoạt động</option>
+                                        <option value="false" selected>Ngưng hoạt động</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade dragable-modal" id="evaluationModal-@bus.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Đánh giá xe - @bus.CHR_BUS_CODE (@bus.CHR_LICENSE_PLATE)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 border rounded bg-light">
+
+                        <!-- Nhóm 1: Xuất data đánh giá -->
+                        <form method="get" asp-controller="Bus" asp-action="ExportEvaluations"
+                              class="d-flex align-items-center gap-2 js-export-form" data-no-loader>
+                            <input type="hidden" name="busId" value="@bus.ID" />
+                            <select class="form-select form-select-sm" style="width: 240px;" name="driverId">
+                                <option value="">Tất cả tài xế</option>
+                                @foreach (var driver in Model.Drivers)
+                                {
+                                    if (Model.DriverNamesById.TryGetValue(driver.ID, out var driverText))
+                                    {
+                                        <option value="@driver.ID">@driverText</option>
+                                    }
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-success btn-sm text-nowrap">
+                                <i class="fa-solid fa-file-excel me-1"></i>Xuất dữ liệu đánh giá
+                            </button>
+                        </form>
+
+                        <!-- vạch phân cách -->
+                        <div class="vr d-none d-md-block mx-1"></div>
+
+                        <!-- Nhóm 2: Import đánh giá -->
+                        <form method="post" asp-controller="Bus" asp-action="ImportEvaluations"
+                              enctype="multipart/form-data"
+                              class="d-flex align-items-center gap-2 js-post-form flex-grow-1" style="min-width:280px;">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="busId" value="@bus.ID" />
+                            <input type="hidden" name="busCode" value="@Model.BusCode" />
+                            <input type="hidden" name="busName" value="@Model.BusName" />
+                            <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                            <input type="hidden" name="category" value="@Model.Category" />
+                            <input type="hidden" name="brand" value="@Model.Brand" />
+                            <input type="hidden" name="model" value="@Model.Model" />
+                            <input type="hidden" name="modelYear" value="@Model.ModelYear" />
+                            <input type="hidden" name="capacity" value="@Model.Capacity" />
+                            <input type="hidden" name="vendorId" value="@Model.VendorId" />
+                            <input type="hidden" name="isActive" value="@Model.IsActive" />
+                            <input type="hidden" name="page" value="@Model.PageNumber" />
+                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                            <input type="file" name="importFile" class="form-control form-control-sm"
+                                   accept=".xlsx,.csv" required style="max-width: 220px;" />
+                            <button type="submit" class="btn btn-primary btn-sm text-nowrap">
+                                <i class="fa-solid fa-file-import me-1"></i>Import đánh giá
+                            </button>
+                        </form>
+
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createEvaluationModal-@bus.ID">
+                            <i class="fa-solid fa-plus me-1"></i>Thêm đánh giá
+                        </button>
+
+                        <button type="button" class="btn btn-sm btn-danger d-none js-bulk-delete-eval-btn"
+                                data-bus-id="@bus.ID"
+                                data-form-id="bulkDeleteEvaluationForm-@bus.ID">
+                            <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+                        </button>
+
+                    </div>
+
+                    <form id="bulkDeleteEvaluationForm-@bus.ID" method="post" asp-controller="Bus" asp-action="DeleteManyEvaluations" class="d-none">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="busId" value="@bus.ID" />
+                        <input type="hidden" name="busCode" value="@Model.BusCode" />
+                        <input type="hidden" name="busName" value="@Model.BusName" />
+                        <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                        <input type="hidden" name="category" value="@Model.Category" />
+                        <input type="hidden" name="brand" value="@Model.Brand" />
+                        <input type="hidden" name="model" value="@Model.Model" />
+                        <input type="hidden" name="modelYear" value="@Model.ModelYear" />
+                        <input type="hidden" name="capacity" value="@Model.Capacity" />
+                        <input type="hidden" name="vendorId" value="@Model.VendorId" />
+                        <input type="hidden" name="isActive" value="@Model.IsActive" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:36px;"><input type="checkbox" class="form-check-input js-eval-check-all" data-bus-id="@bus.ID" /></th>
+                                    <th>STT</th>
+                                    <th>Tên tài xế</th>
+                                    <th>Điểm</th>
+                                    <th>Loại đánh giá</th>
+                                    <th>Nội dung</th>
+                                    <th>Ngày đánh giá</th>
+                                    <th>Người cập nhật</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!busEvaluations.Any())
+                                {
+                                    <tr>
+                                        <td colspan="9" class="text-center text-muted py-3">Chưa có đánh giá cho xe này.</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    for (var evalIndex = 0; evalIndex < busEvaluations.Count; evalIndex++)
+                                    {
+                                        var evaluation = busEvaluations[evalIndex];
+                                        <tr>
+                                            <td>
+                                                <input type="checkbox" class="form-check-input js-eval-check" data-bus-id="@bus.ID" name="ids" value="@evaluation.ID" form="bulkDeleteEvaluationForm-@bus.ID" />
+                                            </td>
+                                            <td>@(evalIndex + 1)</td>
+                                            <td>
+                                                @if (evaluation.INT_DRIVER_ID.HasValue && Model.DriverNamesById.TryGetValue(evaluation.INT_DRIVER_ID.Value, out var driverName))
+                                                {
+                                                    @driverName
+                                                }
+                                                else
+                                                {
+                                                    @("-")
+                                                }
+                                            </td>
+                                            <td>@(evaluation.INT_RATING?.ToString() ?? "-")</td>
+                                            <td>@(evaluation.CHR_EVALUATION_TYPE ?? "-")</td>
+                                            <td>@(evaluation.NVCHR_COMMENT ?? "-")</td>
+                                            <td>@(evaluation.DTM_EVALUATION_DATE?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                                            <td>@(evaluation.CHR_USER_UPDATE ?? "-")</td>
+                                            <td class="text-end">
+                                                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editEvaluationModal-@evaluation.ID" title="Sửa đánh giá">
+                                                    <i class="fa-solid fa-pen"></i>
+                                                </button>
+                                                <form id="deleteEvaluationForm-@evaluation.ID" method="post" asp-controller="Bus" asp-action="DeleteEvaluation" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@evaluation.ID" />
+                                                    <input type="hidden" name="busCode" value="@Model.BusCode" />
+                                                    <input type="hidden" name="busName" value="@Model.BusName" />
+                                                    <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                                                    <input type="hidden" name="category" value="@Model.Category" />
+                                                    <input type="hidden" name="brand" value="@Model.Brand" />
+                                                    <input type="hidden" name="model" value="@Model.Model" />
+                                                    <input type="hidden" name="modelYear" value="@Model.ModelYear" />
+                                                    <input type="hidden" name="capacity" value="@Model.Capacity" />
+                                                    <input type="hidden" name="vendorId" value="@Model.VendorId" />
+                                                    <input type="hidden" name="isActive" value="@Model.IsActive" />
+                                                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                                                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                                    <button type="button" class="btn btn-sm btn-danger js-delete-eval-one" data-form-id="deleteEvaluationForm-@evaluation.ID" title="Xóa đánh giá">
+                                                        <i class="fa-solid fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="createEvaluationModal-@bus.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm đánh giá - @bus.CHR_BUS_CODE</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="Bus" asp-action="CreateEvaluation" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="busId" value="@bus.ID" />
+                        <input type="hidden" name="busCode" value="@Model.BusCode" />
+                        <input type="hidden" name="busName" value="@Model.BusName" />
+                        <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                        <input type="hidden" name="category" value="@Model.Category" />
+                        <input type="hidden" name="brand" value="@Model.Brand" />
+                        <input type="hidden" name="model" value="@Model.Model" />
+                        <input type="hidden" name="modelYear" value="@Model.ModelYear" />
+                        <input type="hidden" name="capacity" value="@Model.Capacity" />
+                        <input type="hidden" name="vendorId" value="@Model.VendorId" />
+                        <input type="hidden" name="isActive" value="@Model.IsActive" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tài xế</label>
+                                <select class="form-select" name="driverId">
+                                    <option value="">Chọn tài xế</option>
+                                    @foreach (var driver in Model.Drivers)
+                                    {
+                                        if (Model.DriverNamesById.TryGetValue(driver.ID, out var driverText))
+                                        {
+                                            <option value="@driver.ID">@driverText</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Điểm</label>
+                                <input type="number" min="1" max="10" class="form-control" name="rating" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Loại đánh giá</label>
+                                <input class="form-control" name="evaluationType" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Ngày đánh giá</label>
+                                <input type="datetime-local" class="form-control" name="evaluationDate" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Nội dung</label>
+                                <textarea class="form-control" name="comment" rows="4"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @foreach (var evaluation in busEvaluations)
+    {
+        <div class="modal fade" id="editEvaluationModal-@evaluation.ID" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cập nhật đánh giá - @bus.CHR_BUS_CODE</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" asp-controller="Bus" asp-action="UpdateEvaluation" class="js-post-form">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <input type="hidden" name="id" value="@evaluation.ID" />
+                            <input type="hidden" name="busId" value="@bus.ID" />
+                            <input type="hidden" name="busCode" value="@Model.BusCode" />
+                            <input type="hidden" name="busName" value="@Model.BusName" />
+                            <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                            <input type="hidden" name="category" value="@Model.Category" />
+                            <input type="hidden" name="brand" value="@Model.Brand" />
+                            <input type="hidden" name="model" value="@Model.Model" />
+                            <input type="hidden" name="modelYear" value="@Model.ModelYear" />
+                            <input type="hidden" name="capacity" value="@Model.Capacity" />
+                            <input type="hidden" name="vendorId" value="@Model.VendorId" />
+                            <input type="hidden" name="isActive" value="@Model.IsActive" />
+                            <input type="hidden" name="page" value="@Model.PageNumber" />
+                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Tài xế</label>
+                                    <select class="form-select" name="driverId">
+                                        <option value="">Chọn tài xế</option>
+                                        @foreach (var driver in Model.Drivers)
+                                        {
+                                            if (Model.DriverNamesById.TryGetValue(driver.ID, out var driverText))
+                                            {
+                                                if (evaluation.INT_DRIVER_ID == driver.ID)
+                                                {
+                                                    <option value="@driver.ID" selected>@driverText</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@driver.ID">@driverText</option>
+                                                }
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Điểm</label>
+                                    <input type="number" min="1" max="10" class="form-control" name="rating" value="@evaluation.INT_RATING" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Loại đánh giá</label>
+                                    <input class="form-control" name="evaluationType" value="@evaluation.CHR_EVALUATION_TYPE" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Ngày đánh giá</label>
+                                    <input type="datetime-local" class="form-control" name="evaluationDate" value="@(evaluation.DTM_EVALUATION_DATE?.ToString("yyyy-MM-ddTHH:mm"))" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Nội dung</label>
+                                    <textarea class="form-control" name="comment" rows="4">@evaluation.NVCHR_COMMENT</textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@section Scripts {
+    @if (TempData["BusSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["BusError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            function ensureAntiForgery(form) {
+                if (!form) return;
+                var tokenInForm = form.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenInForm) return;
+
+                var globalToken = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!globalToken) return;
+
+                var cloned = document.createElement('input');
+                cloned.type = 'hidden';
+                cloned.name = '__RequestVerificationToken';
+                cloned.value = globalToken.value;
+                form.appendChild(cloned);
+            }
+
+            function showLoading() {
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
+            }
+
+            function hideLoading() {
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+            }
+
+            document.querySelectorAll('form.js-post-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    ensureAntiForgery(form);
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-search-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-export-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                    setTimeout(function () {
+                        hideLoading();
+                    }, 2500);
+                });
+            });
+
+            document.addEventListener('click', async function (e) {
+                var btn = e.target.closest('.js-action-button');
+                if (!btn) return;
+
+                var formId = btn.getAttribute('data-form-id');
+                if (!formId) return;
+                var form = document.getElementById(formId);
+                if (!form) return;
+
+                if (btn.getAttribute('data-require-selection') === '1') {
+                    var checked = document.querySelectorAll('.js-bus-check:checked');
+                    if (!checked.length) {
+                        if (window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 xe bus.');
+                        return;
+                    }
+                }
+
+                var title = btn.getAttribute('data-confirm-title') || 'Xác nhận';
+                var message = btn.getAttribute('data-confirm-message') || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({ title: title, message: message });
+                }
+
+                if (!ok) return;
+                ensureAntiForgery(form);
+                showLoading();
+                form.requestSubmit();
+            });
+
+            var chkAll = document.getElementById('chkAllBuses');
+            var bulkDeleteBtn = document.getElementById('btnBulkDeleteBuses');
+            var rowChecks = Array.prototype.slice.call(document.querySelectorAll('.js-bus-check'));
+
+            function updateBulkDeleteState() {
+                if (!bulkDeleteBtn) return;
+
+                var checkedCount = document.querySelectorAll('.js-bus-check:checked').length;
+                var hasSelection = checkedCount > 0;
+
+                bulkDeleteBtn.disabled = !hasSelection;
+                bulkDeleteBtn.classList.toggle('d-none', !hasSelection);
+
+                if (chkAll) {
+                    var total = rowChecks.length;
+                    chkAll.checked = total > 0 && checkedCount === total;
+                    chkAll.indeterminate = checkedCount > 0 && checkedCount < total;
+                }
+            }
+
+            if (chkAll) {
+                chkAll.addEventListener('change', function () {
+                    document.querySelectorAll('.js-bus-check').forEach(function (c) {
+                        c.checked = chkAll.checked;
+                    });
+                    updateBulkDeleteState();
+                });
+            }
+
+            rowChecks.forEach(function (c) {
+                c.addEventListener('change', updateBulkDeleteState);
+            });
+
+            async function confirmAction(title, message) {
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({ title: title, message: message });
+                }
+                return ok;
+            }
+
+            function updateEvaluationBulkState(busId) {
+                var checks = document.querySelectorAll('.js-eval-check[data-bus-id="' + busId + '"]');
+                var checked = document.querySelectorAll('.js-eval-check[data-bus-id="' + busId + '"]:checked');
+                var btn = document.querySelector('.js-bulk-delete-eval-btn[data-bus-id="' + busId + '"]');
+                var chkAllEval = document.querySelector('.js-eval-check-all[data-bus-id="' + busId + '"]');
+
+                if (btn) {
+                    btn.classList.toggle('d-none', checked.length === 0);
+                }
+                if (chkAllEval) {
+                    chkAllEval.checked = checks.length > 0 && checked.length === checks.length;
+                    chkAllEval.indeterminate = checked.length > 0 && checked.length < checks.length;
+                }
+            }
+
+            document.querySelectorAll('.js-eval-check-all').forEach(function (chk) {
+                chk.addEventListener('change', function () {
+                    var busId = chk.getAttribute('data-bus-id');
+                    document.querySelectorAll('.js-eval-check[data-bus-id="' + busId + '"]').forEach(function (rowChk) {
+                        rowChk.checked = chk.checked;
+                    });
+                    updateEvaluationBulkState(busId);
+                });
+            });
+
+            document.querySelectorAll('.js-eval-check').forEach(function (chk) {
+                chk.addEventListener('change', function () {
+                    var busId = chk.getAttribute('data-bus-id');
+                    updateEvaluationBulkState(busId);
+                });
+            });
+
+            document.querySelectorAll('.js-bulk-delete-eval-btn').forEach(function (btn) {
+                btn.addEventListener('click', async function () {
+                    var formId = btn.getAttribute('data-form-id');
+                    if (!formId) return;
+                    var form = document.getElementById(formId);
+                    if (!form) return;
+
+                    var selected = form.querySelectorAll('input[name="ids"]:checked');
+                    if (!selected.length) return;
+
+                    var ok = await confirmAction('Xóa nhiều đánh giá', 'Bạn có chắc chắn muốn xóa các đánh giá đã chọn?');
+                    if (!ok) return;
+
+                    ensureAntiForgery(form);
+                    showLoading();
+                    form.requestSubmit();
+                });
+            });
+
+            document.querySelectorAll('.js-delete-eval-one').forEach(function (btn) {
+                btn.addEventListener('click', async function () {
+                    var formId = btn.getAttribute('data-form-id');
+                    if (!formId) return;
+                    var form = document.getElementById(formId);
+                    if (!form) return;
+
+                    var ok = await confirmAction('Xóa đánh giá', 'Bạn có chắc chắn muốn xóa đánh giá này?');
+                    if (!ok) return;
+
+                    ensureAntiForgery(form);
+                    showLoading();
+                    form.requestSubmit();
+                });
+            });
+
+            document.querySelectorAll('.js-bulk-delete-eval-btn').forEach(function (btn) {
+                var busId = btn.getAttribute('data-bus-id');
+                if (busId) {
+                    updateEvaluationBulkState(busId);
+                }
+            });
+
+            updateBulkDeleteState();
+        })();
+    </script>
+}

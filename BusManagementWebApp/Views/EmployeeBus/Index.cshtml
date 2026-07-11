@@ -1,0 +1,998 @@
+﻿@model BusManagement.ViewModels.EmployeeBus.EmployeeBusPageViewModel
+@{
+    ViewData["Title"] = "Danh sách CNV sử dụng xe công ty";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+}
+
+<style>
+    .employeebus-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    .table thead th {
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+</style>
+
+<div class="employeebus-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Danh sách CNV sử dụng xe công ty</h5>
+        <div class="d-flex flex-wrap gap-2">
+            @if (Model.CanManage)
+            {
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEmployeeBusModal">
+                    <i class="fa-solid fa-plus me-1"></i>Thêm mới
+                </button>
+            }
+
+            <form method="get" asp-controller="EmployeeBus" asp-action="Export" class="d-inline js-export-form" data-no-loader>
+                <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                <input type="hidden" name="department" value="@Model.Department" />
+                <input type="hidden" name="phone" value="@Model.Phone" />
+                <input type="hidden" name="city" value="@Model.City" />
+                <input type="hidden" name="ward" value="@Model.Ward" />
+                <input type="hidden" name="busStopId" value="@Model.BusStopId" />
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                </button>
+            </form>
+
+            @if (Model.CanManage)
+            {
+                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importEmployeeBusModal">
+                    <i class="fa-solid fa-file-import me-1"></i>Import Excel
+                </button>
+
+                <button id="btnBulkDeleteEmployees" type="button" class="btn btn-danger js-action-button d-none"
+                        data-form-id="bulkDeleteEmployeeBusForm"
+                        data-confirm-title="Xóa nhiều CNV"
+                        data-confirm-message="Bạn có chắc chắn muốn xóa các CNV đã chọn?"
+                        data-require-selection="1"
+                        disabled>
+                    <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+                </button>
+            }
+        </div>
+    </div>
+
+    <form method="get" asp-controller="EmployeeBus" asp-action="Index" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+        <div class="col-12 col-md-6 col-lg-2">
+            <input class="form-control" name="employeeCode" value="@Model.EmployeeCode" placeholder="Mã NV" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <input class="form-control" name="employeeName" value="@Model.EmployeeName" placeholder="Họ và tên" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select class="w-100 selectpicker" data-live-search="true" data-size="8" name="department" title="Tất cả phòng ban">
+                <option value="">Tất cả phòng ban</option>
+                @foreach (var section in Model.Sections)
+                {
+                    var secCode = section.CHR_CODE?.Trim();
+                    var secName = section.CHR_NAME ?? section.CHR_SECTION_NAME ?? secCode;
+                    if (string.IsNullOrWhiteSpace(secCode))
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(Model.Department, secCode, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="@secCode" selected>@secName</option>
+                    }
+                    else
+                    {
+                        <option value="@secCode">@secName</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <input class="form-control" name="phone" value="@Model.Phone" placeholder="SĐT" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select id="searchCitySelect" class="form-select js-city-select" name="city" data-allow-empty="true">
+                <option value="">Tất cả tỉnh/thành</option>
+                @foreach (var cityOption in Model.Cities)
+                {
+                    if (!string.IsNullOrWhiteSpace(cityOption.NVCHR_CITY_NAME))
+                    {
+                        var cityName = cityOption.NVCHR_CITY_NAME.Trim();
+                        if (string.Equals(Model.City, cityName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@cityName" data-city-id="@cityOption.ID" selected>@cityName</option>
+                        }
+                        else
+                        {
+                            <option value="@cityName" data-city-id="@cityOption.ID">@cityName</option>
+                        }
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select id="searchWardSelect" class="form-select js-ward-select" name="ward" data-allow-empty="true">
+                <option value="">Tất cả xã/phường</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select class="w-100 selectpicker" data-live-search="true" data-size="8" name="busStopId" title="Tất cả điểm đón trả">
+                <option value="">Tất cả điểm đón trả</option>
+                @foreach (var cityGroup in Model.BusStops.GroupBy(x => string.IsNullOrWhiteSpace(x.NVCHR_STOP_CITY) ? "Khác" : x.NVCHR_STOP_CITY).OrderBy(x => x.Key))
+                {
+                    <optgroup label="@cityGroup.Key">
+                        @foreach (var busStop in cityGroup.OrderBy(x => x.NVCHR_STOP_WARD).ThenBy(x => x.NVCHR_STOP_NAME))
+                        {
+                            if (Model.BusStopId == busStop.ID)
+                            {
+                                <option value="@busStop.ID" selected>@Model.GetBusStopDisplayName(busStop.ID)</option>
+                            }
+                            else
+                            {
+                                <option value="@busStop.ID">@Model.GetBusStopDisplayName(busStop.ID)</option>
+                            }
+                        }
+                    </optgroup>
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-1 d-grid">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+    </form>
+
+    @if (Model.CanManage)
+    {
+        <form id="bulkDeleteEmployeeBusForm" method="post" asp-controller="EmployeeBus" asp-action="DeleteMany" class="js-confirm js-require-selection"
+              data-confirm-title="Xóa nhiều CNV"
+              data-confirm-message="Bạn có chắc chắn muốn xóa các CNV đã chọn?">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+            <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+            <input type="hidden" name="department" value="@Model.Department" />
+            <input type="hidden" name="phone" value="@Model.Phone" />
+            <input type="hidden" name="city" value="@Model.City" />
+            <input type="hidden" name="ward" value="@Model.Ward" />
+            <input type="hidden" name="busStopId" value="@Model.BusStopId" />
+            <input type="hidden" name="page" value="@Model.PageNumber" />
+            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        </form>
+    }
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    @if (Model.CanManage)
+                    {
+                        <th style="width:40px;"><input id="chkAllEmployeeBus" type="checkbox" class="form-check-input" /></th>
+                    }
+                    <th>STT</th>
+                    <th>Mã NV</th>
+                    <th>Họ và tên</th>
+                    <th>Phòng ban</th>
+                    <th>SĐT</th>
+                    <th>Tỉnh</th>
+                    <th>Xã</th>
+                    <th>Địa chỉ chi tiết</th>
+                    <th>Chiều đến(mã xe)</th>
+                    <th>Chiều về(mã xe)</th>
+                    <th>Điểm đón trả</th>
+                    @if (Model.CanManage)
+                    {
+                        <th class="text-end">Thao tác</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Employees.Any())
+                {
+                    <tr>
+                        <td colspan="@(Model.CanManage ? 13 : 12)" class="text-center text-muted py-4">Không có dữ liệu CNV.</td>
+                    </tr>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.Employees.Count; i++)
+                    {
+                        var employee = Model.Employees[i];
+                        <tr>
+                            @if (Model.CanManage)
+                            {
+                                <td>
+                                    <input type="checkbox" class="form-check-input js-employee-check" name="ids" value="@employee.ID" form="bulkDeleteEmployeeBusForm" />
+                                </td>
+                            }
+                            <td>@(startIndex + i)</td>
+                            <td>@employee.CHR_EMPLOYEE_ID</td>
+                            <td>@employee.NVCHR_EMPLOYEE_NAME</td>
+                            <td title="@employee.CHR_CODE_SEC">@Model.GetDepartmentName(employee.CHR_CODE_SEC)</td>
+                            <td>@employee.CHR_PHONE</td>
+                            <td>@employee.NVCHR_CITY</td>
+                            <td>@employee.NVCHR_WARD</td>
+                            <td>@employee.NVCHR_ADDRESS_DETAIL</td>
+                            <td>-</td>
+                            <td>-</td>
+                            <td>@Model.GetBusStopDisplayName(employee.INT_BUS_STOP_ID)</td>
+                            @if (Model.CanManage)
+                            {
+                                <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-primary ms-1 mb-1" data-bs-toggle="modal" data-bs-target="#editEmployeeBusModal-@employee.ID">
+                                            <i class="fa-solid fa-pen"></i>
+                                        </button>
+                                        <form id="deleteEmployeeBusForm-@employee.ID" method="post" asp-controller="EmployeeBus" asp-action="Delete" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@employee.ID" />
+                                            <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                                            <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                                            <input type="hidden" name="department" value="@Model.Department" />
+                                            <input type="hidden" name="phone" value="@Model.Phone" />
+                                            <input type="hidden" name="city" value="@Model.City" />
+                                            <input type="hidden" name="ward" value="@Model.Ward" />
+                                            <input type="hidden" name="busStopId" value="@Model.BusStopId" />
+                                            <input type="hidden" name="page" value="@Model.PageNumber" />
+                                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                            <button class="btn btn-sm btn-danger js-action-button ms-1 mb-1" type="button"
+                                                    data-form-id="deleteEmployeeBusForm-@employee.ID"
+                                                    data-confirm-title="Xóa CNV"
+                                                    data-confirm-message="Bạn có chắc chắn muốn xóa CNV này?">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </form>
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Index",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["employeeCode"] = Model.EmployeeCode,
+            ["employeeName"] = Model.EmployeeName,
+            ["department"] = Model.Department,
+            ["phone"] = Model.Phone,
+            ["city"] = Model.City,
+            ["ward"] = Model.Ward,
+            ["busStopId"] = Model.BusStopId?.ToString()
+        }
+        })
+</div>
+
+@if (Model.CanManage)
+{
+    <div class="modal fade dragable-modal" id="createEmployeeBusModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm CNV sử dụng xe công ty</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="EmployeeBus" asp-action="Create" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="SearchEmployeeCode" value="@Model.EmployeeCode" />
+                        <input type="hidden" name="SearchEmployeeName" value="@Model.EmployeeName" />
+                        <input type="hidden" name="SearchDepartment" value="@Model.Department" />
+                        <input type="hidden" name="SearchPhone" value="@Model.Phone" />
+                        <input type="hidden" name="SearchCity" value="@Model.City" />
+                        <input type="hidden" name="SearchWard" value="@Model.Ward" />
+                        <input type="hidden" name="SearchBusStopId" value="@Model.BusStopId" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mã NV</label>
+                                <input class="form-control js-employee-code-autofill" name="EmployeeCode" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Họ và tên</label>
+                                <input class="form-control" name="EmployeeName" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Phòng ban</label>
+                                <select class="w-100 selectpicker" data-live-search="true" data-size="8" name="Department" title="-- Chọn phòng ban --">
+                                    <option value="">-- Chọn phòng ban --</option>
+                                    @foreach (var section in Model.Sections)
+                                    {
+                                        var secCode = section.CHR_CODE?.Trim();
+                                        var secName = section.CHR_NAME ?? section.CHR_SECTION_NAME ?? secCode;
+                                        if (string.IsNullOrWhiteSpace(secCode))
+                                        {
+                                            continue;
+                                        }
+
+                                        <option value="@secCode">@secName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">SĐT</label>
+                                <input class="form-control" name="Phone" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tỉnh</label>
+                                <select class="form-select js-city-select" name="City">
+                                    <option value="">-- Chọn tỉnh/thành --</option>
+                                    @foreach (var cityOption in Model.Cities)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(cityOption.NVCHR_CITY_NAME))
+                                        {
+                                            var cityName = cityOption.NVCHR_CITY_NAME.Trim();
+                                            <option value="@cityName" data-city-id="@cityOption.ID">@cityName</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Xã</label>
+                                <select class="form-select js-ward-select" name="Ward">
+                                    <option value="">-- Chọn xã/phường --</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-12">
+                                <label class="form-label">Địa chỉ chi tiết</label>
+                                <input class="form-control" name="AddressDetail" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Điểm đón trả</label>
+                                <select class="selectpicker js-busstop-select-autofill" data-live-search="true" data-size="8" name="BusStopId" title="-- Chọn điểm --">
+                                    <option value="">-- Chọn điểm --</option>
+                                    @foreach (var cityGroup in Model.BusStops.GroupBy(x => string.IsNullOrWhiteSpace(x.NVCHR_STOP_CITY) ? "Khác" : x.NVCHR_STOP_CITY).OrderBy(x => x.Key))
+                                    {
+                                        <optgroup label="@cityGroup.Key">
+                                            @foreach (var busStop in cityGroup.OrderBy(x => x.NVCHR_STOP_WARD).ThenBy(x => x.NVCHR_STOP_NAME))
+                                            {
+                                                <option value="@busStop.ID"
+                                                        data-pickup-address="@busStop.NVCHR_STOP_NAME"
+                                                        data-return-address="@busStop.NVCHR_STOP_NAME">@Model.GetBusStopDisplayName(busStop.ID)</option>
+                                            }
+                                        </optgroup>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @foreach (var employee in Model.Employees)
+    {
+        <div class="modal fade dragable-modal" id="editEmployeeBusModal-@employee.ID" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cập nhật CNV - @employee.NVCHR_EMPLOYEE_NAME</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" asp-controller="EmployeeBus" asp-action="Update" class="js-post-form">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <input type="hidden" name="ID" value="@employee.ID" />
+                            <input type="hidden" name="SearchEmployeeCode" value="@Model.EmployeeCode" />
+                            <input type="hidden" name="SearchEmployeeName" value="@Model.EmployeeName" />
+                            <input type="hidden" name="SearchDepartment" value="@Model.Department" />
+                            <input type="hidden" name="SearchPhone" value="@Model.Phone" />
+                            <input type="hidden" name="SearchCity" value="@Model.City" />
+                            <input type="hidden" name="SearchWard" value="@Model.Ward" />
+                            <input type="hidden" name="SearchBusStopId" value="@Model.BusStopId" />
+                            <input type="hidden" name="Page" value="@Model.PageNumber" />
+                            <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Mã NV</label>
+                                    <input class="form-control js-employee-code-autofill" name="EmployeeCode" value="@employee.CHR_EMPLOYEE_ID" required />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Họ và tên</label>
+                                    <input class="form-control" name="EmployeeName" value="@employee.NVCHR_EMPLOYEE_NAME" required />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Phòng ban</label>
+                                    <select class="w-100 selectpicker" data-live-search="true" data-size="8" name="Department" title="-- Chọn phòng ban --">
+                                        <option value="">-- Chọn phòng ban --</option>
+                                        @foreach (var section in Model.Sections)
+                                        {
+                                            var secCode = section.CHR_CODE?.Trim();
+                                            var secName = section.CHR_NAME ?? section.CHR_SECTION_NAME ?? secCode;
+                                            if (string.IsNullOrWhiteSpace(secCode))
+                                            {
+                                                continue;
+                                            }
+
+                                            if (string.Equals(employee.CHR_CODE_SEC, secCode, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <option value="@secCode" selected>@secName</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@secCode">@secName</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">SĐT</label>
+                                    <input class="form-control" name="Phone" value="@employee.CHR_PHONE" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Tỉnh</label>
+                                    <select class="form-select js-city-select" name="City">
+                                        <option value="">-- Chọn tỉnh/thành --</option>
+                                        @foreach (var cityOption in Model.Cities)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(cityOption.NVCHR_CITY_NAME))
+                                            {
+                                                var cityName = cityOption.NVCHR_CITY_NAME.Trim();
+                                                if (string.Equals(employee.NVCHR_CITY, cityName, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <option value="@cityName" data-city-id="@cityOption.ID" selected>@cityName</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@cityName" data-city-id="@cityOption.ID">@cityName</option>
+                                                }
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Xã</label>
+                                    <select class="form-select js-ward-select" name="Ward" data-selected-ward="@employee.NVCHR_WARD">
+                                        <option value="">-- Chọn xã/phường --</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-12">
+                                    <label class="form-label">Địa chỉ chi tiết</label>
+                                    <input class="form-control" name="AddressDetail" value="@employee.NVCHR_ADDRESS_DETAIL" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Điểm đón trả</label>
+                                    <select class="selectpicker js-busstop-select-autofill" data-live-search="true" data-size="8" name="BusStopId" title="-- Chọn điểm --">
+                                        <option value="">-- Chọn điểm --</option>
+                                        @foreach (var cityGroup in Model.BusStops.GroupBy(x => string.IsNullOrWhiteSpace(x.NVCHR_STOP_CITY) ? "Khác" : x.NVCHR_STOP_CITY).OrderBy(x => x.Key))
+                                        {
+                                            <optgroup label="@cityGroup.Key">
+                                                @foreach (var busStop in cityGroup.OrderBy(x => x.NVCHR_STOP_WARD).ThenBy(x => x.NVCHR_STOP_NAME))
+                                                {
+                                                    if (employee.INT_BUS_STOP_ID == busStop.ID)
+                                                    {
+                                                        <option value="@busStop.ID"
+                                                                selected
+                                                                data-pickup-address="@busStop.NVCHR_STOP_NAME"
+                                                                data-return-address="@busStop.NVCHR_STOP_NAME">@Model.GetBusStopDisplayName(busStop.ID)</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@busStop.ID"
+                                                                data-pickup-address="@busStop.NVCHR_STOP_NAME"
+                                                                data-return-address="@busStop.NVCHR_STOP_NAME">@Model.GetBusStopDisplayName(busStop.ID)</option>
+                                                    }
+                                                }
+                                            </optgroup>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="modal fade dragable-modal" id="importEmployeeBusModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Import CNV sử dụng xe công ty</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="EmployeeBus" asp-action="Import" enctype="multipart/form-data" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                        <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                        <input type="hidden" name="department" value="@Model.Department" />
+                        <input type="hidden" name="phone" value="@Model.Phone" />
+                        <input type="hidden" name="city" value="@Model.City" />
+                        <input type="hidden" name="ward" value="@Model.Ward" />
+                        <input type="hidden" name="busStopId" value="@Model.BusStopId" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                        <label class="form-label">Chọn file Excel/CSV</label>
+                        <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                        <div class="small text-muted mt-2">
+                            Định dạng: <code>EmployeeCode,EmployeeName,DepartmentCode,Phone,City,Ward,AddressDetail,BusStopId,IsActive</code>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-success">Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    @if (TempData["EmployeeBusSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["EmployeeBusError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            var cityData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.Cities
+                    .Where(x => !string.IsNullOrWhiteSpace(x.NVCHR_CITY_NAME))
+                    .Select(x => new
+                    {
+                        id = x.ID,
+                        name = x.NVCHR_CITY_NAME!.Trim()
+                    })
+                    .ToList()));
+
+            var wardData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                Model.Wards
+                    .Where(x => !string.IsNullOrWhiteSpace(x.NVCHR_WARD_NAME))
+                    .Select(x => new
+                    {
+                        cityId = x.INT_CITY_ID,
+                        name = x.NVCHR_WARD_NAME!.Trim()
+                    })
+                    .ToList()));
+
+            var selectedSearchWard = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Ward));
+
+            function ensureAntiForgery(form) {
+                if (!form) return;
+                var tokenInForm = form.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenInForm) return;
+
+                var globalToken = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!globalToken) return;
+
+                var cloned = document.createElement('input');
+                cloned.type = 'hidden';
+                cloned.name = '__RequestVerificationToken';
+                cloned.value = globalToken.value;
+                form.appendChild(cloned);
+            }
+
+            function showLoading() {
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
+            }
+
+            function hideLoading() {
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+            }
+
+            function normalizeText(value) {
+                return (value || '').toString().trim().toLowerCase();
+            }
+
+            function resolveCityIdByName(cityName) {
+                var normalized = normalizeText(cityName);
+                if (!normalized) return null;
+
+                for (var i = 0; i < cityData.length; i++) {
+                    if (normalizeText(cityData[i].name) === normalized) {
+                        return cityData[i].id;
+                    }
+                }
+
+                return null;
+            }
+
+            function setSelectValue(selectEl, value, allowFallbackOption) {
+                if (!selectEl) return;
+
+                var normalizedValue = normalizeText(value);
+                if (!normalizedValue) {
+                    selectEl.value = '';
+                    return;
+                }
+
+                var matchedOption = Array.prototype.find.call(selectEl.options, function (opt) {
+                    return normalizeText(opt.value) === normalizedValue;
+                });
+
+                if (!matchedOption && allowFallbackOption) {
+                    var fallback = document.createElement('option');
+                    fallback.value = value;
+                    fallback.text = value;
+                    selectEl.appendChild(fallback);
+                    matchedOption = fallback;
+                }
+
+                if (matchedOption) {
+                    selectEl.value = matchedOption.value;
+                }
+
+                if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.selectpicker === 'function' && selectEl.classList.contains('selectpicker')) {
+                    var $select = window.jQuery(selectEl);
+                    $select.selectpicker('render');
+                    $select.selectpicker('refresh');
+                }
+            }
+
+            function buildWardOptions(wardSelect, cityName, selectedWardName) {
+                if (!wardSelect) return;
+
+                var cityId = resolveCityIdByName(cityName);
+                var normalizedSelectedWard = normalizeText(selectedWardName);
+                var allowEmpty = wardSelect.dataset.allowEmpty === 'true';
+
+                while (wardSelect.options.length > 0) {
+                    wardSelect.remove(0);
+                }
+
+                var defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.text = allowEmpty ? 'Tất cả xã/phường' : '-- Chọn xã/phường --';
+                wardSelect.appendChild(defaultOption);
+
+                var availableWards = wardData.filter(function (x) {
+                    if (!x || !x.name) return false;
+                    return cityId != null && x.cityId === cityId;
+                });
+
+                var uniqueWardMap = new Map();
+                availableWards.forEach(function (item) {
+                    var key = normalizeText(item.name);
+                    if (!uniqueWardMap.has(key)) {
+                        uniqueWardMap.set(key, item.name);
+                    }
+                });
+
+                Array.from(uniqueWardMap.values())
+                    .sort(function (a, b) { return a.localeCompare(b); })
+                    .forEach(function (wardName) {
+                        var option = document.createElement('option');
+                        option.value = wardName;
+                        option.text = wardName;
+                        if (normalizeText(wardName) === normalizedSelectedWard) {
+                            option.selected = true;
+                        }
+                        wardSelect.appendChild(option);
+                    });
+
+                if (!wardSelect.value && normalizedSelectedWard) {
+                    var fallback = document.createElement('option');
+                    fallback.value = selectedWardName;
+                    fallback.text = selectedWardName;
+                    fallback.selected = true;
+                    wardSelect.appendChild(fallback);
+                }
+            }
+
+            function wireCityWardSelect(form) {
+                if (!form) return;
+
+                var citySelect = form.querySelector('.js-city-select');
+                var wardSelect = form.querySelector('.js-ward-select');
+                if (!citySelect || !wardSelect) return;
+
+                var initialSelectedWard = wardSelect.dataset.selectedWard || '';
+                if (wardSelect.id === 'searchWardSelect') {
+                    initialSelectedWard = selectedSearchWard || '';
+                }
+
+                buildWardOptions(wardSelect, citySelect.value, initialSelectedWard);
+
+                citySelect.addEventListener('change', function () {
+                    buildWardOptions(wardSelect, citySelect.value, '');
+                });
+            }
+
+            document.querySelectorAll('form').forEach(function (form) {
+                wireCityWardSelect(form);
+            });
+
+            document.querySelectorAll('form.js-post-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    ensureAntiForgery(form);
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-search-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-export-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                    setTimeout(function () {
+                        hideLoading();
+                    }, 2500);
+                });
+            });
+
+            // function fillAddressByBusStop(selectElement) {
+            //     if (!selectElement) return;
+            //     var selected = selectElement.options[selectElement.selectedIndex];
+            //     if (!selected) return;
+
+            //     var form = selectElement.closest('form');
+            //     if (!form) return;
+
+            //     var pickupInput = form.querySelector('input[name="PickupAddressDetail"]');
+            //     var returnInput = form.querySelector('input[name="ReturnAddressDetail"]');
+
+            //     if (pickupInput) {
+            //         pickupInput.value = selected.getAttribute('data-pickup-address') || '';
+            //     }
+            //     if (returnInput) {
+            //         returnInput.value = selected.getAttribute('data-return-address') || '';
+            //     }
+            // }
+
+            // document.querySelectorAll('.js-busstop-select-autofill').forEach(function (select) {
+            //     select.addEventListener('change', function () {
+            //         fillAddressByBusStop(select);
+            //     });
+            // });
+
+            // document.querySelectorAll('.js-busstop-select-autofill').forEach(function (select) {
+            //     if (select.value) {
+            //         fillAddressByBusStop(select);
+            //     }
+            // });
+
+            async function resolveEmployeeInfo(form) {
+                if (!form) return;
+                var employeeCodeInput = form.querySelector('input[name="EmployeeCode"]');
+                if (!employeeCodeInput) return;
+
+                var employeeCode = (employeeCodeInput.value || '').trim();
+                if (!employeeCode) return;
+
+                console.group('[EmployeeBus][AutoFill] ResolveEmployeeInfo');
+                console.log('employeeCode:', employeeCode);
+
+                try {
+                    var url = '@Url.Action("ResolveEmployeeByCode", "EmployeeBus")' + '?employeeCode=' + encodeURIComponent(employeeCode);
+                    console.log('requestUrl:', url);
+                    var response = await fetch(url, { method: 'GET' });
+                    console.log('response.ok:', response.ok, 'status:', response.status);
+                    if (!response.ok) {
+                        console.warn('Request failed');
+                        console.groupEnd();
+                        return;
+                    }
+
+                    var result = await response.json();
+                    console.log('responseData:', result);
+                    if (!result || !result.success || !result.data) {
+                        console.warn('Invalid response payload');
+                        console.groupEnd();
+                        return;
+                    }
+
+                    var employeeNameInput = form.querySelector('input[name="EmployeeName"]');
+                    var departmentInput = form.querySelector('[name="Department"]');
+                    var phoneInput = form.querySelector('input[name="Phone"]');
+                    var cityInput = form.querySelector('input[name="City"]');
+                    var citySelect = form.querySelector('select[name="City"]');
+                    var wardInput = form.querySelector('input[name="Ward"]');
+                    var wardSelect = form.querySelector('select[name="Ward"]');
+                    var addressDetailInput = form.querySelector('input[name="AddressDetail"]');
+
+                    console.log('inputsFound:', {
+                        employeeNameInput: !!employeeNameInput,
+                        departmentInput: !!departmentInput,
+                        phoneInput: !!phoneInput,
+                        cityInput: !!cityInput,
+                        citySelect: !!citySelect,
+                        wardInput: !!wardInput,
+                        wardSelect: !!wardSelect,
+                        addressDetailInput: !!addressDetailInput
+                    });
+
+                    if (employeeNameInput) employeeNameInput.value = result.data.employeeName || '';
+                    if (departmentInput) {
+                        var departmentCode = (result.data.departmentCode || '').trim();
+                        console.log('departmentCodeFromApi:', departmentCode);
+
+                        if (departmentCode && departmentInput.tagName === 'SELECT') {
+                            console.log('departmentSelect options count:', departmentInput.options.length);
+                            var exists = Array.prototype.some.call(departmentInput.options, function (opt) {
+                                return (opt.value || '').trim().toLowerCase() === departmentCode.trim().toLowerCase();
+                            });
+
+                            console.log('departmentCode exists in options:', exists);
+
+                            if (!exists) {
+                                var fallbackOption = document.createElement('option');
+                                fallbackOption.value = departmentCode;
+                                fallbackOption.text = departmentCode;
+                                departmentInput.appendChild(fallbackOption);
+                                console.log('fallback option appended:', departmentCode);
+                            }
+                        }
+
+                        if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.selectpicker === 'function' && departmentInput.tagName === 'SELECT') {
+                            var $department = window.jQuery(departmentInput);
+                            console.log('selectpicker before set value:', $department.val(), 'initialized:', !!$department.data('selectpicker'));
+
+                            departmentInput.value = departmentCode;
+                            if ($department.data('selectpicker')) {
+                                $department.selectpicker('val', departmentCode);
+                                $department.selectpicker('render');
+                                $department.selectpicker('refresh');
+                                $department.trigger('changed.bs.select');
+                            }
+
+                            var selectedAfter = ($department.val() || '').toString();
+                            console.log('selectpicker after set value:', selectedAfter);
+
+                            if (!selectedAfter && departmentCode) {
+                                departmentInput.value = departmentCode;
+                                $department.selectpicker('refresh');
+                                console.log('selectpicker fallback native assign:', departmentInput.value);
+                            }
+                        } else {
+                            departmentInput.value = departmentCode;
+                            console.log('native select assigned value:', departmentInput.value);
+                        }
+                    }
+                    if (phoneInput) phoneInput.value = result.data.phone || '';
+
+                    if (citySelect) {
+                        setSelectValue(citySelect, result.data.city || '', true);
+                    } else if (cityInput) {
+                        cityInput.value = result.data.city || '';
+                    }
+
+                    if (wardSelect) {
+                        var cityValueForWard = citySelect ? citySelect.value : (cityInput ? cityInput.value : '');
+                        buildWardOptions(wardSelect, cityValueForWard, result.data.ward || '');
+                    } else if (wardInput) {
+                        wardInput.value = result.data.ward || '';
+                    }
+
+                    if (addressDetailInput) addressDetailInput.value = result.data.addressDetail || '';
+                    console.log('final values:', {
+                        employeeName: employeeNameInput ? employeeNameInput.value : null,
+                        department: departmentInput ? departmentInput.value : null,
+                        phone: phoneInput ? phoneInput.value : null,
+                        city: citySelect ? citySelect.value : (cityInput ? cityInput.value : null),
+                        ward: wardSelect ? wardSelect.value : (wardInput ? wardInput.value : null),
+                        addressDetail: addressDetailInput ? addressDetailInput.value : null
+                    });
+                } catch (err) {
+                    console.error('[EmployeeBus][AutoFill] Error:', err);
+                } finally {
+                    console.groupEnd();
+                }
+            }
+
+            document.addEventListener('blur', function (e) {
+                var input = e.target.closest('.js-employee-code-autofill');
+                if (!input) return;
+                var form = input.closest('form');
+                if (!form) return;
+                resolveEmployeeInfo(form);
+            }, true);
+
+            document.addEventListener('keydown', function (e) {
+                var input = e.target.closest('.js-employee-code-autofill');
+                if (!input) return;
+                if (e.key !== 'Enter') return;
+                var form = input.closest('form');
+                if (!form) return;
+                e.preventDefault();
+                resolveEmployeeInfo(form);
+            });
+
+            document.addEventListener('click', async function (e) {
+                var btn = e.target.closest('.js-action-button');
+                if (!btn) return;
+
+                var formId = btn.getAttribute('data-form-id');
+                if (!formId) return;
+                var form = document.getElementById(formId);
+                if (!form) return;
+
+                if (btn.getAttribute('data-require-selection') === '1') {
+                    var checked = document.querySelectorAll('.js-employee-check:checked');
+                    if (!checked.length) {
+                        if (window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 CNV.');
+                        return;
+                    }
+                }
+
+                var title = btn.getAttribute('data-confirm-title') || 'Xác nhận';
+                var message = btn.getAttribute('data-confirm-message') || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({ title: title, message: message });
+                }
+
+                if (!ok) return;
+                ensureAntiForgery(form);
+                showLoading();
+                form.requestSubmit();
+            });
+
+            var chkAll = document.getElementById('chkAllEmployeeBus');
+            var bulkDeleteBtn = document.getElementById('btnBulkDeleteEmployees');
+            var rowChecks = Array.prototype.slice.call(document.querySelectorAll('.js-employee-check'));
+
+            function updateBulkDeleteState() {
+                if (!bulkDeleteBtn) return;
+
+                var checkedCount = document.querySelectorAll('.js-employee-check:checked').length;
+                var hasSelection = checkedCount > 0;
+
+                bulkDeleteBtn.disabled = !hasSelection;
+                bulkDeleteBtn.classList.toggle('d-none', !hasSelection);
+
+                if (chkAll) {
+                    var total = rowChecks.length;
+                    chkAll.checked = total > 0 && checkedCount === total;
+                    chkAll.indeterminate = checkedCount > 0 && checkedCount < total;
+                }
+            }
+
+            if (chkAll) {
+                chkAll.addEventListener('change', function () {
+                    document.querySelectorAll('.js-employee-check').forEach(function (c) {
+                        c.checked = chkAll.checked;
+                    });
+                    updateBulkDeleteState();
+                });
+            }
+
+            rowChecks.forEach(function (c) {
+                c.addEventListener('change', updateBulkDeleteState);
+            });
+
+            updateBulkDeleteState();
+        })();
+    </script>
+}

@@ -1,0 +1,143 @@
+﻿@model BusManagement.ViewModels.BusRequest.BusRequestApprovalHistoryPageViewModel
+
+<style>
+    .history-summary .summary-item { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; height:100%; }
+    .history-summary .label { font-size:.78rem; color:#64748b; text-transform:uppercase; font-weight:700; }
+    .history-summary .value { font-weight:600; color:#0f172a; }
+    .workflow-grid { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    .workflow-item { display:flex; align-items:center; gap:10px; }
+    .workflow-arrow { color:#64748b; font-size:1.1rem; }
+    .workflow-arrow-back { color:#dc2626; font-size:1.1rem; }
+    .workflow-step { border-radius: 12px; border: 1px solid #cbd5e1; padding: 12px; }
+    .workflow-step-pending { background: #f3f4f6; border-color: #9ca3af; color: #374151; }
+    .workflow-step-progress { background: #dbeafe; border-color: #2563eb; color: #1d4ed8; }
+    .workflow-step-done { background: #dcfce7; border-color: #16a34a; color: #166534; }
+    .workflow-step-reject { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+</style>
+
+<div class="history-card p-2 p-md-3">
+    <div class="history-summary mb-3">
+        <div class="row g-2">
+            <div class="col-md-3"><div class="summary-item"><div class="label">Mã NV</div><div class="value">@(Model.EmployeeCode ?? "-")</div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Họ tên</div><div class="value">@(Model.EmployeeName ?? "-")</div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Phòng ban</div><div class="value">@(Model.DepartmentName ?? "-")</div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Trạng thái</div><div class="value"><span class="badge @Model.StatusBadgeClass">@Model.StatusText</span></div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Loại đơn</div><div class="value">@(Model.RequestTypeName ?? "-")</div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Chức vụ</div><div class="value">@(Model.Position ?? "-")</div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Địa chỉ</div><div class="value">@(Model.Address ?? "-")</div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Ngày sử dụng/hủy</div><div class="value">@(Model.UseOrCancelDate?.ToString("dd/MM/yyyy") ?? "-")</div></div></div>
+            <div class="col-md-6"><div class="summary-item"><div class="label">Tuyến xe</div><div class="value">@(Model.RouteDisplay ?? "-")</div></div></div>
+            <div class="col-md-6"><div class="summary-item"><div class="label">Điểm đón</div><div class="value">@(Model.BusStopDisplay ?? "-")</div></div></div>
+            <div class="col-12"><div class="summary-item"><div class="label">Ghi chú</div><div class="value">@(Model.Note ?? "-")</div></div></div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <h6 class="mb-2">Lưu trình phê duyệt</h6>
+        <div class="workflow-grid">
+            @for (var i = 0; i < Model.Steps.Count; i++)
+            {
+                var step = Model.Steps[i];
+                var isRejectStep = (step.CssClass ?? string.Empty).Contains("reject", StringComparison.OrdinalIgnoreCase);
+                <div class="workflow-item">
+                    <div class="workflow-step @step.CssClass">
+                        <div class="fw-bold mb-1">@step.StepName</div>
+                        <div class="mb-1">@step.StateText</div>
+                        @if (!string.IsNullOrWhiteSpace(step.Actor))
+                        {
+                            <div><small>Người xử lý: @step.Actor</small></div>
+                        }
+                        @if (step.ActionTime.HasValue)
+                        {
+                            <div><small>Thời gian: @step.ActionTime.Value.ToString("dd/MM/yyyy HH:mm:ss")</small></div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(step.Reason))
+                        {
+                            <div class="fw-semibold">Lý do từ chối: @step.Reason</div>
+                        }
+                    </div>
+                    @if (i < Model.Steps.Count - 1)
+                    {
+                        if (isRejectStep)
+                        {
+                            <span class="workflow-arrow-back" title="Trả về bước trước"><i class="fa-solid fa-rotate-left"></i></span>
+                        }
+                        else
+                        {
+                            <span class="workflow-arrow" title="Chuyển bước tiếp theo"><i class="fa-solid fa-arrow-right"></i></span>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div>
+        <h6 class="mb-2">Chi tiết lịch sử xử lý</h6>
+        <div class="mb-2">
+            <input type="text" class="form-control form-control-sm" id="historySearchBus-@Model.RequestId" placeholder="Tìm nhanh trong lịch sử..." />
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle" id="historyTableBus-@Model.RequestId">
+                <thead class="table-light">
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Hành động</th>
+                        <th>Người xử lý</th>
+                        <th>Kết quả</th>
+                        <th>Lý do từ chối</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Histories.Any())
+                    {
+                        <tr><td colspan="5" class="text-center text-muted">Chưa có dữ liệu lịch sử.</td></tr>
+                    }
+                    else
+                    {
+                        foreach (var h in Model.Histories)
+                        {
+                            <tr>
+                                <td>@h.ActionTime?.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                                <td>@h.Action</td>
+                                <td>@h.Actor</td>
+                                <td>
+                                    @if (h.Result == true)
+                                    {
+                                        <span class="badge bg-success">Đồng ý</span>
+                                    }
+                                    else if (h.Result == false)
+                                    {
+                                        <span class="badge bg-danger">Từ chối</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">-</span>
+                                    }
+                                </td>
+                                <td>@h.Reason</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var input = document.getElementById('historySearchBus-@Model.RequestId');
+        var table = document.getElementById('historyTableBus-@Model.RequestId');
+        if (!input || !table) return;
+
+        var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr'));
+        input.addEventListener('input', function () {
+            var keyword = (input.value || '').toLowerCase().trim();
+            rows.forEach(function (row) {
+                var text = (row.textContent || '').toLowerCase();
+                row.style.display = !keyword || text.indexOf(keyword) >= 0 ? '' : 'none';
+            });
+        });
+    })();
+</script>

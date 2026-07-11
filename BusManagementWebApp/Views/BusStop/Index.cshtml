@@ -1,0 +1,698 @@
+﻿@model BusManagement.ViewModels.BusStop.BusStopPageViewModel
+@{
+    ViewData["Title"] = "Quản lý điểm đón trả CNV";
+    var canManage = (ViewBag.CanManage as bool?) == true;
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+    var emptyColspan = canManage ? 13 : 11;
+}
+
+<style>
+    .busstop-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    .table thead th {
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+</style>
+
+<div class="busstop-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Danh sách điểm đón trả CNV</h5>
+        <div class="d-flex flex-wrap gap-2">
+            @if (canManage)
+            {
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createBusStopModal">
+                    <i class="fa-solid fa-plus me-1"></i>Thêm mới
+                </button>
+            }
+
+            <form method="get" asp-controller="BusStop" asp-action="Export" class="d-inline js-export-form" data-no-loader>
+                <input type="hidden" name="city" value="@Model.City" />
+                <input type="hidden" name="ward" value="@Model.Ward" />
+                <input type="hidden" name="stopName" value="@Model.StopName" />
+                <input type="hidden" name="isActive" value="@Model.IsActive" />
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                </button>
+            </form>
+
+            @if (canManage)
+            {
+                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importBusStopModal">
+                    <i class="fa-solid fa-file-import me-1"></i>Import Excel
+                </button>
+
+                <button id="btnBulkDeleteBusStops" type="button" class="btn btn-danger js-action-button d-none"
+                        data-form-id="bulkDeleteBusStopForm"
+                        data-confirm-title="Xóa nhiều điểm đón trả"
+                        data-confirm-message="Bạn có chắc chắn muốn xóa các điểm đón trả đã chọn?"
+                        data-require-selection="1"
+                        disabled>
+                    <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+                </button>
+            }
+        </div>
+    </div>
+
+    <form method="get" asp-controller="BusStop" asp-action="Index" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+        <div class="col-12 col-md-6 col-lg-3">
+            <select id="searchCitySelect" class="form-select js-city-select" name="city">
+                <option value="">Tất cả thành phố</option>
+                @foreach (var cityOption in Model.Cities)
+                {
+                    if (!string.IsNullOrWhiteSpace(cityOption.NVCHR_CITY_NAME))
+                    {
+                        var cityName = cityOption.NVCHR_CITY_NAME.Trim();
+                        if (string.Equals(Model.City, cityName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@cityName" data-city-id="@cityOption.ID" selected>@cityName</option>
+                        }
+                        else
+                        {
+                            <option value="@cityName" data-city-id="@cityOption.ID">@cityName</option>
+                        }
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <select id="searchWardSelect" class="form-select js-ward-select" name="ward" data-allow-empty="true">
+                <option value="">Tất cả xã phường</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="stopName" value="@Model.StopName" placeholder="Tên điểm đón/trả" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select class="form-select" name="isActive">
+                <option value="">Tất cả trạng thái</option>
+                @if (Model.IsActive == true)
+                {
+                    <option value="true" selected>Đang hoạt động</option>
+                    <option value="false">Ngưng hoạt động</option>
+                }
+                else if (Model.IsActive == false)
+                {
+                    <option value="true">Đang hoạt động</option>
+                    <option value="false" selected>Ngưng hoạt động</option>
+                }
+                else
+                {
+                    <option value="true">Đang hoạt động</option>
+                    <option value="false">Ngưng hoạt động</option>
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-1 d-grid">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+    </form>
+
+    @if (canManage)
+    {
+        <form id="bulkDeleteBusStopForm" method="post" asp-controller="BusStop" asp-action="DeleteMany" class="js-confirm js-require-selection"
+              data-confirm-title="Xóa nhiều điểm đón trả"
+              data-confirm-message="Bạn có chắc chắn muốn xóa các điểm đón trả đã chọn?">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="city" value="@Model.City" />
+            <input type="hidden" name="ward" value="@Model.Ward" />
+            <input type="hidden" name="stopName" value="@Model.StopName" />
+            <input type="hidden" name="isActive" value="@Model.IsActive" />
+            <input type="hidden" name="page" value="@Model.PageNumber" />
+            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        </form>
+    }
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    @if (canManage)
+                    {
+                        <th style="width:40px;"><input id="chkAllBusStops" type="checkbox" class="form-check-input" /></th>
+                    }
+                    <th>STT</th>
+                    <th>Thành phố</th>
+                    <th>Xã phường</th>
+                    <th>Tên điểm</th>
+                    <th>Địa chỉ chi tiết</th>
+                    <th>Tọa độ</th>
+                    <th>Khoảng cách tới BIVN</th>
+                    <th>Khoảng cách tới TTF</th>
+                    <th>Thời gian tạo</th>
+                    <th>Thời gian cập nhật</th>
+                    <th>Người cập nhật</th>
+                    @if (canManage)
+                    {
+                        <th class="text-end">Thao tác</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.BusStops.Any())
+                {
+                    <tr>
+                        <td colspan="@emptyColspan" class="text-center text-muted py-4">Không có dữ liệu điểm đón trả.</td>
+                    </tr>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.BusStops.Count; i++)
+                    {
+                        var busStop = Model.BusStops[i];
+                        <tr>
+                            @if (canManage)
+                            {
+                                <td>
+                                    <input type="checkbox" class="form-check-input js-busstop-check" name="ids" value="@busStop.ID" form="bulkDeleteBusStopForm" />
+                                </td>
+                            }
+                            <td>@(startIndex + i)</td>
+                            <td>@busStop.NVCHR_STOP_CITY</td>
+                            <td>@busStop.NVCHR_STOP_WARD</td>
+                            <td>@busStop.NVCHR_STOP_NAME</td>
+                            <td>@busStop.NVCHR_STOP_ADDRESS</td>
+                            <td>@busStop.CHR_COORDINATES</td>
+                            <td>@(busStop.FLT_DISTANCE_TO_BIVN?.ToString("0.##") ?? "-")</td>
+                            <td>@(busStop.FLT_DISTANCE_TO_TTF?.ToString("0.##") ?? "-")</td>
+                            <td>@busStop.DTM_CREATE.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@(busStop.DTM_UPDATE?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                            <td>@(busStop.CHR_USER_UPDATE ?? "-")</td>
+                            @if (canManage)
+                            {
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-primary ms-1 mb-1" data-bs-toggle="modal" data-bs-target="#editBusStopModal-@busStop.ID">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <form id="deleteBusStopForm-@busStop.ID" method="post" asp-controller="BusStop" asp-action="Delete" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@busStop.ID" />
+                                        <input type="hidden" name="city" value="@Model.City" />
+                                        <input type="hidden" name="ward" value="@Model.Ward" />
+                                        <input type="hidden" name="stopName" value="@Model.StopName" />
+                                        <input type="hidden" name="isActive" value="@Model.IsActive" />
+                                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                        <button class="btn btn-sm btn-danger js-action-button ms-1 mb-1" type="button"
+                                                data-form-id="deleteBusStopForm-@busStop.ID"
+                                                data-confirm-title="Xóa điểm đón trả"
+                                                data-confirm-message="Bạn có chắc chắn muốn xóa điểm đón trả này?">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Index",
+        Controller = "BusStop",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["city"] = Model.City,
+            ["ward"] = Model.Ward,
+            ["stopName"] = Model.StopName,
+            ["isActive"] = Model.IsActive?.ToString().ToLowerInvariant()
+        }
+        })
+</div>
+
+@if (canManage)
+{
+    <div class="modal fade dragable-modal" id="createBusStopModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm điểm đón trả</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="BusStop" asp-action="Create" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="SearchCity" value="@Model.City" />
+                        <input type="hidden" name="SearchWard" value="@Model.Ward" />
+                        <input type="hidden" name="SearchStopName" value="@Model.StopName" />
+                        <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Thành phố</label>
+                                <select class="form-select js-city-select" name="City" required>
+                                    <option value="">Chọn thành phố</option>
+                                    @foreach (var cityOption in Model.Cities)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(cityOption.NVCHR_CITY_NAME))
+                                        {
+                                            var cityName = cityOption.NVCHR_CITY_NAME.Trim();
+                                            <option value="@cityName" data-city-id="@cityOption.ID">@cityName</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Xã phường</label>
+                                <select class="form-select js-ward-select" name="Ward" required>
+                                    <option value="">Chọn xã phường</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tên điểm</label>
+                                <input class="form-control" name="Name" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Địa chỉ chi tiết</label>
+                                <textarea class="form-control" name="Address" rows="2"></textarea>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tọa độ</label>
+                                <input class="form-control" name="Coordinates" placeholder="vd: 10.762622,106.660172" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Khoảng cách tới BIVN</label>
+                                <input type="number" step="0.01" min="0" class="form-control" name="DistanceToBivn" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Khoảng cách tới TTF</label>
+                                <input type="number" step="0.01" min="0" class="form-control" name="DistanceToTtf" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Trạng thái</label>
+                                <select class="form-select" name="IsActive">
+                                    <option value="true">Đang hoạt động</option>
+                                    <option value="false">Ngưng hoạt động</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@if (canManage)
+{
+    @foreach (var busStop in Model.BusStops)
+    {
+        <div class="modal fade dragable-modal" id="editBusStopModal-@busStop.ID" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cập nhật điểm đón trả - @busStop.NVCHR_STOP_NAME</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" asp-controller="BusStop" asp-action="Update" class="js-post-form">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <input type="hidden" name="ID" value="@busStop.ID" />
+                            <input type="hidden" name="SearchCity" value="@Model.City" />
+                            <input type="hidden" name="SearchWard" value="@Model.Ward" />
+                            <input type="hidden" name="SearchStopName" value="@Model.StopName" />
+                            <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                            <input type="hidden" name="Page" value="@Model.PageNumber" />
+                            <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Thành phố</label>
+                                    <select class="form-select js-city-select" name="City" required>
+                                        <option value="">Chọn thành phố</option>
+                                        @foreach (var cityOption in Model.Cities)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(cityOption.NVCHR_CITY_NAME))
+                                            {
+                                                var cityName = cityOption.NVCHR_CITY_NAME.Trim();
+                                                if (string.Equals(busStop.NVCHR_STOP_CITY, cityName, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <option value="@cityName" data-city-id="@cityOption.ID" selected>@cityName</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@cityName" data-city-id="@cityOption.ID">@cityName</option>
+                                                }
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Xã phường</label>
+                                    <select class="form-select js-ward-select" name="Ward" data-selected-ward="@busStop.NVCHR_STOP_WARD" required>
+                                        <option value="">Chọn xã phường</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Tên điểm</label>
+                                    <input class="form-control" name="Name" value="@busStop.NVCHR_STOP_NAME" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Địa chỉ</label>
+                                    <textarea class="form-control" name="Address" rows="2">@busStop.NVCHR_STOP_ADDRESS</textarea>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Tọa độ</label>
+                                    <input class="form-control" name="Coordinates" value="@busStop.CHR_COORDINATES" />
+                                </div>
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label">Khoảng cách tới BIVN</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" name="DistanceToBivn" value="@busStop.FLT_DISTANCE_TO_BIVN" />
+                                </div>
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label">Khoảng cách tới TTF</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" name="DistanceToTtf" value="@busStop.FLT_DISTANCE_TO_TTF" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Trạng thái</label>
+                                    <select class="form-select" name="IsActive">
+                                        @if (busStop.BIT_IS_ACTIVE == true)
+                                        {
+                                            <option value="true" selected>Đang hoạt động</option>
+                                            <option value="false">Ngưng hoạt động</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="true">Đang hoạt động</option>
+                                            <option value="false" selected>Ngưng hoạt động</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@if (canManage)
+{
+    <div class="modal fade dragable-modal" id="importBusStopModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Import điểm đón trả từ Excel</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="BusStop" asp-action="Import" enctype="multipart/form-data" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="city" value="@Model.City" />
+                        <input type="hidden" name="ward" value="@Model.Ward" />
+                        <input type="hidden" name="stopName" value="@Model.StopName" />
+                        <input type="hidden" name="isActive" value="@Model.IsActive" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                        <label class="form-label">Chọn file Excel/CSV</label>
+                        <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                        <div class="small text-muted mt-2">
+                            Định dạng: <code>City,Ward,Name,Address,Coordinates,DistanceToBIVN,DistanceToTTF,IsActive</code>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-success">Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    @if (TempData["BusStopSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["BusStopError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            var cityData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                            Model.Cities
+                                    .Where(x => !string.IsNullOrWhiteSpace(x.NVCHR_CITY_NAME))
+                                    .Select(x => new
+                                    {
+                                            id = x.ID,
+                                            name = x.NVCHR_CITY_NAME!.Trim()
+                                    })
+                                    .ToList()));
+
+        var wardData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                        Model.Wards
+                                .Where(x => !string.IsNullOrWhiteSpace(x.NVCHR_WARD_NAME))
+                                .Select(x => new
+                                {
+                                        cityId = x.INT_CITY_ID,
+                                        name = x.NVCHR_WARD_NAME!.Trim()
+                                })
+                                .ToList()));
+
+        var selectedSearchWard = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Ward));
+
+            function normalizeText(value) {
+                return (value || '').toString().trim().toLowerCase();
+            }
+
+            function resolveCityIdByName(cityName) {
+                var normalized = normalizeText(cityName);
+                if (!normalized) return null;
+
+                for (var i = 0; i < cityData.length; i++) {
+                    if (normalizeText(cityData[i].name) === normalized) {
+                        return cityData[i].id;
+                    }
+                }
+
+                return null;
+            }
+
+            function buildWardOptions(wardSelect, cityName, selectedWardName) {
+                if (!wardSelect) return;
+
+                var cityId = resolveCityIdByName(cityName);
+                var normalizedSelectedWard = normalizeText(selectedWardName);
+                var allowEmpty = wardSelect.dataset.allowEmpty === 'true';
+
+                while (wardSelect.options.length > 0) {
+                    wardSelect.remove(0);
+                }
+
+                var defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.text = allowEmpty ? 'Tất cả xã phường' : 'Chọn xã phường';
+                wardSelect.appendChild(defaultOption);
+
+                var availableWards = wardData.filter(function (x) {
+                    if (!x || !x.name) return false;
+                    if (cityId == null) return allowEmpty;
+                    return x.cityId === cityId;
+                });
+
+                var uniqueWardMap = new Map();
+                availableWards.forEach(function (item) {
+                    var key = normalizeText(item.name);
+                    if (!uniqueWardMap.has(key)) {
+                        uniqueWardMap.set(key, item.name);
+                    }
+                });
+
+                Array.from(uniqueWardMap.values())
+                    .sort(function (a, b) { return a.localeCompare(b); })
+                    .forEach(function (wardName) {
+                        var option = document.createElement('option');
+                        option.value = wardName;
+                        option.text = wardName;
+                        if (normalizeText(wardName) === normalizedSelectedWard) {
+                            option.selected = true;
+                        }
+                        wardSelect.appendChild(option);
+                    });
+
+                if (!wardSelect.value && normalizedSelectedWard) {
+                    var exists = Array.from(wardSelect.options).some(function (o) {
+                        return normalizeText(o.value) === normalizedSelectedWard;
+                    });
+
+                    if (!exists) {
+                        var fallback = document.createElement('option');
+                        fallback.value = selectedWardName;
+                        fallback.text = selectedWardName;
+                        fallback.selected = true;
+                        wardSelect.appendChild(fallback);
+                    }
+                }
+            }
+
+            function wireCityWardSelect(citySelect, wardSelect, selectedWardName) {
+                if (!citySelect || !wardSelect) return;
+
+                buildWardOptions(wardSelect, citySelect.value, selectedWardName || wardSelect.dataset.selectedWard || '');
+
+                citySelect.addEventListener('change', function () {
+                    buildWardOptions(wardSelect, citySelect.value, '');
+                });
+            }
+
+            function ensureAntiForgery(form) {
+                if (!form) return;
+                var tokenInForm = form.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenInForm) return;
+
+                var globalToken = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!globalToken) return;
+
+                var cloned = document.createElement('input');
+                cloned.type = 'hidden';
+                cloned.name = '__RequestVerificationToken';
+                cloned.value = globalToken.value;
+                form.appendChild(cloned);
+            }
+
+            function showLoading() {
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
+            }
+
+            function hideLoading() {
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+            }
+
+            document.querySelectorAll('form').forEach(function (form) {
+                var citySelect = form.querySelector('.js-city-select');
+                var wardSelect = form.querySelector('.js-ward-select');
+                if (!citySelect || !wardSelect) return;
+
+                var selectedWard = wardSelect.dataset.selectedWard || '';
+                if (wardSelect.id === 'searchWardSelect') {
+                    selectedWard = selectedSearchWard || '';
+                }
+
+                wireCityWardSelect(citySelect, wardSelect, selectedWard);
+            });
+
+            document.querySelectorAll('form.js-post-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    ensureAntiForgery(form);
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-search-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-export-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                    setTimeout(function () {
+                        hideLoading();
+                    }, 2500);
+                });
+            });
+
+            document.addEventListener('click', async function (e) {
+                var btn = e.target.closest('.js-action-button');
+                if (!btn) return;
+
+                var formId = btn.getAttribute('data-form-id');
+                if (!formId) return;
+                var form = document.getElementById(formId);
+                if (!form) return;
+
+                if (btn.getAttribute('data-require-selection') === '1') {
+                    var checked = document.querySelectorAll('.js-busstop-check:checked');
+                    if (!checked.length) {
+                        if (window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 điểm đón trả.');
+                        return;
+                    }
+                }
+
+                var title = btn.getAttribute('data-confirm-title') || 'Xác nhận';
+                var message = btn.getAttribute('data-confirm-message') || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({ title: title, message: message });
+                }
+
+                if (!ok) return;
+                ensureAntiForgery(form);
+                showLoading();
+                form.requestSubmit();
+            });
+
+            var chkAll = document.getElementById('chkAllBusStops');
+            var bulkDeleteBtn = document.getElementById('btnBulkDeleteBusStops');
+            var rowChecks = Array.prototype.slice.call(document.querySelectorAll('.js-busstop-check'));
+
+            function updateBulkDeleteState() {
+                if (!bulkDeleteBtn) return;
+
+                var checkedCount = document.querySelectorAll('.js-busstop-check:checked').length;
+                var hasSelection = checkedCount > 0;
+
+                bulkDeleteBtn.disabled = !hasSelection;
+                bulkDeleteBtn.classList.toggle('d-none', !hasSelection);
+
+                if (chkAll) {
+                    var total = rowChecks.length;
+                    chkAll.checked = total > 0 && checkedCount === total;
+                    chkAll.indeterminate = checkedCount > 0 && checkedCount < total;
+                }
+            }
+
+            if (chkAll) {
+                chkAll.addEventListener('change', function () {
+                    document.querySelectorAll('.js-busstop-check').forEach(function (c) {
+                        c.checked = chkAll.checked;
+                    });
+                    updateBulkDeleteState();
+                });
+            }
+
+            rowChecks.forEach(function (c) {
+                c.addEventListener('change', updateBulkDeleteState);
+            });
+
+            updateBulkDeleteState();
+        })();
+    </script>
+}

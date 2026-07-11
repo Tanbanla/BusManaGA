@@ -1,0 +1,89 @@
+﻿@model BusManagement.ViewModels.TripRequest.TripRequestApprovalHistoryPageViewModel
+
+<style>
+    .history-summary .summary-item { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; height:100%; }
+    .history-summary .label { font-size:.78rem; color:#64748b; text-transform:uppercase; font-weight:700; }
+    .history-summary .value { font-weight:600; color:#0f172a; }
+    .workflow-grid { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .workflow-step { border-radius: 12px; border: 1px solid #cbd5e1; padding: 12px; }
+    .workflow-step-pending { background: #f3f4f6; border-color: #9ca3af; color: #374151; }
+    .workflow-step-done { background: #dcfce7; border-color: #16a34a; color: #166534; }
+    .workflow-item { display: flex; align-items: center; gap: 10px; }
+    .workflow-arrow { color: #64748b; font-size: 1.1rem; }
+</style>
+
+<div class="history-card p-2 p-md-3">
+    <div class="history-summary mb-3">
+        <div class="row g-2">
+            <div class="col-md-3"><div class="summary-item"><div class="label">Mã NV</div><div class="value">@(Model.EmployeeCode ?? "-")</div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Họ tên</div><div class="value">@(Model.EmployeeName ?? "-")</div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Phòng ban</div><div class="value">@(Model.DepartmentName ?? "-")</div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">Trạng thái</div><div class="value"><span class="badge @Model.StatusBadgeClass">@Model.StatusText</span></div></div></div>
+            <div class="col-md-3"><div class="summary-item"><div class="label">SĐT</div><div class="value">@(Model.Phone ?? "-")</div></div></div>
+            <div class="col-md-4"><div class="summary-item"><div class="label">Chiều đi</div><div class="value">@((Model.PickupGo?.ToString("dd/MM/yyyy HH:mm") ?? "-") + " | " + (Model.FromGo ?? "-") + " → " + (Model.ToGo ?? "-"))</div></div></div>
+            <div class="col-md-5"><div class="summary-item"><div class="label">Chiều về</div><div class="value">@((Model.PickupReturn?.ToString("dd/MM/yyyy HH:mm") ?? "-") + " | " + (Model.FromReturn ?? "-") + " → " + (Model.ToReturn ?? "-"))</div></div></div>
+            <div class="col-md-12"><div class="summary-item"><div class="label">Thông tin lái xe</div><div class="value" style="white-space:pre-line;">@(Model.DriverInfo ?? "-")</div></div></div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <h6 class="mb-2">Lưu trình xử lý</h6>
+        <div class="workflow-grid">
+            @for (var i = 0; i < Model.Steps.Count; i++)
+            {
+                var step = Model.Steps[i];
+                <div class="workflow-item">
+                    <div class="workflow-step @step.CssClass">
+                        <div class="fw-bold mb-1">@step.StepName</div>
+                        <div class="mb-1">@step.StateText</div>
+                        @if (!string.IsNullOrWhiteSpace(step.Actor))
+                        {
+                            <div><small>Người xử lý: @step.Actor</small></div>
+                        }
+                        @if (step.ActionTime.HasValue)
+                        {
+                            <div><small>Thời gian: @step.ActionTime.Value.ToString("dd/MM/yyyy HH:mm:ss")</small></div>
+                        }
+                    </div>
+                    @if (i < Model.Steps.Count - 1)
+                    {
+                        <span class="workflow-arrow"><i class="fa-solid fa-arrow-right"></i></span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Thời gian</th>
+                    <th>Hành động</th>
+                    <th>Người xử lý</th>
+                    <th>Kết quả</th>
+                    <th>Lý do</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Histories.Any())
+                {
+                    <tr><td colspan="5" class="text-center text-muted">Chưa có dữ liệu lịch sử.</td></tr>
+                }
+                else
+                {
+                    foreach (var h in Model.Histories)
+                    {
+                        <tr>
+                            <td>@h.ActionTime?.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                            <td>@h.Action</td>
+                            <td>@h.Actor</td>
+                            <td><span class="badge @(h.Result == true ? "bg-success" : "bg-secondary")">@(h.Result == true ? "Đồng ý" : "-")</span></td>
+                            <td>@h.Reason</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

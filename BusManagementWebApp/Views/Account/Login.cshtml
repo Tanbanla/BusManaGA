@@ -1,0 +1,129 @@
+﻿@model BusManagement.ViewModels.Account.LoginViewModel
+@{
+    ViewData["Title"] = "Đăng nhập";
+}
+
+<style>
+    .login-page {
+        min-height: 82vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at top right, #dbeafe 0%, #eff6ff 35%, #f8fafc 100%);
+        animation: bgpan 8s infinite alternate;
+        padding: 1rem;
+    }
+    @Html.Raw("@keyframes bgpan { from { background-position:0% 50% } to { background-position:100% 50% } }")
+
+    .login-card { width: 100%; max-width: 430px; border-radius: 18px; overflow: hidden; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14); transform: translateY(18px); opacity: 0; transition: transform .45s cubic-bezier(.2,.9,.2,1), opacity .45s ease; border: 1px solid #dbeafe; }
+    .login-card.visible { transform: translateY(0); opacity: 1; }
+    .login-card .card-body { padding: 2.25rem; }
+    .bus-hero { width: 88px; height: 88px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 38px; color: #fff; background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 65%, #0ea5e9 100%); box-shadow: 0 10px 24px rgba(37, 99, 235, 0.26); }
+    .login-title { color: #0f172a; font-weight: 700; }
+    .login-subtitle { color: #64748b; }
+    /* make input-group visuals seamless: remove separate borders for icon span and input */
+    .input-group.shadow-sm.rounded { background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .input-group.shadow-sm.rounded .input-group-text {
+        border: 0; /* remove bootstrap border */
+        background: transparent; /* match input background */
+        padding: .55rem .75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #6c757d;
+    }
+    .input-group.shadow-sm.rounded .form-control {
+        border: 0; /* remove bootstrap border so element appears unified */
+        background: transparent;
+        padding: .55rem .75rem;
+        box-shadow: none;
+    }
+    .input-group.shadow-sm.rounded .form-control:focus {
+        box-shadow: none;
+        outline: none;
+    }
+
+    @@media (max-width: 576px) {
+        .login-card .card-body { padding: 1.35rem; }
+        .bus-hero { width: 76px; height: 76px; font-size: 32px; }
+    }
+</style>
+
+<div class="login-page">
+    <div class="login-card card border-0">
+        <div class="card-body text-center">
+            <div class="mb-3">
+                <div class="bus-hero mx-auto"><i class="fa-solid fa-bus"></i></div>
+            </div>
+            <h3 class="mb-1 login-title">Hệ thống quản lý xe Công ty</h3>
+            <p class="mb-3 small login-subtitle">Vui lòng nhập thông tin tài khoản (ADID) để tiếp tục.</p>
+
+            @if (TempData["LoginMessage"] is string message)
+            {
+                <div class="alert alert-info py-2">@message</div>
+            }
+
+            <form id="loginForm" asp-action="Login" method="post" class="mt-3">
+                @Html.AntiForgeryToken()
+                <input asp-for="ReturnUrl" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger small"></div>
+
+                <div class="mb-3 text-start">
+                    <label asp-for="Username" class="form-label small fw-semibold">Tài khoản</label>
+                    <div class="input-group shadow-sm rounded">
+                        <span class="input-group-text bg-white"><i class="fa-regular fa-user"></i></span>
+                        <input asp-for="Username" class="form-control border-0" placeholder="Nhập ADID" />
+                    </div>
+                    <span asp-validation-for="Username" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3 text-start">
+                    <label asp-for="Password" class="form-label small fw-semibold">Mật khẩu</label>
+                    <div class="input-group shadow-sm rounded">
+                        <span class="input-group-text bg-white"><i class="fa fa-lock"></i></span>
+                        <input asp-for="Password" type="password" class="form-control border-0" placeholder="Nhập mật khẩu ADID" />
+                    </div>
+                    <span asp-validation-for="Password" class="text-danger small"></span>
+                </div>
+
+                <div class="form-check mb-3 text-start">
+                    <input asp-for="RememberMe" class="form-check-input" />
+                    <label asp-for="RememberMe" class="form-check-label">Ghi nhớ đăng nhập</label>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 shadow-sm"><i class="fa fa-right-to-bracket me-1"></i>Đăng nhập</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var card = document.querySelector('.login-card');
+            if (card) setTimeout(function () { card.classList.add('visible'); }, 80);
+
+            var form = document.getElementById('loginForm');
+            var isSubmitting = false;
+
+            if (form) {
+                form.addEventListener('submit', function (e) {
+
+                    if (isSubmitting) return;
+
+                    e.preventDefault();
+                    isSubmitting = true;
+
+                    if (typeof window.showLoading === 'function') {
+                        window.showLoading(true);
+                    }
+
+                    setTimeout(function () {
+                        form.submit();
+                    }, 1500);
+                });
+            }
+        });
+    </script>
+}

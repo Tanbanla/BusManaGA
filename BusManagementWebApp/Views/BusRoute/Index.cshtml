@@ -1,0 +1,598 @@
+﻿@model BusManagement.ViewModels.Route.RoutePageViewModel
+@using BusManagement.Model.Common.Enum
+@{
+    ViewData["Title"] = "Quản lý lộ trình tuyến";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+    var canEdit = Model.CanManage;
+}
+
+<style>
+    .route-card { border:1px solid #e2e8f0;border-radius:14px;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.05);} 
+    .table thead th { white-space:nowrap;vertical-align:middle; }
+    .chosen-stop { border:1px solid #ddd;padding:.5rem;margin-bottom:.5rem;border-radius:6px;display:flex;gap:.5rem;align-items:center; background:#fff; }
+    .chosen-stop.dragging { opacity:0.5; }
+    .chosen-stop .handle { cursor:grab; padding:0 .5rem; }
+    .chosen-stop input.time { width:140px; }
+    .chosen-placeholder { height:8px; border-top:2px dashed #1e90ff; margin:4px 0; }
+    .cfg-actions { margin-bottom:.75rem; }
+    .cfg-search { margin-bottom:.75rem; }
+    .stop-group { margin-bottom:1rem; }
+    .stop-group-header { font-weight:600;font-size:0.95rem;background:#f8f9fa;padding:0.5rem;border-radius:4px;margin-bottom:0.5rem; }
+    .stop-item { padding:0.25rem 0; }
+    .chosen-stops-wrapper { height:480px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;padding:0.5rem; }
+    .chosen-order-badge { min-width: 32px; text-align: center; }
+</style>
+
+<div class="route-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Danh sách lộ trình (tuyến)</h5>
+        <div class="d-flex flex-wrap gap-2">
+            @if (canEdit)
+            {
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRouteModal">
+                    <i class="fa-solid fa-plus me-1"></i>Thêm mới
+                </button>
+
+                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importRouteModal">
+                    <i class="fa-solid fa-file-import me-1"></i>Import Excel
+                </button>
+            }
+
+            <form method="get" asp-controller="BusRoute" asp-action="Export" class="d-inline js-export-form" data-no-loader>
+                <input type="hidden" name="name" value="@Model.Name" />
+                <input type="hidden" name="type" value="@Model.Type" />
+                <input type="hidden" name="dept" value="@Model.Dept" />
+                <input type="hidden" name="isActive" value="@Model.IsActive" />
+                <button type="submit" class="btn btn-success"><i class="fa-solid fa-file-excel me-1"></i>Xuất Excel</button>
+            </form>
+
+            <button id="btnBulkDeleteRoutes" type="button" class="btn btn-danger js-action-button d-none"
+                    data-form-id="bulkDeleteRouteForm"
+                    data-confirm-title="Xóa nhiều lộ trình"
+                    data-confirm-message="Bạn có chắc chắn muốn xóa các lộ trình đã chọn?"
+                    data-require-selection="1"
+                    disabled>
+                <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+            </button>
+        </div>
+    </div>
+
+    <form method="get" asp-controller="BusRoute" asp-action="Index" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+        <div class="col-12 col-md-4 col-lg-3"><input class="form-control" name="name" value="@Model.Name" placeholder="Tên lộ trình" /></div>
+        <div class="col-12 col-md-4 col-lg-3"><input class="form-control" name="type" value="@Model.Type" placeholder="Loại" /></div>
+        <div class="col-12 col-md-4 col-lg-3"><input class="form-control" name="dept" value="@Model.Dept" placeholder="Mã phòng" /></div>
+        <div class="col-12 col-md-2 col-lg-2">
+            <select class="form-select" name="isActive">
+                <option value="">Tất cả trạng thái</option>
+                @if (Model.IsActive == true)
+                {
+                    <option value="true" selected>Đang hoạt động</option>
+                    <option value="false">Ngưng hoạt động</option>
+                }
+                else if (Model.IsActive == false)
+                {
+                    <option value="true">Đang hoạt động</option>
+                    <option value="false" selected>Ngưng hoạt động</option>
+                }
+                else
+                {
+                    <option value="true">Đang hoạt động</option>
+                    <option value="false">Ngưng hoạt động</option>
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-2 col-lg-1 d-grid"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button></div>
+    </form>
+
+    <form id="bulkDeleteRouteForm" method="post" asp-controller="BusRoute" asp-action="DeleteMany" class="js-confirm js-require-selection"
+          data-confirm-title="Xóa nhiều lộ trình" data-confirm-message="Bạn có chắc chắn muốn xóa các lộ trình đã chọn?">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="name" value="@Model.Name" />
+        <input type="hidden" name="type" value="@Model.Type" />
+        <input type="hidden" name="dept" value="@Model.Dept" />
+        <input type="hidden" name="isActive" value="@Model.IsActive" />
+        <input type="hidden" name="page" value="@Model.PageNumber" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:40px;"><input id="chkAllRoutes" type="checkbox" class="form-check-input" /></th>
+                    <th>STT</th>
+                    <th>Tên lộ trình</th>
+                    <th>Loại</th>
+                    <th>Mã phòng</th>
+                    <th>Mã bộ phận</th>
+                    <th>Loại tuyến</th>
+                    <th>Trạng thái</th>
+                    <th>Thời gian tạo</th>
+                    <th>Thời gian cập nhật</th>
+                    <th>Người cập nhật</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Routes.Any())
+                {
+                    <tr><td colspan="12" class="text-center text-muted py-4">Không có dữ liệu lộ trình.</td></tr>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.Routes.Count; i++)
+                    {
+                        var r = Model.Routes[i];
+                        <tr>
+                            <td><input type="checkbox" class="form-check-input js-route-check" name="ids" value="@r.ID" form="bulkDeleteRouteForm" /></td>
+                            <td>@(startIndex + i)</td>
+                            <td>@r.NVCHR_ROUTE_NAME</td>
+                            <td>@r.NVCHR_ROUTE_TYPE</td>
+                            <td>@r.CHR_CODE_DEPT</td>
+                            <td>@r.CHR_CODE_SEC</td>
+                            <td>@r.INT_ID_ROUTE_TYPE</td>
+                            <td>@(r.BIT_IS_ACTIVE == true ? "Đang hoạt động" : "Ngưng hoạt động")</td>
+                            <td>@r.DTM_CREATE.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@(r.DTM_UPDATE?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                            <td>@(r.CHR_USER_UPDATE ?? "-")</td>
+                            <td class="text-end">
+                                @if (canEdit)
+                                {
+                                    <button type="button" class="btn btn-primary mb-1" data-bs-toggle="modal" data-bs-target="#editRouteModal-@r.ID"><i class="fa-solid fa-pen"></i></button>
+                                    <form id="deleteRouteForm-@r.ID" method="post" asp-controller="BusRoute" asp-action="Delete" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@r.ID" />
+                                        <input type="hidden" name="name" value="@Model.Name" />
+                                        <input type="hidden" name="type" value="@Model.Type" />
+                                        <input type="hidden" name="dept" value="@Model.Dept" />
+                                        <input type="hidden" name="isActive" value="@Model.IsActive" />
+                                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                        <button class="btn btn-danger js-action-button ms-1 mb-1" type="button"
+                                                data-form-id="deleteRouteForm-@r.ID"
+                                                data-confirm-title="Xóa lộ trình"
+                                                data-confirm-message="Bạn có chắc chắn muốn xóa lộ trình này?"><i class="fa-solid fa-trash"></i></button>
+                                    </form>
+
+                                    <button type="button" class="btn btn-primary ms-1 mb-1 js-config-stops" data-route-id="@r.ID"><i class="fa-solid fa-gear"></i> Cấu hình điểm</button>
+                                    <button type="button" class="btn btn-secondary ms-1 mb-1 js-copy-stops" data-route-id="@r.ID"><i class="fa-solid fa-copy"></i> Sao chép điểm</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Index",
+        Controller = "BusRoute",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["name"] = Model.Name,
+            ["type"] = Model.Type,
+            ["dept"] = Model.Dept,
+            ["isActive"] = Model.IsActive?.ToString().ToLowerInvariant()
+        }
+    })
+</div>
+
+<!-- Create Modal -->
+<div class="modal fade dragable-modal" id="createRouteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm lộ trình</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-controller="BusRoute" asp-action="Create" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="SearchName" value="@Model.Name" />
+                    <input type="hidden" name="SearchType" value="@Model.Type" />
+                    <input type="hidden" name="SearchDept" value="@Model.Dept" />
+                    <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                    <input type="hidden" name="Page" value="@Model.PageNumber" />
+                    <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6"><label class="form-label">Tên lộ trình</label><input class="form-control" name="Name" required /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Loại tuyến</label>
+                            <select class="form-select" name="RouteTypeId" required>
+                                <option value="">-- Chọn loại tuyến --</option>
+                                <option value="@((int)BusRouteAssignTypeEnum.Worker)">Công nhân</option>
+                                <option value="@((int)BusRouteAssignTypeEnum.Staff)">Nhân viên</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6"><label class="form-label">Mã phòng</label><input class="form-control" name="Dept" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Mã bộ phận</label><input class="form-control" name="Sec" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Loại tuyến (ID)</label><input type="number" class="form-control" value="" readonly /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Trạng thái</label>
+                            <select class="form-select" name="IsActive"><option value="true">Đang hoạt động</option><option value="false">Ngưng hoạt động</option></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit modals -->
+@foreach (var r in Model.Routes)
+{
+    <div class="modal fade dragable-modal" id="editRouteModal-@r.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Cập nhật lộ trình - @r.NVCHR_ROUTE_NAME</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                <form method="post" asp-controller="BusRoute" asp-action="Update" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="ID" value="@r.ID" />
+                        <input type="hidden" name="SearchName" value="@Model.Name" />
+                        <input type="hidden" name="SearchType" value="@Model.Type" />
+                        <input type="hidden" name="SearchDept" value="@Model.Dept" />
+                        <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6"><label class="form-label">Tên lộ trình</label><input class="form-control" name="Name" value="@r.NVCHR_ROUTE_NAME" required /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Loại tuyến</label>
+                                <select class="form-select" name="RouteTypeId" required>
+                                    <option value="">-- Chọn loại tuyến --</option>
+                                    @if (r.INT_ID_ROUTE_TYPE == (int)BusRouteAssignTypeEnum.Worker)
+                                    {
+                                        <option value="@((int)BusRouteAssignTypeEnum.Worker)" selected>Công nhân</option>
+                                        <option value="@((int)BusRouteAssignTypeEnum.Staff)">Nhân viên</option>
+                                    }
+                                    else if (r.INT_ID_ROUTE_TYPE == (int)BusRouteAssignTypeEnum.Staff)
+                                    {
+                                        <option value="@((int)BusRouteAssignTypeEnum.Worker)">Công nhân</option>
+                                        <option value="@((int)BusRouteAssignTypeEnum.Staff)" selected>Nhân viên</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@((int)BusRouteAssignTypeEnum.Worker)">Công nhân</option>
+                                        <option value="@((int)BusRouteAssignTypeEnum.Staff)">Nhân viên</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6"><label class="form-label">Mã phòng</label><input class="form-control" name="Dept" value="@r.CHR_CODE_DEPT" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Mã bộ phận</label><input class="form-control" name="Sec" value="@r.CHR_CODE_SEC" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Loại tuyến (ID)</label><input type="number" class="form-control" value="@r.INT_ID_ROUTE_TYPE" readonly /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Trạng thái</label>
+                                <select class="form-select" name="IsActive">
+                                    @if (r.BIT_IS_ACTIVE == true) { <option value="true" selected>Đang hoạt động</option><option value="false">Ngưng hoạt động</option> }
+                                    else { <option value="true">Đang hoạt động</option><option value="false" selected>Ngưng hoạt động</option> }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Import Modal -->
+<div class="modal fade dragable-modal" id="importRouteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Import lộ trình từ Excel</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <form method="post" asp-controller="BusRoute" asp-action="Import" enctype="multipart/form-data" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="name" value="@Model.Name" />
+                    <input type="hidden" name="type" value="@Model.Type" />
+                    <input type="hidden" name="dept" value="@Model.Dept" />
+                    <input type="hidden" name="isActive" value="@Model.IsActive" />
+                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                    <label class="form-label">Chọn file Excel/CSV</label>
+                    <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                    <div class="small text-muted mt-2">Định dạng: <code>Name,RouteTypeText,Dept,Sec,RouteTypeId</code> (bỏ qua Trạng thái/Thời gian/Người cập nhật)</div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-success">Import</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Configure Stops Modal -->
+<div class="modal fade dragable-modal" id="configureStopsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Cấu hình điểm đón/trả</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <form method="post" asp-controller="BusRoute" asp-action="SaveRouteStops" id="saveRouteStopsForm" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="routeId" id="cfg_routeId" />
+                    <div class="row">
+                        <div class="col-5">
+                            <h6>Danh sách điểm</h6>
+                            <div class="cfg-search">
+                                <input type="text" id="cfg_searchInput" class="form-control form-control-sm" placeholder="Tìm kiếm điểm..." />
+                            </div>
+                            <div class="cfg-actions">
+                                <button type="button" id="cfg_selectAll" class="btn btn-sm btn-outline-primary">Chọn tất cả</button>
+                                <button type="button" id="cfg_unselectAll" class="btn btn-sm btn-outline-secondary">Bỏ chọn</button>
+                            </div>
+                            <div id="cfg_allStops" style="max-height:420px;overflow-y:auto;"></div>
+                        </div>
+                        <div class="col-7">
+                            <h6>Điểm đã chọn (kéo thả để thay đổi thứ tự)</h6>
+                            <div class="cfg-actions">
+                                <button type="button" id="cfg_clearAll" class="btn btn-sm btn-danger">Xóa toàn bộ <i class="fa-solid fa-trash-can ms-1"></i></button>
+                            </div>
+                            <div id="cfg_chosenStops" class="chosen-stops-wrapper"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Lưu cấu hình</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Copy Stops Modal -->
+<div class="modal fade dragable-modal" id="copyStopsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Sao chép cấu hình điểm</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <input type="hidden" id="copy_toRouteId" />
+                <div class="mb-3">
+                    <label class="form-label">Chọn lộ trình nguồn để sao chép:</label>
+                    <select id="copy_fromRouteId" class="form-select">
+                        <option value="">Đang tải...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" id="btn_doCopy" class="btn btn-primary">Sao chép</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @if (TempData["RouteSuccess"] is string s) { <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(s)));</script> }
+    @if (TempData["RouteError"] is string e) { <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(e)));</script> }
+
+    <script>
+        (function(){
+            function ensureAntiForgery(form){ if(!form) return; if(form.querySelector('input[name="__RequestVerificationToken"]')) return; var globalToken = document.querySelector('input[name="__RequestVerificationToken"]'); if(!globalToken) return; var cloned = document.createElement('input'); cloned.type='hidden'; cloned.name='__RequestVerificationToken'; cloned.value = globalToken.value; form.appendChild(cloned); }
+            function showLoading(){ if(typeof window.showLoading==='function') window.showLoading(); }
+            function hideLoading(){ if(typeof window.hideLoading==='function') window.hideLoading(); }
+
+            document.querySelectorAll('form.js-search-form').forEach(function(form){ form.addEventListener('submit', function(){ showLoading(); }); });
+            document.querySelectorAll('form.js-export-form').forEach(function(form){ form.addEventListener('submit', function(){ showLoading(); setTimeout(function(){ hideLoading(); },2500); }); });
+
+            document.addEventListener('click', async function(e){ var btn = e.target.closest('.js-action-button'); if(!btn) return; var formId = btn.getAttribute('data-form-id'); if(!formId) return; var form = document.getElementById(formId); if(!form) return; if(btn.getAttribute('data-require-selection')==='1'){ var checked = document.querySelectorAll('.js-route-check:checked'); if(!checked.length){ if(window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 lộ trình.'); return; } } var title = btn.getAttribute('data-confirm-title')||'Xác nhận'; var message = btn.getAttribute('data-confirm-message')||'Bạn có chắc chắn muốn thực hiện thao tác này?'; var ok = true; if(window.AppCommon && typeof AppCommon.confirm==='function'){ ok = await AppCommon.confirm({ title:title, message:message }); } if(!ok) return; ensureAntiForgery(form); showLoading(); form.requestSubmit(); });
+
+            var chkAll = document.getElementById('chkAllRoutes'); var bulkDeleteBtn = document.getElementById('btnBulkDeleteRoutes'); var rowChecks = Array.prototype.slice.call(document.querySelectorAll('.js-route-check'));
+            function updateBulkDeleteState(){ if(!bulkDeleteBtn) return; var checkedCount = document.querySelectorAll('.js-route-check:checked').length; var hasSelection = checkedCount>0; bulkDeleteBtn.disabled = !hasSelection; bulkDeleteBtn.classList.toggle('d-none', !hasSelection); if(chkAll){ var total = rowChecks.length; chkAll.checked = total>0 && checkedCount===total; chkAll.indeterminate = checkedCount>0 && checkedCount<total; } }
+            if(chkAll){ chkAll.addEventListener('change', function(){ document.querySelectorAll('.js-route-check').forEach(function(c){ c.checked = chkAll.checked; }); updateBulkDeleteState(); }); }
+            rowChecks.forEach(function(c){ c.addEventListener('change', updateBulkDeleteState); }); updateBulkDeleteState();
+
+            // Utility: format time to HH:mm
+            function formatTimeFromIso(v){ if(!v) return ''; try{ var d = new Date(v); if(isNaN(d)){
+                        var m = /\/Date\((\d+)\)\//.exec(v);
+                        if(m){ d = new Date(parseInt(m[1],10)); }
+                    }
+                    if(isNaN(d)) return '';
+                    var hh = d.getHours().toString().padStart(2,'0'); var mm = d.getMinutes().toString().padStart(2,'0'); return hh+':'+mm;
+                }catch(ex){ return ''; } }
+
+            // Drag & drop helpers
+            function makeDraggable(item){ item.draggable = true; item.classList.remove('dragging');
+                item.addEventListener('dragstart', function(e){ item.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',''); });
+                item.addEventListener('dragend', function(){ item.classList.remove('dragging'); removePlaceholder(); });
+            }
+
+            function updateChosenOrder(container){
+                if(!container) return;
+                var items = container.querySelectorAll('.chosen-stop');
+                items.forEach(function(it, idx){
+                    var orderEl = it.querySelector('.cfg-order');
+                    if(orderEl) orderEl.textContent = idx + 1;
+                });
+            }
+
+            var placeholder = null;
+            function createPlaceholder(){ if(placeholder) return placeholder; placeholder = document.createElement('div'); placeholder.className='chosen-placeholder'; return placeholder; }
+            function removePlaceholder(){ if(placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder); }
+
+            function attachDnD(container){ container.addEventListener('dragover', function(e){ e.preventDefault(); var dragging = container.querySelector('.dragging'); var target = e.target;
+                    var targetItem = target.closest('.chosen-stop'); var ph = createPlaceholder(); if(!targetItem){ if(!container.contains(ph)) container.appendChild(ph); return; }
+                    var rect = targetItem.getBoundingClientRect(); var offset = e.clientY - rect.top; if(offset < rect.height/2){ if(targetItem.parentNode && targetItem.parentNode.contains(ph)) targetItem.parentNode.insertBefore(ph, targetItem); else targetItem.parentNode.insertBefore(ph, targetItem); }
+                    else { if(targetItem.nextSibling) { if(targetItem.parentNode && targetItem.parentNode.contains(ph)) targetItem.parentNode.insertBefore(ph, targetItem.nextSibling); else targetItem.parentNode.insertBefore(ph, targetItem.nextSibling); } else { if(!targetItem.parentNode.contains(ph)) targetItem.parentNode.appendChild(ph); }} });
+
+                container.addEventListener('drop', function(e){ e.preventDefault(); var dragging = container.querySelector('.dragging'); if(!dragging) return; var ph = createPlaceholder(); if(ph.parentNode){ ph.parentNode.insertBefore(dragging, ph); removePlaceholder(); }
+                    updateChosenOrder(container);
+                });
+            }
+
+            function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+            // Configure stops
+            document.querySelectorAll('.js-config-stops').forEach(function(btn){ btn.addEventListener('click', async function(){ var routeId = btn.getAttribute('data-route-id'); document.getElementById('cfg_routeId').value = routeId; var allStopsContainer = document.getElementById('cfg_allStops'); var chosenContainer = document.getElementById('cfg_chosenStops'); allStopsContainer.innerHTML = 'Đang tải...'; chosenContainer.innerHTML = '';
+                    try{
+                        var res = await fetch('/BusRoute/GetRouteStops?routeId='+routeId);
+                        var data = await res.json();
+                        var stops = data.stops;
+                        var routeStops = data.routeStops;
+                        var chosenStopIds = new Set(routeStops.map(rs=>rs.INT_BUS_STOP_ID));
+                        
+                        // Group by city
+                        var grouped = {};
+                        stops.forEach(function(s){ var city = s.NVCHR_STOP_CITY||'Không xác định'; if(!grouped[city]) grouped[city]=[]; grouped[city].push(s); });
+
+                        // Render grouped stops
+                        allStopsContainer.innerHTML = '';
+                        Object.keys(grouped).sort().forEach(function(city){ 
+                            var groupDiv = document.createElement('div'); groupDiv.className='stop-group';
+                            var headerDiv = document.createElement('div'); headerDiv.className='stop-group-header'; headerDiv.textContent = city;
+                            groupDiv.appendChild(headerDiv);
+                            grouped[city].forEach(function(s){ 
+                                var itemDiv = document.createElement('div'); itemDiv.className='stop-item';
+                                var id = s.ID||s.id; var name = s.NVCHR_STOP_NAME;
+                                var isChecked = chosenStopIds.has(id)?'checked':'';
+                                itemDiv.innerHTML = `<label><input type="checkbox" class="cfg_stop_checkbox" data-id="${id}" ${isChecked} /> ${escapeHtml(name)}</label>`;
+                                groupDiv.appendChild(itemDiv);
+                            });
+                            allStopsContainer.appendChild(groupDiv);
+                        });
+
+                        // Populate chosen with current stops
+                        chosenContainer.innerHTML = '';
+                        routeStops.forEach(function(rs){ 
+                            var stop = stops.find(x=>x.ID==rs.INT_BUS_STOP_ID); if(!stop) return;
+                            var name = stop.NVCHR_STOP_NAME;
+                            var timeVal = formatTimeFromIso(rs.DTM_PICKUP_TIME); 
+                            var div = document.createElement('div'); div.className='chosen-stop'; div.setAttribute('data-id', stop.ID); 
+                            div.innerHTML = `<span class="badge text-bg-primary chosen-order-badge cfg-order">0</span><span class="handle">☰</span><input type="hidden" name="stopIds" value="${stop.ID}" /><div style="flex:1">${escapeHtml(name)}</div><input type="text" class="form-control time" name="pickupTimes" value="${escapeHtml(timeVal)}" placeholder="HH:mm" /> <button type="button" class="btn btn-sm btn-danger ms-2 cfg-remove" title="Xóa"><i class="fa-solid fa-trash-can"></i></button>`; 
+                            chosenContainer.appendChild(div);
+                            bindRemove(div, stops);
+                            makeDraggable(div);
+                        });
+                        updateChosenOrder(chosenContainer);
+
+                        // Search functionality
+                        var searchInput = document.getElementById('cfg_searchInput');
+                        var originalAllStops = allStopsContainer.innerHTML;
+                        searchInput.addEventListener('input', function(){ 
+                            var q = searchInput.value.toLowerCase();
+                            allStopsContainer.querySelectorAll('.stop-group').forEach(function(g){ 
+                                var visibleCount = 0;
+                                g.querySelectorAll('.stop-item').forEach(function(item){ 
+                                    var text = item.textContent.toLowerCase(); 
+                                    var show = text.includes(q); 
+                                    item.style.display = show?'block':'none';
+                                    if(show) visibleCount++;
+                                });
+                                g.style.display = visibleCount>0?'block':'none';
+                            });
+                        });
+
+                        // Checkbox change: add/remove from chosen
+                        allStopsContainer.querySelectorAll('.cfg_stop_checkbox').forEach(function(cb){ cb.addEventListener('change', function(){ 
+                            var id = cb.getAttribute('data-id'); 
+                            if(cb.checked){
+                                var existing = chosenContainer.querySelector(`[data-id='${id}']`);
+                                if(existing){
+                                    updateChosenOrder(chosenContainer);
+                                    return;
+                                }
+                                var stop = stops.find(x=>x.ID==id); var name = stop.NVCHR_STOP_NAME;
+                                var div = document.createElement('div'); div.className='chosen-stop'; div.setAttribute('data-id', id); 
+                                div.innerHTML = `<span class="badge text-bg-primary chosen-order-badge cfg-order">0</span><span class="handle">☰</span><input type="hidden" name="stopIds" value="${id}" /><div style="flex:1">${escapeHtml(name)}</div><input type="text" class="form-control time" name="pickupTimes" value="" placeholder="HH:mm" /> <button type="button" class="btn btn-sm btn-danger ms-2 cfg-remove" title="Xóa"><i class="fa-solid fa-trash-can"></i></button>`; 
+                                chosenContainer.appendChild(div); 
+                                bindRemove(div, stops); 
+                                makeDraggable(div);
+                                updateChosenOrder(chosenContainer);
+                            }
+                            else { 
+                                var ex = chosenContainer.querySelector(`[data-id='${id}']`); 
+                                if(ex) ex.remove(); 
+                                updateChosenOrder(chosenContainer);
+                            }
+                        }); });
+
+                        function bindRemove(el, stops){ 
+                            var btn = el.querySelector('.cfg-remove'); if(!btn) return; 
+                            btn.addEventListener('click', function(){ el.remove(); var id = el.getAttribute('data-id'); 
+                                var cb = allStopsContainer.querySelector(`.cfg_stop_checkbox[data-id='${id}']`); 
+                                if(cb){ cb.checked = false; } 
+                                updateChosenOrder(chosenContainer);
+                            }); 
+                        }
+
+                        // Select/unselect all actions
+                        document.getElementById('cfg_selectAll').onclick = function(){ 
+                            allStopsContainer.querySelectorAll('.cfg_stop_checkbox').forEach(function(cb){ cb.checked = true; cb.dispatchEvent(new Event('change')); }); 
+                        };
+                        document.getElementById('cfg_unselectAll').onclick = function(){ 
+                            allStopsContainer.querySelectorAll('.cfg_stop_checkbox:checked').forEach(function(cb){ cb.checked = false; cb.dispatchEvent(new Event('change')); }); 
+                        };
+                        document.getElementById('cfg_clearAll').onclick = function(){ 
+                            chosenContainer.innerHTML=''; 
+                            allStopsContainer.querySelectorAll('.cfg_stop_checkbox').forEach(function(cb){ cb.checked = false; }); 
+                            updateChosenOrder(chosenContainer);
+                        };
+
+                        attachDnD(chosenContainer);
+                        var modal = new bootstrap.Modal(document.getElementById('configureStopsModal'));
+                        modal.show();
+                    }catch(ex){ console.error(ex); if(window.AppCommon) AppCommon.error('Không thể tải danh sách điểm.'); }
+                }); });
+
+            // Save route stops
+            var saveForm = document.getElementById('saveRouteStopsForm');
+            saveForm.addEventListener('submit', function(e){ e.preventDefault(); var chosen = document.getElementById('cfg_chosenStops'); var items = chosen.querySelectorAll('.chosen-stop'); if(!items.length){ if(window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 điểm.'); return; } var routeId = document.getElementById('cfg_routeId').value;
+                var fd = new FormData(); fd.append('routeId', routeId);
+                items.forEach(function(it){ var id = it.getAttribute('data-id'); var time = it.querySelector('input.time').value||''; fd.append('stopIds', id); fd.append('pickupTimes', time); });
+                var token = document.querySelector('input[name="__RequestVerificationToken"]'); if(token) fd.append('__RequestVerificationToken', token.value);
+                showLoading(); fetch('/BusRoute/SaveRouteStops', { method:'POST', body: fd }).then(function(res){ if(res.redirected) window.location = res.url; else return res.text(); }).catch(function(){ if(window.AppCommon) AppCommon.error('Lưu cấu hình thất bại'); }).finally(function(){ hideLoading(); });
+            });
+
+            // Copy stops functionality
+            document.querySelectorAll('.js-copy-stops').forEach(function(btn){ btn.addEventListener('click', async function(){ 
+                var toRouteId = btn.getAttribute('data-route-id'); document.getElementById('copy_toRouteId').value = toRouteId;
+                try{
+                    var res = await fetch('/BusRoute/GetRoutesForCopy');
+                    var routes = await res.json();
+                    var selectEl = document.getElementById('copy_fromRouteId');
+                    selectEl.innerHTML = '<option value="">Chọn lộ trình...</option>';
+                    routes.forEach(function(r){ 
+                        if(r.ID != toRouteId){ 
+                            var opt = document.createElement('option'); opt.value = r.ID; opt.textContent = r.NVCHR_ROUTE_NAME; selectEl.appendChild(opt);
+                        }
+                    });
+                    var modal = new bootstrap.Modal(document.getElementById('copyStopsModal'));
+                    modal.show();
+                }catch(ex){ console.error(ex); if(window.AppCommon) AppCommon.error('Không thể tải danh sách lộ trình.'); }
+            }); });
+
+            document.getElementById('btn_doCopy').addEventListener('click', async function(){ 
+                var fromRouteId = document.getElementById('copy_fromRouteId').value;
+                var toRouteId = document.getElementById('copy_toRouteId').value;
+                if(!fromRouteId){ if(window.AppCommon) AppCommon.warning('Vui lòng chọn lộ trình nguồn.'); return; }
+                showLoading();
+                try{
+                    var res = await fetch('/BusRoute/CopyRouteStops?fromRouteId='+fromRouteId+'&toRouteId='+toRouteId);
+                    var result = await res.json();
+                    if(result.success){ 
+                        if(window.AppCommon) AppCommon.successTopRight(result.message);
+                        var modal = bootstrap.Modal.getInstance(document.getElementById('copyStopsModal'));
+                        if(modal) modal.hide();
+                        window.location.reload();
+                    }
+                    else{ 
+                        if(window.AppCommon) AppCommon.error(result.message||'Sao chép thất bại'); 
+                    }
+                }catch(ex){ console.error(ex); if(window.AppCommon) AppCommon.error('Lỗi sao chép.'); }
+                finally{ hideLoading(); }
+            });
+
+        })();
+    </script>
+}

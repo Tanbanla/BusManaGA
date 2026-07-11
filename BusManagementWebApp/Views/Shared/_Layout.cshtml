@@ -1,0 +1,1329 @@
+﻿@inject BusManagement.Service.Services.Interfaces.IEmployeeService EmployeeService
+@inject BusManagement.Service.Services.Interfaces.ITmUserService TmUserService
+@inject BusManagement.Service.Services.Interfaces.ITmRoleService TmRoleService
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - BusManagementSystem</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-select/bootstrap-select.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+        .menu-system {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .menu-system .nav-item {
+            position: relative;
+            list-style: none;
+        }
+
+        .menu-system .nav-link {
+            color: #166fe5;
+            padding: 10px 14px;
+            cursor: pointer;
+            white-space: nowrap;
+            border-radius: 10px;
+            transition: all .25s ease;
+            font-weight: 500;
+        }
+
+        .menu-system .nav-item:hover > .nav-link {
+            color: #ffffff;
+            background: linear-gradient(135deg, #166fe5 0%, #1877f2 55%, #2563eb 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(37, 99, 235, 0.26);
+        }
+
+        .menu-system .nav-item:hover > .dropdown-menu-custom {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .dropdown-menu-custom {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 280px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 10px;
+            z-index: 1300;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(8px);
+            pointer-events: none;
+            transition: all .22s ease;
+        }
+
+        .dropdown-menu-custom::before {
+            content: "";
+            position: absolute;
+            top: -10px;
+            left: 0;
+            right: 0;
+            height: 10px;
+        }
+
+        .dropdown-menu-custom li {
+            list-style: none;
+            position: relative;
+        }
+        .dropdown-menu-custom a {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 9px 12px;
+            color: #166fe5;
+            text-decoration: none;
+            font-size: 13.5px;
+            font-weight: 500;
+            border-radius: 10px;
+            margin-bottom: 4px;
+            border: 1px solid transparent;
+            transition: all .2s ease;
+        }
+
+        .dropdown-menu-custom a:hover {
+            background: linear-gradient(135deg, #166fe5 0%, #1877f2 55%, #2563eb 100%);
+            color: #fff !important;
+            border-color: transparent;
+            transform: translateX(2px);
+        }
+
+        .arrow {
+            font-size: 16px;
+            opacity: .8;
+        }
+
+        .bootstrap-select > .dropdown-toggle {
+            border: 1px solid #dee2e6;
+        }
+
+        .bootstrap-select .dropdown-menu {
+            z-index: 2000;
+        }
+
+        .submenu {
+            position: absolute;
+            top: 0;
+            left: 100%;
+            width: 280px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 10px;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateX(8px);
+            pointer-events: none;
+            transition: all .2s ease;
+        }
+
+        .submenu::before {
+            content: "";
+            position: absolute;
+            left: -10px;
+            top: 0;
+            width: 10px;
+            height: 100%;
+        }
+
+        .dropdown-menu-custom li:hover > .submenu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        /* global page loader */
+        .page-loader {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffffff; /* solid white */
+            z-index: 9999;
+            opacity: 1;
+            transition: opacity 350ms ease;
+            pointer-events: auto;
+        }
+        .page-loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .page-loader.d-none { display: none !important; }
+
+        .page-loader .loader-wrap {
+            width: 160px;
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        body.is-loading { overflow: hidden !important; }
+        /* layout: make footer stick to bottom when page content is short */
+        html, body { height: 100%; }
+        .app-body { display: flex; flex-direction: column; min-height: 100vh; }
+        .app-body > .container { flex: 1 0 auto; }
+        footer.footer { margin-top: auto; }
+
+        footer.footer .footer-inner {
+            position: relative;
+            min-height: 26px;
+        }
+
+        .footer-logo {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            height: 20px;
+            width: auto;
+            opacity: .95;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .avatar-preview-trigger { cursor: pointer; }
+        .navbar-avatar,
+        .report-avatar-image,
+        .comment-avatar-image,
+        .table-avatar-image,
+        .profile-avatar-preview {
+            image-rendering: auto;
+            /* image-rendering: -webkit-optimize-contrast; */
+            object-fit: cover;
+            object-position: center;
+            backface-visibility: hidden;
+            /* transform: translateZ(0); */
+        }
+
+        .avatar-hover-preview {
+            position: fixed;
+            z-index: 3000;
+            width: 360px;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, .18);
+            padding: 10px;
+            pointer-events: none;
+            display: none;
+        }
+
+        .avatar-hover-preview.show { display: block; }
+        .avatar-hover-preview .preview-avatar {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px #dbe3f2;
+            background: #eef2ff;
+            color: #334155;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        .profile-avatar-editor {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+        }
+
+        .profile-avatar-editor .profile-avatar-preview,
+        .profile-avatar-editor .profile-avatar-fallback {
+            width: 150px;
+            height: 150px;
+        }
+
+        .profile-avatar-edit-btn {
+            position: absolute;
+            right: 4px;
+            bottom: 4px;
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, .2);
+        }
+
+        .profile-avatar-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .dropdown-item:hover {
+            background-color: rgba(0,0,0,.04);
+        }
+
+        .dropdown-item.text-danger:hover {
+            background-color: rgba(220,38,38,.06);
+        }
+
+        .app-body {
+            overflow-x: clip;
+        }
+
+        .navbar-collapse {
+            min-width: 0;
+            gap: 10px;
+        }
+
+        .navbar-collapse > .menu-system {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .navbar-collapse > .d-flex.align-items-center.gap-3 {
+            flex-shrink: 0;
+        }
+
+        /* Default */
+        .navbar-nav .nav-link {
+            font-size: 15px;
+            white-space: nowrap;
+        }
+
+        @@media (max-width: 1700px) {
+            .menu-system {
+                gap: 7px;
+            }
+
+            .navbar-nav .nav-link {
+                font-size: 12.5px;
+                padding: 9px 12px;
+            }
+
+            .dropdown-menu-custom,
+            .submenu {
+                width: 230px;
+            }
+        }
+        @@media (max-width: 1460px) {
+            .menu-system {
+                gap: 6px;
+            }
+
+            .navbar-nav .nav-link {
+                font-size: 13px;
+                padding: 9px 11px;
+            }
+
+            .navbar-nav .nav-link i {
+                margin-right: 4px;
+            }
+
+            .dropdown-menu-custom,
+            .submenu {
+                width: 220px;
+            }
+        }
+
+        @@media (max-width: 1305px) {
+            .menu-system {
+                gap: 4px;
+            }
+
+            .navbar-nav .nav-link {
+                font-size: 11px;
+                padding: 8px 9px;
+            }
+
+            .navbar-nav .nav-link i {
+                margin-right: 3px;
+            }
+
+            .dropdown-menu-custom,
+            .submenu {
+                width: 210px;
+            }
+        }
+
+        @@media (max-width: 1200px) {
+            .menu-system {
+                gap: 4px;
+            }
+
+            .navbar-nav .nav-link {
+                font-size: 9px;
+                padding: 8px 9px;
+            }
+
+                .navbar-nav .nav-link i {
+                    margin-right: 3px;
+                }
+
+            .dropdown-menu-custom,
+            .submenu {
+                width: 180px;
+            }
+        }
+
+        /* Compact menu for high display scale (150%...) */
+        @@media (max-height: 900px), (max-width: 1366px) {
+            .menu-system .nav-link {
+                font-size: 10px;
+                padding: 7px 8px;
+            }
+
+            .dropdown-menu-custom,
+            .submenu {
+                width: 190px;
+                padding: 8px;
+            }
+
+            .dropdown-menu-custom a,
+            .submenu a {
+                font-size: 12px;
+                padding: 7px 9px;
+            }
+
+            .arrow {
+                font-size: 13px;
+            }
+        }
+
+        @@media (max-width: 1000px) {
+            .navbar-brand {
+                font-size: 1rem;
+            }
+
+            .navbar-collapse > .d-flex.align-items-center.gap-3 {
+                width: 100%;
+                justify-content: flex-end;
+            }
+
+            .navbar-nav .nav-link {
+                font-size: 11px;
+                padding: 7px 8px;
+            }
+        }
+
+        @@media (max-width: 900px) {
+            .navbar-collapse > .d-flex.align-items-center.gap-3 {
+                justify-content: flex-start;
+            }
+
+            .menu-system {
+                margin-top: 4px;
+            }
+
+            .navbar-nav .nav-link {
+                font-size: 10.5px;
+                padding: 6px 8px;
+            }
+
+            .dropdown-menu-custom,
+            .submenu {
+                width: 210px;
+            }
+        }
+
+        @@media (max-width: 768px) {
+            .navbar-brand {
+                font-size: .94rem;
+            }
+
+            .ps-4,
+            .pe-4 {
+                padding-left: .8rem !important;
+                padding-right: .8rem !important;
+            }
+
+            .menu-system {
+                gap: 2px;
+            }
+
+            .navbar-nav .nav-link {
+                font-size: 10px;
+                padding: 6px 7px;
+            }
+        }
+
+        @@media (max-width: 576px) {
+            .navbar-brand {
+                font-size: .88rem;
+            }
+
+            .menu-system {
+                margin-top: 2px;
+            }
+
+            .navbar-nav .nav-link {
+                font-size: 9.8px;
+                padding: 6px;
+                border-radius: 8px;
+            }
+
+            .dropdown-menu-custom,
+            .submenu {
+                width: min(86vw, 260px);
+            }
+        }
+
+        @@media (max-width: 420px) {
+            .navbar-brand {
+                font-size: .8rem;
+            }
+
+            .navbar-nav .nav-link {
+                font-size: 9.4px;
+                padding: 5px 6px;
+            }
+        }
+
+        .navbar-nav .nav-link:hover {
+            transform: translateY(-1px);
+            transition: all 0.2s ease;
+        }
+
+        .navbar-nav .nav-link.active {
+            color: #ffffff !important;
+            font-weight: 500;
+        }
+
+        .bootstrap-select .dropdown-menu {
+            z-index: 2060 !important;
+        }
+
+        .modal .bootstrap-select .dropdown-menu,
+        .modal-open .bootstrap-select .dropdown-menu {
+            z-index: 2060 !important;
+        }
+
+        .lottie-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .lottie-overlay.show {
+            display: flex;
+        }
+
+        .lottie-overlay #approvalSuccessLottie {
+            width: 100vw;
+            max-width: 100vw;
+            height: 70vh;
+        }
+
+        .dragable-modal .modal-header {
+            cursor: grab;
+            touch-action: none; /* quan trọng: ngăn trình duyệt xử lý scroll/zoom trên touch, giúp kéo mượt hơn */
+        }
+
+        .dragable-modal .modal-header:active {
+            cursor: grabbing;
+        }
+
+        .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="app-body">
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-toggleable-sm navbar-light app-navbar border-0 shadow-sm mb-1">
+            <div class="container-fluid">
+                <a class="navbar-brand fw-semibold" asp-area="" asp-controller="Home" asp-action="Index">
+                    <i class="fa-solid fa-bus me-2"></i>Bus Management
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse justify-content-between">
+                    @await Component.InvokeAsync("DynamicMenu")
+                    <div class="d-flex align-items-center gap-3">
+                        @*<div id="globalClock" class="text-white-50 small" aria-live="polite">--:--:--</div>*@
+
+                        @* <div class="dropdown">
+                            <button class="btn btn-light btn-sm rounded-circle position-relative" id="notifBell" data-bs-toggle="dropdown" aria-expanded="false" title="Notifications">
+                                <i class="fa fa-bell"></i>
+                                <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end p-2" aria-labelledby="notifBell" style="width:320px;">
+                                <li class="px-2 py-1 fw-semibold">Notification</li>
+                                <li>
+                                    <div id="notifList" class="list-group list-group-flush">
+                                        <div class="list-group-item small text-muted text-center">No notification</div>
+                                    </div>
+                                </li>
+                                <li class="text-center mt-2"><button id="markAllRead" class="btn btn-sm btn-link">Mark as read</button></li>
+                            </ul>
+                        </div> *@
+
+                        @using System.IdentityModel.Tokens.Jwt
+                        @using System.Security.Claims
+                        @{ 
+                            var token = Context.Request.Cookies["AccessToken"];
+                            string userName = null;
+                            string employeeCode = null;
+                            string sectionName = null;
+                            string adid = null;
+                            string avatarUrl = null;
+                            string roleName = null;
+                            if (!string.IsNullOrEmpty(token))
+                            {
+                                try
+                                {
+                                    var handler = new JwtSecurityTokenHandler();
+                                    var jwt = handler.ReadJwtToken(token);
+                                    userName = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value ?? jwt.Claims.FirstOrDefault(c => c.Type == "agent_name")?.Value;
+                                    employeeCode = jwt.Claims.FirstOrDefault(c => c.Type == "employee_code")?.Value;
+                                    sectionName = jwt.Claims.FirstOrDefault(c => c.Type == "sec_name")?.Value;
+                                    adid = jwt.Claims.FirstOrDefault(c => c.Type == "adid")?.Value;
+
+                                    if (!string.IsNullOrWhiteSpace(adid) || !string.IsNullOrWhiteSpace(employeeCode))
+                                    {
+                                        var filters = new List<BusManagement.Model.Common.FilterOption>
+                                        {
+                                            !string.IsNullOrWhiteSpace(adid)
+                                                ? new BusManagement.Model.Common.FilterOption { Field = "CHR_ADID", Operator = "=", Value = adid }
+                                                : new BusManagement.Model.Common.FilterOption { Field = "CHR_EMPLOYEE_ID", Operator = "=", Value = employeeCode }
+                                        };
+
+                                        var userResp = TmUserService.SearchByConditionAsync(new BusManagement.Model.Common.SearchOptions
+                                        {
+                                            PageNumber = 1,
+                                            PageSize = 1,
+                                            Filters = filters
+                                        }).GetAwaiter().GetResult();
+
+                                        var localUser = userResp?.Data?.Data?.FirstOrDefault();
+                                        avatarUrl = localUser?.CHR_AVATAR_PATH;
+
+                                        if (localUser?.INT_ROLE_ID is int rid && rid > 0)
+                                        {
+                                            var roleResp = TmRoleService.GetByIdAsync(rid).GetAwaiter().GetResult();
+                                            roleName = roleResp?.Data?.NVCHR_ROLE_NAME;
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+
+                        <div class="d-flex gap-2 align-items-center">
+                            @if (!string.IsNullOrEmpty(userName))
+                            {
+                                var initials = string.Join("", (userName ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(s => s[0].ToString()).Take(2)).ToUpper();
+                                <div class="dropdown">
+                                    <button class="btn d-flex align-items-center gap-2 px-2 pe-3 py-1"
+                                            id="userMenu"
+                                            data-bs-toggle="dropdown"
+                                            aria-expanded="false"
+                                            style="background:rgba(255,255,255,.08); border:1px solid rgba(148, 163, 184, .30);">
+
+                                        <img id="navbarAvatarImage"
+                                             src="@avatarUrl" alt="avatar"
+                                             class="navbar-avatar avatar-preview-trigger rounded-circle @(string.IsNullOrWhiteSpace(avatarUrl) ? "d-none" : "")"
+                                             data-avatar-url="@avatarUrl" data-user-name="@userName" data-user-code="@employeeCode" data-user-team=""
+                                             style="width:34px;height:34px;object-fit:cover;" />
+
+                                        <div id="navbarAvatarFallback"
+                                             class="avatar-preview-trigger rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 @(string.IsNullOrWhiteSpace(avatarUrl) ? "" : "d-none")"
+                                             data-avatar-url="" data-user-name="@userName" data-user-code="@employeeCode" data-user-team=""
+                                             style="width:34px;height:34px;background:linear-gradient(135deg,#4f46e5,#06b6d4);color:#fff;font-weight:600;font-size:13px;">
+                                            @initials
+                                        </div>
+
+                                        <span class="d-none d-md-inline text-white-75 fw-500 small">@userName</span>
+
+                                        <i class="ti ti-chevron-down text-white-50" style="font-size:14px;" aria-hidden="true"></i>
+                                    </button>
+
+                                    <ul class="dropdown-menu dropdown-menu-end p-2 border-0 shadow-sm"
+                                        aria-labelledby="userMenu"
+                                        style="min-width:220px; border-radius:14px; border:0.5px solid rgba(0,0,0,.1)!important;">
+                                        <li class="px-2 pt-1 pb-2 mb-1" style="border-bottom:1px solid rgba(0,0,0,.07);">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <img id="navbarAvatarImage"
+                                                     src="@avatarUrl" alt="avatar"
+                                                     class="navbar-avatar avatar-preview-trigger rounded-circle @(string.IsNullOrWhiteSpace(avatarUrl) ? "d-none" : "")"
+                                                     data-avatar-url="@avatarUrl" data-user-name="@userName" data-user-code="@employeeCode" data-user-team=""
+                                                     style="width:64px;height:64px;object-fit:cover;" />
+
+                                                <div id="navbarAvatarFallback"
+                                                     class="avatar-preview-trigger rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 @(string.IsNullOrWhiteSpace(avatarUrl) ? "" : "d-none")"
+                                                     data-avatar-url="" data-user-name="@userName" data-user-code="@employeeCode" data-user-team=""
+                                                     style="width:64px;height:64px;background:linear-gradient(135deg,#4f46e5,#06b6d4);color:#fff;font-weight:600;font-size:13px;">
+                                                    @initials
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <div class="fw-semibold text-truncate" style="font-size:14px;">@userName</div>
+                                                    <span class="row badge rounded-pill text-bg-secondary text-dark fw-normal ms-1" style="font-size:11px;">
+                                                        Phòng ban: @(string.IsNullOrWhiteSpace(sectionName) ? "User" : sectionName)
+                                                    </span>
+                                                    <span class="row badge rounded-pill text-bg-secondary text-dark fw-normal ms-1" style="font-size:11px;">
+                                                        Mã nhân viên: @(string.IsNullOrWhiteSpace(employeeCode) ? "User" : employeeCode)
+                                                    </span>
+                                                    <span class="row badge rounded-pill text-bg-secondary text-dark fw-normal ms-1" style="font-size:11px;">
+                                                        Quyền: @(string.IsNullOrWhiteSpace(roleName) ? "User" : roleName)
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </li>
+
+                                        <li>
+                                            <button type="button" class="dropdown-item rounded-2 d-flex align-items-center gap-2 py-2" id="btnOpenProfileModal">
+                                                <i class="ti ti-user text-secondary" style="font-size:16px;" aria-hidden="true"></i>
+                                                User profile
+                                            </button>
+                                        </li>
+
+                                        <li><hr class="dropdown-divider my-1"></li>
+
+                                        <li>
+                                            <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="dropdown-item rounded-2 d-flex align-items-center gap-2 py-2 text-danger">
+                                                    <i class="ti ti-logout" style="font-size:16px;" aria-hidden="true"></i>
+                                                    Đăng xuất
+                                                </button>
+                                            </form>
+                                        </li>
+                                    </ul>
+                                </div>
+                            }
+                            else
+                            {
+                                <a class="btn btn-light btn" asp-controller="Account" asp-action="Login"><i class="fa fa-right-to-bracket me-1"></i>Login</a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="ps-3 pe-3">
+        <main role="main" class="">
+            @RenderBody()
+            <div id="lottieOverlay" class="lottie-overlay">
+                <div id="approvalSuccessLottie"></div>
+            </div>
+        </main>
+    </div>
+
+    <footer class="border-top footer text-muted">
+        <div class="ps-3 pe-1">
+            <div class="footer-inner">
+                <span>&copy; 2026 - BIVN Bus Managements System - by R&D-IT</span>
+                <img src="~/img/blue-brother-logo-transparent.png" alt="Brother Logo" class="footer-logo" />
+            </div>
+        </div>
+    </footer>
+    <!-- page loader element (shared) -->
+    <div id="pageLoader" class="page-loader d-none" aria-hidden="true">
+        <div class="loader-wrap" id="pageLoaderAnim"></div>
+    </div>
+    <div id="avatarHoverPreview" class="avatar-hover-preview" aria-hidden="true">
+        <div class="d-flex align-items-center gap-2">
+            <div id="avatarHoverPreviewImage" class="preview-avatar">U</div>
+            <div class="small">
+                <div id="avatarHoverPreviewName" class="fw-semibold text-dark"></div>
+                <div id="avatarHoverPreviewCode" class="text-muted"></div>
+                <div id="avatarHoverPreviewTeam" class="text-muted"></div>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(userName))
+    {
+        <div class="modal fade dragable-modal" id="profileModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fa fa-user-pen me-2 text-primary"></i>Edit profile</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="profileForm" method="post">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <div class="mb-2">
+                                <label class="form-label">Avatar</label>
+                                <div class="text-center">
+                                    <div class="profile-avatar-editor">
+                                        <img id="profileAvatarPreview" class="profile-avatar-preview d-none" alt="avatar" />
+                                        <div id="profileAvatarFallback" class="profile-avatar-fallback"><i class="fa fa-user"></i></div>
+                                        <input id="profileAvatarFile" name="avatarFile" type="file" class="profile-avatar-input" accept="image/*" />
+                                        <label for="profileAvatarFile" class="btn btn-primary btn-sm profile-avatar-edit-btn" title="Edit avatar">
+                                            <i class="fa fa-pen"></i>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Employee Code</label>
+                                <input id="profileEmployeeCode" class="form-control" readonly />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Employee Name</label>
+                                <input id="profileEmployeeName" class="form-control" readonly />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Position</label>
+                                <input id="profilePosition" class="form-control" readonly />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Role</label>
+                                <input id="profileRoleName" class="form-control" readonly />
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/bootstrap-select/bootstrap-select.min.js"></script>
+    <script src="~/lib/lotties/lottie.min.js"></script>
+    <script src="~/lib/apexchart/apexcharts.js"></script>
+    <script src="~/js/common.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            document.querySelectorAll('.dragable-modal').forEach(modal => {
+              const dialog = modal.querySelector('.modal-dialog');
+              const header = modal.querySelector('.modal-header');
+              if (!dialog || !header) return;
+
+              let isDragging = false;
+              let startX = 0, startY = 0;
+              let currentX = 0, currentY = 0;
+              let pendingX = 0, pendingY = 0;
+              let rafId = null;
+
+              // Cursor kéo thả khi hover vào header
+              header.style.cursor = 'grab';
+
+              function applyTransform() {
+                dialog.style.transform = `translate(${pendingX}px, ${pendingY}px)`;
+                rafId = null;
+              }
+
+              function scheduleUpdate() {
+                if (rafId === null) {
+                  rafId = requestAnimationFrame(applyTransform);
+                }
+              }
+
+              function dragStart(e) {
+                    // Bỏ qua nếu bấm vào nút đóng hoặc phần tử tương tác khác trong header
+                    if (e.target.closest('.btn-close, button, a, input, select, textarea')) {
+                    return;
+                    }
+
+                    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+                    isDragging = true;
+                    startX = e.clientX - currentX;
+                    startY = e.clientY - currentY;
+
+                    header.setPointerCapture(e.pointerId);
+                    header.style.cursor = 'grabbing';
+                    document.body.style.userSelect = 'none';
+                }
+
+              function dragMove(e) {
+                if (!isDragging) return;
+                e.preventDefault();
+
+                currentX = e.clientX - startX;
+                currentY = e.clientY - startY;
+
+                pendingX = currentX;
+                pendingY = currentY;
+                scheduleUpdate();
+              }
+
+              function dragEnd(e) {
+                if (!isDragging) return;
+                isDragging = false;
+
+                if (e && e.pointerId !== undefined) {
+                  try { header.releasePointerCapture(e.pointerId); } catch (_) {}
+                }
+
+                header.style.cursor = 'grab';
+                document.body.style.userSelect = '';
+              }
+
+              header.addEventListener('pointerdown', dragStart);
+              header.addEventListener('pointermove', dragMove, { passive: false });
+              header.addEventListener('pointerup', dragEnd);
+              header.addEventListener('pointercancel', dragEnd);
+
+              /* Reset khi đóng modal (tuỳ chọn) */
+              modal.addEventListener('hidden.bs.modal', () => {
+                currentX = currentY = 0;
+                pendingX = pendingY = 0;
+                if (rafId !== null) {
+                  cancelAnimationFrame(rafId);
+                  rafId = null;
+                }
+                dialog.style.transform = '';
+              });
+            });
+        });
+    </script>
+
+    <script>
+        (function () {
+            window.initSharedSelectPicker = function (scope) {
+                if (!window.jQuery || typeof window.jQuery.fn.selectpicker !== 'function') return;
+
+                var $scope = scope ? window.jQuery(scope) : window.jQuery(document);
+                var $pickers = $scope.find('.selectpicker');
+                if (!$pickers.length) return;
+
+                $pickers.each(function () {
+                    var $el = window.jQuery(this);
+                    var $modal = $el.closest('.modal');
+                    var explicitContainer = $el.attr('data-container');
+                    var options = {};
+
+                    if (explicitContainer) {
+                        options.container = explicitContainer;
+                    } else if ($modal.length) {
+                        var modalId = $modal.attr('id');
+                        if (modalId) {
+                            options.container = '#' + modalId;
+                        }
+                    }
+
+                    var initializedFlag = $el.data('spInitialized') === true;
+                    var hasPluginInstance = !!$el.data('selectpicker');
+
+                    if (!initializedFlag) {
+                        try {
+                            // cleanup stale bootstrap-select wrappers before first init
+                            $el.siblings('.bootstrap-select').remove();
+                        } catch (e) { }
+
+                        $el.selectpicker(options);
+                        $el.data('spInitialized', true);
+                        return;
+                    }
+
+                    if (!hasPluginInstance) {
+                        try { $el.selectpicker('destroy'); } catch (e) { }
+                        try { $el.siblings('.bootstrap-select').remove(); } catch (e) { }
+                        $el.selectpicker(options);
+                        return;
+                    }
+
+                    $el.selectpicker('refresh');
+                });
+            };
+
+            window.jQuery(function () {
+                window.initSharedSelectPicker(document);
+            });
+        })();
+
+        // global clock and notifications
+        (function () {
+            var $preview = null;
+            var hideTimer = null;
+
+            function getAvatarText(name) {
+                var normalized = (name || '').toString().trim();
+                if (!normalized) return 'U';
+                var parts = normalized.split(/\s+/).filter(Boolean);
+                if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+                return (parts[0].slice(0, 1) + parts[parts.length - 1].slice(0, 1)).toUpperCase();
+            }
+
+            function escapeHtml(s) {
+                return (s || '').toString().replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+            }
+
+            function setPreviewPosition(pageX, pageY) {
+                if (!$preview || !$preview.length) return;
+                var gap = 14;
+                var left = pageX + gap;
+                var top = pageY + gap;
+                var maxLeft = window.innerWidth - $preview.outerWidth() - 10;
+                var maxTop = window.innerHeight - $preview.outerHeight() - 10;
+                if (left > maxLeft) left = pageX - $preview.outerWidth() - gap;
+                if (top > maxTop) top = pageY - $preview.outerHeight() - gap;
+                $preview.css({ left: Math.max(8, left) + 'px', top: Math.max(8, top) + 'px' });
+            }
+
+            function showAvatarPreview($target, ev) {
+                if (!$preview || !$preview.length) return;
+                var name = $target.data('user-name') || $target.attr('alt') || '';
+                var code = $target.data('user-code') || '';
+                var team = $target.data('user-team') || '';
+                var avatar = $target.data('avatar-url') || $target.attr('src') || '';
+
+                $('#avatarHoverPreviewName').text(name || 'Unknown user');
+                $('#avatarHoverPreviewCode').text(code ? ('Mã NV: ' + code) : '');
+                $('#avatarHoverPreviewTeam').text(team ? ('Team: ' + team) : '');
+
+                var $img = $('#avatarHoverPreviewImage');
+                if (avatar) {
+                    $img.html('<img src="' + escapeHtml(avatar) + '" alt="avatar" class="preview-avatar" />');
+                } else {
+                    $img.text(getAvatarText(name));
+                }
+
+                $preview.addClass('show').attr('aria-hidden', 'false');
+                setPreviewPosition(ev.clientX || 0, ev.clientY || 0);
+            }
+
+            function hideAvatarPreview() {
+                if (!$preview || !$preview.length) return;
+                $preview.removeClass('show').attr('aria-hidden', 'true');
+            }
+
+            $(function () {
+                $preview = $('#avatarHoverPreview');
+
+                $(document).on('mouseenter', '.avatar-preview-trigger', function (ev) {
+                    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+                    showAvatarPreview($(this), ev);
+                });
+
+                $(document).on('mousemove', '.avatar-preview-trigger', function (ev) {
+                    setPreviewPosition(ev.clientX || 0, ev.clientY || 0);
+                });
+
+                $(document).on('mouseleave', '.avatar-preview-trigger', function () {
+                    hideTimer = setTimeout(hideAvatarPreview, 40);
+                });
+
+                $(window).on('scroll resize', function () {
+                    hideAvatarPreview();
+                });
+            });
+        })();
+
+        (function () {
+            function formatTwo(n) { return (n < 10 ? '0' + n : n); }
+            function updateClock() {
+                var d = new Date();
+                var dd = ('0' + d.getDate()).slice(-2);
+                var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+                var yyyy = d.getFullYear();
+                var time = formatTwo(d.getHours()) + ':' + formatTwo(d.getMinutes()) + ':' + formatTwo(d.getSeconds());
+                var s = dd + '/' + mm + '/' + yyyy + ' ' + time;
+                var el = document.getElementById('globalClock');
+                if (el) el.textContent = s;
+            }
+
+            // sample notifications store (could be loaded from server)
+            // var notifications = [
+            //     { id: 1, text: '', time: '1h' },
+            //     { id: 2, text: '', time: '2h' },
+            //     { id: 3, text: '', time: '2h' },
+            //     { id: 4, text: '', time: '5h' },
+            //     { id: 5, text: '', time: '6h' }
+            // ];
+
+            // function renderNotifications() {
+            //     var list = document.getElementById('notifList');
+            //     var badge = document.getElementById('notifBadge');
+            //     if (!list || !badge) return;
+            //     list.innerHTML = '';
+            //     if (!notifications.length) {
+            //         list.innerHTML = '<div class="list-group-item small text-muted text-center">No notification</div>';
+            //         badge.classList.add('d-none');
+            //         badge.textContent = '0';
+            //         return;
+            //     }
+            //     notifications.forEach(function (n) {
+            //         var item = document.createElement('div');
+            //         item.className = 'list-group-item list-group-item-action small';
+            //         item.innerHTML = '<div class="fw-semibold">' + escapeHtml(n.text) + '</div><div class="text-muted small">' + escapeHtml(n.time) + '</div>';
+            //         list.appendChild(item);
+            //     });
+            //     badge.classList.remove('d-none');
+            //     badge.textContent = notifications.length;
+            // }
+
+            // function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                updateClock();
+                setInterval(updateClock, 1000);
+                //renderNotifications();
+
+                // var markBtn = document.getElementById('markAllRead');
+                // if (markBtn) {
+                //     markBtn.addEventListener('click', function (e) {
+                //         e.preventDefault();
+                //         notifications = [];
+                //         renderNotifications();
+                //     });
+                // }
+            });
+        })();
+        (function () {
+            var pageAnim = null;
+            var animLoaded = false;
+            var MIN_DELAY = 1500; // ms before navigation
+            //var _navPersist = false;
+
+            function _loadAnim() {
+                if (animLoaded) return;
+                if (typeof lottie === 'undefined') return;
+                try {
+                    pageAnim = lottie.loadAnimation({
+                        container: document.getElementById('pageLoaderAnim'),
+                        renderer: 'svg',
+                        loop: true,
+                        autoplay: true,
+                        path: '/lotties/blue_bus_loading.json'
+                    });
+                    pageAnim.setSpeed(2);
+                    animLoaded = true;
+                } catch (e) {
+                    console.warn('Lottie load failed', e);
+                }
+            }
+
+            function _showOverlay() {
+                var $el = $('#pageLoader');
+                $el.removeClass('d-none hidden').attr('aria-hidden', 'false');
+                // ensure repaint
+                $el[0].offsetHeight;
+                $('body').addClass('is-loading');
+                _loadAnim();
+            }
+
+            function _hideOverlay() {
+                var $el = $('#pageLoader');
+                $el.addClass('hidden');
+                $('body').removeClass('is-loading');
+                setTimeout(function () {
+                    $el.addClass('d-none');
+                    $el.removeClass('hidden');
+                }, 380);
+            }
+
+            window.showLoading = function (persistToNextPage) {
+                console.log('show loading is called')
+                if (persistToNextPage) {
+                    try { sessionStorage.setItem('showLoaderOnNextPage', '1'); } catch (e) { }
+                }
+                // if navigation persisted the loader and page initialization already showed it,
+                // ignore the first showLoading call from page scripts to prevent double-count/flicker
+                // if (_navPersist) {
+                //     _navPersist = false;
+                //     return;
+                // }
+                _showOverlay();
+            };
+
+            window.hideLoading = function () {
+                try { sessionStorage.removeItem('showLoaderOnNextPage'); } catch (e) {}
+                _hideOverlay();
+            };
+
+            // intercept internal link clicks to show loader, delay navigation
+            $(document).on('click', 'a[href]:not([target="_blank"])', function (e) {
+                try {
+                    var $a = $(this);
+                    var href = $a.attr('href') || '';
+                    if (!href) return;
+                    if (href.indexOf('#') === 0 || href.indexOf('javascript:') === 0 || href.indexOf('mailto:') === 0) return;
+                    if ($a.data('bsToggle') || $a.attr('data-bs-toggle')) return; // bootstrap toggles
+                    if ($a.is('[data-no-loader]')) return;
+
+                    var url = new URL(href, window.location.href);
+                    if (url.origin !== window.location.origin) return; // external
+
+                    e.preventDefault();
+                    // show loader and persist flag for next page so new page can keep it during render
+                    window.showLoading(true);
+                    setTimeout(function () {
+                        window.location.href = url.href;
+                    }, MIN_DELAY);
+                } catch (err) {
+                    // fallback: do nothing
+                }
+            });
+
+            // opt-in only: show loader only when form or submit button has `show-loading` / `data-show-loading`
+            $(document).on('submit', 'form', function () {
+                var $f = $(this);
+                var shouldShow = $f.is('[show-loading],[data-show-loading]');
+                if (!shouldShow) return;
+                window.showLoading(false);
+            });
+
+            // Avoid showing loader on generic click of submit buttons because
+            // client-side handlers can cancel submit (return false), which causes
+            // loader to stay visible without navigation. Use `submit` event only.
+
+            // on page load, if navigation set the flag, keep loader visible until window load then hide with fade
+            // $(function () {
+            //     var showOnLoad = false;
+            //     try { showOnLoad = sessionStorage.getItem('showLoaderOnNextPage') === '1'; } catch (e) { }
+            //     if (showOnLoad) {
+            //         // ensure overlay visible immediately
+            //         _showOverlay();
+            //         // remove flag so subsequent reloads don't keep showing
+            //         try { sessionStorage.removeItem('showLoaderOnNextPage'); } catch (e) { }
+
+            //         // auto-hide guard: if window.load doesn't fire (or takes too long), hide after MAX_AUTO_HIDE
+            //         var MAX_AUTO_HIDE = 6000;
+            //         var navAutoHide = setTimeout(function () {
+            //             try { _hideOverlay(); } catch (ex) { }
+            //         }, MAX_AUTO_HIDE);
+
+            //         $(window).on('load', function () {
+            //             if (navAutoHide) { clearTimeout(navAutoHide); navAutoHide = null; }
+            //             // small delay so user sees smooth transition
+            //             setTimeout(function () { _hideOverlay(); }, 180);
+            //         });
+            //     }
+            // });
+
+            // expose helpers
+            window.showPageLoader = window.showLoading;
+            window.hidePageLoader = window.hideLoading;
+        })();
+
+        (function () {
+            var profileModalEl = document.getElementById('profileModal');
+            if (!profileModalEl) return;
+
+            var profileModal = new bootstrap.Modal(profileModalEl);
+            var getProfileUrl = '@Url.Action("GetMyProfile", "Profile")';
+            var updateProfileUrl = '@Url.Action("UpdateMyProfile", "Profile")';
+
+            function loadProfileData() {
+                $.get(getProfileUrl).done(function (res) {
+                    if (!res || !res.success || !res.data) return;
+
+                    $('#profileEmployeeCode').val(res.data.EmployeeCode || '');
+                    $('#profileEmployeeName').val(res.data.EmployeeName || '');
+                    $('#profilePosition').val(res.data.Position || '');
+                    $('#profileRoleName').val(res.data.RoleName || '');
+
+                    setProfileAvatar(res.data.AvatarUrl || res.data.AvatarPath || '');
+                    $('#profileAvatarFile').val('');
+                });
+            }
+
+            function setProfileAvatar(url) {
+                var $img = $('#profileAvatarPreview');
+                var $fallback = $('#profileAvatarFallback');
+                if (url) {
+                    $img.attr('src', url).removeClass('d-none');
+                    $fallback.addClass('d-none');
+                } else {
+                    $img.attr('src', '').addClass('d-none');
+                    $fallback.removeClass('d-none');
+                }
+            }
+
+            $('#profileAvatarFile').on('change', function () {
+                var file = this.files && this.files[0];
+                if (!file) return;
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    setProfileAvatar((e && e.target && e.target.result) ? e.target.result : '');
+                };
+                reader.readAsDataURL(file);
+            });
+
+            $('#btnOpenProfileModal').on('click', function () {
+                loadProfileData();
+                profileModal.show();
+            });
+
+            $('#profileForm').on('submit', function (e) {
+                e.preventDefault();
+                var token = $('#profileForm').find('input[name="__RequestVerificationToken"]').val()
+                    || $('input[name="__RequestVerificationToken"]').first().val();
+
+                var formData = new FormData();
+                formData.append('__RequestVerificationToken', token);
+
+                var avatarFile = $('#profileAvatarFile')[0].files[0];
+                if (avatarFile) {
+                    formData.append('avatarFile', avatarFile);
+                }
+
+                $.ajax({
+                    url: updateProfileUrl,
+                    method: 'POST',
+                    data: formData,
+                    headers: {
+                        'RequestVerificationToken': token
+                    },
+                    processData: false,
+                    contentType: false
+                }).done(function (res) {
+                    if (res && res.success) {
+                        setProfileAvatar(res.avatarUrl || '');
+
+                        var $navImg = $('#navbarAvatarImage');
+                        var $navFallback = $('#navbarAvatarFallback');
+                        if (res.avatarUrl) {
+                            $navImg.attr('src', res.avatarUrl).attr('data-avatar-url', res.avatarUrl).removeClass('d-none');
+                            $navFallback.addClass('d-none');
+                        } else {
+                            $navImg.attr('src', '').attr('data-avatar-url', '').addClass('d-none');
+                            $navFallback.removeClass('d-none');
+                        }
+
+                        profileModal.hide();
+                    }
+                    else if (res && res.message) {
+                        alert(res.message);
+                    }
+                });
+            });
+        })();
+
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

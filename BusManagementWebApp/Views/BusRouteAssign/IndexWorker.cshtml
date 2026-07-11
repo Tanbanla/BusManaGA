@@ -1,0 +1,1074 @@
+﻿@model BusManagement.ViewModels.BusRouteAssign.BusRouteAssignPageViewModel
+@{
+    ViewData["Title"] = "Quản lý lộ trình xe đi làm cho công nhân";
+    var canEdit = Model.CanManage;
+}
+
+<style>
+    .search-container {
+        background: #f8fafc;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .quick-search {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .quick-search-input {
+        width: 100%;
+    }
+
+    .assign-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 1rem;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    /* --- Header: thông tin xe --- */
+    .assign-bus-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.875rem;
+        padding: 1rem 1.25rem 0.875rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .assign-bus-icon {
+        width: 44px;
+        height: 44px;
+        background: #EBF4FE;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: #185FA5;
+        font-size: 1.1rem;
+    }
+
+    .assign-bus-main {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .assign-bus-code {
+        font-size: 0.9375rem;
+        font-weight: 500;
+        color: #1e293b;
+    }
+
+        .assign-bus-code span {
+            color: #185FA5;
+        }
+
+    .assign-bus-meta {
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-top: 2px;
+    }
+
+    .assign-plate {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #1e293b;
+        color: #f1f5f9;
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 2px 10px;
+        border-radius: 4px;
+        letter-spacing: 0.5px;
+        margin-top: 5px;
+    }
+
+    .assign-checkbox {
+        display: flex;
+        align-items: center;
+    }
+
+    /* --- Driver strip --- */
+    .assign-driver-strip {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 1.25rem;
+        border-bottom: 1px solid #e2e8f0;
+        flex-wrap: wrap;
+    }
+
+    .assign-driver-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #EAF3DE;
+        color: #3B6D11;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        flex-shrink: 0;
+    }
+
+    .assign-driver-name {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #1e293b;
+    }
+
+    .assign-driver-phone {
+        font-size: 0.75rem;
+        color: #185FA5;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 1px;
+    }
+
+    /* --- Route section for worker (only pickup) --- */
+    .assign-route-section {
+        padding: 0.875rem 1.25rem;
+    }
+
+    .assign-route-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-bottom: 0.75rem;
+    }
+
+        .assign-route-label.go {
+            color: #0F6E56;
+        }
+
+    .assign-route-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .go .assign-route-dot {
+        background: #0F6E56;
+    }
+
+    .assign-route-subname {
+        font-size: 0.6875rem;
+        color: #94a3b8;
+        font-style: italic;
+        margin-left: auto;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 110px;
+    }
+
+    /* --- Timeline stops --- */
+    .assign-stop-list {
+        position: relative;
+    }
+
+    .assign-stop-item {
+        display: flex;
+        gap: 10px;
+        padding-bottom: 14px;
+        position: relative;
+    }
+
+        .assign-stop-item:last-child {
+            padding-bottom: 0;
+        }
+
+    .assign-stop-left {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 20px;
+        flex-shrink: 0;
+    }
+
+    .assign-stop-num {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.625rem;
+        font-weight: 500;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 1;
+    }
+
+        .assign-stop-num.go {
+            background: #E1F5EE;
+            color: #0F6E56;
+        }
+
+    .assign-stop-line {
+        width: 1px;
+        flex: 1;
+        background: #cbd5e1;
+        margin-top: 3px;
+        min-height: 10px;
+    }
+
+    .assign-stop-right {
+        flex: 1;
+        padding-top: 1px;
+    }
+
+    .assign-stop-time {
+        font-size: 0.6875rem;
+        font-weight: 500;
+        color: #185FA5;
+        line-height: 1;
+        margin-bottom: 1px;
+    }
+
+    .assign-stop-name {
+        font-size: 0.8125rem;
+        color: #1e293b;
+        line-height: 1.3;
+    }
+
+    .assign-stop-addr {
+        font-size: 0.6875rem;
+        color: #64748b;
+        margin-top: 1px;
+        line-height: 1.3;
+    }
+
+    .assign-route-empty {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        font-style: italic;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    /* --- Actions bar --- */
+    .assign-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+        padding: 0.625rem 1.25rem;
+        border-top: 1px solid #e2e8f0;
+        background: #f8fafc;
+    }
+
+    .route-table thead th {
+        background-color: #f0f6ff;
+        color: #1a56db;
+        font-weight: 600;
+        font-size: 0.82rem;
+        white-space: nowrap;
+        border-color: #d1e3ff;
+    }
+
+    .route-table tbody td {
+        font-size: 0.82rem;
+        vertical-align: middle;
+        /* color: #374151; */
+    }
+
+    .route-table tbody tr:hover {
+        background-color: #f8faff;
+    }
+
+    @@media (max-width: 576px) {
+        .assign-route-section {
+            padding: 0.875rem 1.25rem;
+        }
+    }
+
+    /* stronger visual for active tab */
+    .nav-tabs .nav-link {
+        color: #495057;
+        background: transparent;
+        border: 1px solid transparent;
+        border-top-left-radius: .5rem;
+        border-top-right-radius: .5rem;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #fff;
+        background: #0d6efd;
+        border-color: #0d6efd #0d6efd transparent;
+        box-shadow: 0 6px 18px rgba(13, 110, 253, 0.12);
+    }
+
+    mark.qs-highlight {
+        background: #fef08a;
+        color: #713f12;
+        border-radius: 2px;
+        padding: 0 2px;
+        font-weight: 600;
+    }
+</style>
+
+@try
+{
+    <div class="bus-route-assign-card p-3 p-md-4">
+        <!-- Header -->
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+            <h5 class="m-0">Lộ trình xe đi làm cho công nhân</h5>
+            <div class="d-flex flex-wrap gap-2">
+                @if (canEdit)
+                {
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAssignModal">
+                        <i class="fa-solid fa-plus me-1"></i>Thêm mới
+                    </button>
+                }
+
+                <form method="get" asp-controller="BusRouteAssign" asp-action="ExportWorker" class="d-inline js-export-form" data-no-loader>
+                    <input type="hidden" name="busCode" value="@Model.BusCode" />
+                    <input type="hidden" name="routeName" value="@Model.RouteName" />
+                    <input type="hidden" name="driverName" value="@Model.DriverName" />
+                    <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                    <input type="hidden" name="isActive" value="@Model.IsActive" />
+                    <button type="submit" class="btn btn-success">
+                        <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                    </button>
+                </form>
+
+                @if (canEdit)
+                {
+                    <button id="btnBulkDeleteAssigns" type="button" class="btn btn-danger js-action-button d-none"
+                            data-form-id="bulkDeleteAssignForm"
+                            data-confirm-title="Xóa nhiều lộ trình"
+                            data-confirm-message="Bạn có chắc chắn muốn xóa các lộ trình đã chọn?"
+                            data-require-selection="1"
+                            disabled>
+                        <i class="fa-solid fa-trash-can me-1"></i>Xóa
+                    </button>
+                }
+            </div>
+        </div>
+
+        <!-- Search Form -->
+        <div class="search-container">
+            <form method="get" asp-controller="BusRouteAssign" asp-action="IndexWorker" class="row g-2 js-search-form">
+                <div class="col-12 col-md-6 col-lg-2">
+                    <input class="form-control" name="busCode" value="@Model.BusCode" placeholder="Mã xe" />
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <input class="form-control" name="routeName" value="@Model.RouteName" placeholder="Tuyến xe" />
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <input class="form-control" name="driverName" value="@Model.DriverName" placeholder="Tên lái xe" />
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <input class="form-control" name="licensePlate" value="@Model.LicensePlate" placeholder="Biển số xe" />
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <input type="text" id="quickSearchStops" class="form-control quick-search-input" placeholder="Tìm kiếm nhanh điểm đón..." />
+                </div>
+                <div class="col-12 col-md-6 col-lg-2 d-grid">
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+                </div>
+            </form>
+        </div>
+
+        @if (canEdit)
+        {
+            <form id="bulkDeleteAssignForm" method="post" asp-controller="BusRouteAssign" asp-action="DeleteManyWorker"
+                  class="js-confirm js-require-selection"
+                  data-confirm-title="Xóa nhiều lộ trình"
+                  data-confirm-message="Bạn có chắc chắn muốn xóa các lộ trình đã chọn?">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="busCode" value="@Model.BusCode" />
+                <input type="hidden" name="routeName" value="@Model.RouteName" />
+                <input type="hidden" name="driverName" value="@Model.DriverName" />
+                <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                <input type="hidden" name="isActive" value="@Model.IsActive" />
+            </form>
+        }
+
+        <ul class="nav nav-tabs" id="assignViewTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="table-tab" data-bs-toggle="tab"
+                        data-bs-target="#tableView" type="button" role="tab">
+                    <i class="fa-solid fa-table me-1"></i>Bảng
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="card-tab" data-bs-toggle="tab"
+                        data-bs-target="#cardView" type="button" role="tab">
+                    <i class="fa-solid fa-id-card me-1"></i>Thẻ
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="assignViewTabContent">
+            <!-- Tab bảng -->
+            <div class="tab-pane fade show active" id="tableView" role="tabpanel">
+                @if (!Model.RouteAssigns.Any())
+                {
+                    <div class="no-data-message text-center">
+                        <i class="fa-solid fa-inbox fa-3x mb-3" style="color: #cbd5e1;"></i>
+                        <p>Không có dữ liệu lộ trình xe.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive mt-2">
+                        <table class="table table-bordered table-hover align-middle route-table">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width:90px;">Tuyến xe</th>
+                                    <th class="text-center">Lái xe</th>
+                                    <th class="text-center" style="width:110px;">Bộ phận</th>
+                                    <th class="text-center">Lộ trình - Điểm đón</th>
+                                    @if (canEdit)
+                                    {
+                                        <th style="width:80px;" class="text-center">Thao tác</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var assign in Model.RouteAssigns)
+                                {
+                                    var pickupRoute = assign.PickupStops.Any()
+                                    ? string.Join(" - ", assign.PickupStops.Select(s =>
+                                    $"{(s.PickupTime.HasValue ? $"({s.PickupTime.Value.ToString(@"hh\:mm")}) " : "")}{s.StopName}"))
+                                    : assign.PickupRouteName ?? "—";
+
+                                    <tr data-assign-id="@assign.ID">
+                                        <td class="fw-semibold text-primary">@assign.PickupRouteName</td>
+                                        <td class="text-center">@assign.DriverName <p>@assign.DriverPhone</p></td>
+                                        <td class="text-center">@assign.CodeDept</td>
+                                        <td>@pickupRoute</td>
+                                        @if (canEdit)
+                                        {
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-primary btn-sm mb-1"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#editAssignModal-@assign.ID"
+                                                        title="Sửa">
+                                                    <i class="fa-solid fa-pen"></i>
+                                                </button>
+                                                <form method="post" asp-controller="BusRouteAssign"
+                                                      asp-action="DeleteWorker" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@assign.ID" />
+                                                    <input type="hidden" name="busCode" value="@Model.BusCode" />
+                                                    <input type="hidden" name="routeName" value="@Model.RouteName" />
+                                                    <input type="hidden" name="driverName" value="@Model.DriverName" />
+                                                    <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                                                    <button type="button"
+                                                            class="btn btn-danger btn-sm js-action-button"
+                                                            data-form-id="deleteAssignFormTbl-@assign.ID"
+                                                            data-confirm-title="Xóa lộ trình"
+                                                            data-confirm-message="Bạn có chắc chắn muốn xóa lộ trình này?"
+                                                            title="Xóa">
+                                                        <i class="fa-solid fa-trash"></i>
+                                                    </button>
+                                                    <input type="hidden" id="deleteAssignFormTbl-@assign.ID" />
+                                                </form>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+            <!-- Tab thẻ -->
+            <div class="tab-pane fade" id="cardView" role="tabpanel">
+                <div id="assignmentsContainer" class="mt-2">
+                    @if (!Model.RouteAssigns.Any())
+                    {
+                        <div class="no-data-message">
+                            <i class="fa-solid fa-inbox fa-3x mb-3" style="color: #cbd5e1;"></i>
+                            <p>Không có dữ liệu lộ trình xe.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var assign in Model.RouteAssigns)
+                        {
+                            <div class="assign-card" data-assign-id="@assign.ID">
+                                <div class="assign-bus-header">
+                                    <div class="assign-bus-icon">
+                                        <i class="fa-solid fa-bus"></i>
+                                    </div>
+                                    <div class="assign-bus-main">
+                                        <div class="assign-bus-code">
+                                            <span>@assign.BusCode &nbsp;·&nbsp; @assign.BusName</span> &nbsp;·&nbsp; @assign.PickupRouteName
+                                        </div>
+                                        <div class="assign-bus-meta">@assign.BusCapacity chỗ</div>
+                                    </div>
+                                    @if (canEdit)
+                                    {
+                                        <div class="">
+                                            <button type="button" class="btn btn-primary btn-sm"
+                                                    data-bs-toggle="modal" data-bs-target="#editAssignModal-@assign.ID">
+                                                <i class="fa-solid fa-pen me-1"></i>Sửa
+                                            </button>
+                                            <form method="post" asp-controller="BusRouteAssign" asp-action="DeleteWorker" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@assign.ID" />
+                                                <input type="hidden" name="busCode" value="@Model.BusCode" />
+                                                <input type="hidden" name="routeName" value="@Model.RouteName" />
+                                                <input type="hidden" name="driverName" value="@Model.DriverName" />
+                                                <input type="hidden" name="licensePlate" value="@Model.LicensePlate" />
+                                                <button type="button" class="btn btn-danger btn-sm js-action-button"
+                                                        data-form-id="deleteAssignForm-@assign.ID"
+                                                        data-confirm-title="Xóa lộ trình"
+                                                        data-confirm-message="Bạn có chắc chắn muốn xóa lộ trình này?">
+                                                    <i class="fa-solid fa-trash me-1"></i>Xóa
+                                                </button>
+                                                <input type="hidden" id="deleteAssignForm-@assign.ID" />
+                                            </form>
+                                        </div>
+                                    }
+
+                                    @if (canEdit)
+                                    {
+                                        <div class="assign-checkbox">
+                                            <input type="checkbox" class="form-check-input js-assign-check"
+                                                   name="ids" value="@assign.ID" form="bulkDeleteAssignForm" />
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="assign-driver-strip">
+                                    @{
+                                        var initials = string.Join("", (assign.DriverName ?? "?")
+                                        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                                        .TakeLast(2).Select(w => w[0]));
+                                    }
+                                    <div class="assign-driver-avatar">@initials</div>
+                                    <div>
+                                        <div class="assign-driver-name">@assign.DriverName</div>
+                                        <div class="assign-driver-phone">
+                                            <i class="fa-solid fa-phone" style="font-size:0.65rem;"></i>
+                                            @assign.DriverPhone
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="assign-route-section">
+                                    <div class="assign-route-label go">
+                                        <span class="assign-route-dot"></span>
+                                        Lộ trình đón
+                                        @if (!string.IsNullOrWhiteSpace(assign.PickupRouteName))
+                                        {
+                                            <span class="assign-route-subname">@assign.PickupRouteName</span>
+                                        }
+                                    </div>
+                                    @if (assign.PickupStops.Any())
+                                    {
+                                        <div class="assign-stop-list">
+                                            @foreach (var (stop, idx) in assign.PickupStops.Select((s, i) => (s, i)))
+                                            {
+                                                <div class="assign-stop-item"
+                                                     data-stop-name="@stop.StopName"
+                                                     data-stop-time="@stop.PickupTime?.ToString(@"hh\:mm")">
+                                                    <div class="assign-stop-left">
+                                                        <div class="assign-stop-num go">@(idx + 1)</div>
+                                                        @if (idx < assign.PickupStops.Count - 1)
+                                                        {
+                                                            <div class="assign-stop-line"></div>
+                                                        }
+                                                    </div>
+                                                    <div class="assign-stop-right">
+                                                        <div class="assign-stop-time">@stop.PickupTime?.ToString(@"hh\:mm")</div>
+                                                        <div class="assign-stop-name">@stop.StopName</div>
+                                                        <div class="assign-stop-addr">@stop.StopAddress</div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="assign-route-empty">
+                                            <i class="fa-solid fa-circle-info" style="font-size:0.75rem;"></i>
+                                            Không có điểm dừng
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Modal -->
+    <div class="modal fade dragable-modal" id="createAssignModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm lộ trình xe</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="BusRouteAssign" asp-action="CreateWorker" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="SearchBusCode" value="@Model.BusCode" />
+                        <input type="hidden" name="SearchRouteName" value="@Model.RouteName" />
+                        <input type="hidden" name="SearchDriverName" value="@Model.DriverName" />
+                        <input type="hidden" name="SearchLicensePlate" value="@Model.LicensePlate" />
+                        <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Chọn xe <span class="text-danger">*</span></label>
+                                <select class="form-select" name="BusId" id="createBusId" required>
+                                    <option value="">-- Chọn xe --</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Chọn lái xe <span class="text-danger">*</span></label>
+                                <select class="form-select" name="DriverId" required>
+                                    <option value="">-- Chọn lái xe --</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Lộ trình đón công nhân <span class="text-danger">*</span></label>
+                                <select class="form-select" name="RoutePickupId" id="createRoutePickupId" required>
+                                    <option value="">-- Chọn lộ trình --</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Ngày hiệu lực</label>
+                                <input type="date" class="form-control" name="EffectiveDate" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal (for each assignment) -->
+    @foreach (var assign in Model.RouteAssigns)
+    {
+        <div class="modal fade dragable-modal" id="editAssignModal-@assign.ID" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cập nhật lộ trình xe - @assign.BusCode - @assign.PickupRouteName</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" asp-controller="BusRouteAssign" asp-action="UpdateWorker" class="js-post-form">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <input type="hidden" name="ID" value="@assign.ID" />
+                            <input type="hidden" name="SearchBusCode" value="@Model.BusCode" />
+                            <input type="hidden" name="SearchRouteName" value="@Model.RouteName" />
+                            <input type="hidden" name="SearchDriverName" value="@Model.DriverName" />
+                            <input type="hidden" name="SearchLicensePlate" value="@Model.LicensePlate" />
+                            <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Chọn xe <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="BusId" required>
+                                        <option value="@assign.BusCode" selected>@assign.BusCode</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Chọn lái xe <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="DriverId" required>
+                                        <option value="@assign.DriverId" selected>@assign.DriverName</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Lộ trình đón công nhân <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="RoutePickupId" required>
+                                        @if (assign.PickupRouteId.HasValue && assign.PickupRouteId > 0)
+                                        {
+                                            <option value="@assign.PickupRouteId" selected>@assign.PickupRouteName</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="">-- Chọn lộ trình --</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Ngày hiệu lực</label>
+                                    <input type="date" class="form-control" name="EffectiveDate" value="@(assign.EffectiveDate.HasValue ? assign.EffectiveDate.Value.ToString("yyyy-MM-dd") : "")" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
+catch (Exception ex)
+{
+    throw ex;
+}
+
+@section Scripts {
+    @if (TempData["BusRouteAssignSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["BusRouteAssignError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            const container = document.getElementById('assignmentsContainer');
+
+            function ensureAntiForgery(form) {
+                if (!form) return;
+                var tokenInForm = form.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenInForm) return;
+
+                var globalToken = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!globalToken) return;
+
+                var cloned = document.createElement('input');
+                cloned.type = 'hidden';
+                cloned.name = '__RequestVerificationToken';
+                cloned.value = globalToken.value;
+                form.appendChild(cloned);
+            }
+
+            function showLoading() {
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
+            }
+
+            function hideLoading() {
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+            }
+
+            document.querySelectorAll('form.js-post-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    ensureAntiForgery(form);
+                    showLoading();
+                });
+            });
+
+            const workerRouteTypeId = 0;
+
+            document.querySelectorAll('form.js-search-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-export-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                    setTimeout(function () {
+                        hideLoading();
+                    }, 2500);
+                });
+            });
+
+            // Load buses
+            function loadBusses() {
+                fetch('/BusRouteAssign/GetBusses')
+                    .then(r => r.json())
+                    .then(buses => {
+                        const select = document.getElementById('createBusId');
+                        select.innerHTML = '<option value="">-- Chọn xe --</option>';
+                        buses.forEach(bus => {
+                            const opt = document.createElement('option');
+                            opt.value = bus.id;
+                            opt.textContent = `${bus.code} - ${bus.licensePlate} (${bus.capacity} chỗ)`;
+                            select.appendChild(opt);
+                        });
+                    });
+            }
+
+            // Load drivers
+            function loadDrivers() {
+                fetch('/BusRouteAssign/GetDrivers')
+                    .then(r => r.json())
+                    .then(drivers => {
+                        const select = document.querySelector('select[name="DriverId"]');
+                        if (select) {
+                            select.innerHTML = '<option value="">-- Chọn lái xe --</option>';
+                            drivers.forEach(driver => {
+                                const opt = document.createElement('option');
+                                opt.value = driver.id;
+                                opt.textContent = `${driver.name} - ${driver.phone}`;
+                                select.appendChild(opt);
+                            });
+                        }
+                    });
+            }
+
+            // Load routes
+            function loadRoutes() {
+                fetch('/BusRouteAssign/GetRoutes?routeTypeId=' + workerRouteTypeId)
+                    .then(r => r.json())
+                    .then(routes => {
+                        const selectPickup = document.getElementById('createRoutePickupId');
+
+                        if (selectPickup) {
+                            selectPickup.innerHTML = '<option value="">-- Chọn lộ trình --</option>';
+                            routes.forEach(route => {
+                                const opt = document.createElement('option');
+                                opt.value = route.id;
+                                opt.textContent = `${route.name} (${route.type})`;
+                                selectPickup.appendChild(opt);
+                            });
+                        }
+                    });
+            }
+
+            // Load buses vào select cụ thể
+            function loadBussesInto(select, selectedId) {
+                fetch('/BusRouteAssign/GetBusses')
+                    .then(r => r.json())
+                    .then(buses => {
+                        select.innerHTML = '<option value="">-- Chọn xe --</option>';
+                        buses.forEach(bus => {
+                            const opt = document.createElement('option');
+                            opt.value = bus.id;
+                            opt.textContent = `${bus.code} - ${bus.licensePlate} (${bus.capacity} chỗ)`;
+                            if (String(bus.id) === String(selectedId)) opt.selected = true;
+                            select.appendChild(opt);
+                        });
+                    });
+            }
+
+            // Load drivers vào select cụ thể
+            function loadDriversInto(select, selectedId) {
+                fetch('/BusRouteAssign/GetDrivers')
+                    .then(r => r.json())
+                    .then(drivers => {
+                        select.innerHTML = '<option value="">-- Chọn lái xe --</option>';
+                        drivers.forEach(driver => {
+                            const opt = document.createElement('option');
+                            opt.value = driver.id;
+                            opt.textContent = `${driver.name} - ${driver.phone}`;
+                            if (String(driver.id) === String(selectedId)) opt.selected = true;
+                            select.appendChild(opt);
+                        });
+                    });
+            }
+            // Load routes vào select cụ thể
+            function loadRoutesInto(select, selectedId) {
+                fetch('/BusRouteAssign/GetRoutes?routeTypeId=' + workerRouteTypeId)
+                    .then(r => r.json())
+                    .then(routes => {
+                        select.innerHTML = '<option value="">-- Chọn lộ trình --</option>';
+                        routes.forEach(route => {
+                            const opt = document.createElement('option');
+                            opt.value = route.id;
+                            opt.textContent = `${route.name} (${route.type})`;
+                            if (String(route.id) === String(selectedId)) opt.selected = true;
+                            select.appendChild(opt);
+                        });
+                    });
+            }
+            // Initialize on modal show
+            document.getElementById('createAssignModal')?.addEventListener('show.bs.modal', () => {
+                loadBussesInto(document.getElementById('createBusId'), null);
+                loadDriversInto(document.querySelector('#createAssignModal select[name="DriverId"]'), null);
+                loadRoutesInto(document.getElementById('createRoutePickupId'), null);
+            });
+
+            // Edit modals - mỗi modal tự load và pre-select
+            document.querySelectorAll('[id^="editAssignModal-"]').forEach(modal => {
+                modal.addEventListener('show.bs.modal', () => {
+                    const busSelect      = modal.querySelector('select[name="BusId"]');
+                    const driverSelect   = modal.querySelector('select[name="DriverId"]');
+                    const pickupSelect   = modal.querySelector('select[name="RoutePickupId"]');
+
+                    // Đọc giá trị đang selected (option hardcode từ server)
+                    const selectedBusId    = busSelect?.value;
+                    const selectedDriverId = driverSelect?.value;
+                    const selectedPickupId = pickupSelect?.value;
+
+                    if (busSelect)    loadBussesInto(busSelect, selectedBusId);
+                    if (driverSelect) loadDriversInto(driverSelect, selectedDriverId);
+                    if (pickupSelect) loadRoutesInto(pickupSelect, selectedPickupId);
+                });
+            });
+
+            // Quick search functionality
+            const quickSearchInput = document.getElementById('quickSearchStops');
+
+            if (quickSearchInput) {
+                // Hàm highlight text
+                function highlightText(text, query) {
+                    if (!query) return text;
+                    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regex = new RegExp(`(${escaped})`, 'gi');
+                    return text.replace(regex, '<mark class="qs-highlight">$1</mark>');
+                }
+
+                // Lưu text gốc để restore
+                function saveOriginal(el, attr) {
+                    if (!el.hasAttribute(attr)) {
+                        el.setAttribute(attr, el.innerHTML);
+                    }
+                }
+
+                function restoreOriginal(el, attr) {
+                    if (el.hasAttribute(attr)) {
+                        el.innerHTML = el.getAttribute(attr);
+                    }
+                }
+
+                quickSearchInput.addEventListener('input', function () {
+                    const query = this.value.trim().toLowerCase();
+
+                    // --- Card View ---
+                    const cards = document.querySelectorAll('#cardView .assign-card');
+                    cards.forEach(card => {
+                        const stops = card.querySelectorAll('.assign-stop-item');
+                        let cardMatched = false;
+
+                        stops.forEach(stop => {
+                            const nameEl = stop.querySelector('.assign-stop-name');
+                            const timeEl = stop.querySelector('.assign-stop-time');
+
+                            // Restore trước
+                            if (nameEl) restoreOriginal(nameEl, 'data-orig-html');
+                            if (timeEl) restoreOriginal(timeEl, 'data-orig-html');
+
+                            if (!query) return;
+
+                            const name = (stop.getAttribute('data-stop-name') || '').toLowerCase();
+                            const time = (stop.getAttribute('data-stop-time') || '').toLowerCase();
+                            const stopMatched = name.includes(query) || time.includes(query);
+
+                            if (stopMatched) {
+                                cardMatched = true;
+                                if (nameEl) {
+                                    saveOriginal(nameEl, 'data-orig-html');
+                                    nameEl.innerHTML = highlightText(nameEl.innerHTML, query);
+                                }
+                                if (timeEl) {
+                                    saveOriginal(timeEl, 'data-orig-html');
+                                    timeEl.innerHTML = highlightText(timeEl.innerHTML, query);
+                                }
+                            }
+                        });
+
+                        card.style.display = !query || cardMatched ? '' : 'none';
+                    });
+
+                    // --- Table View ---
+                    const rows = document.querySelectorAll('#tableView tbody tr');
+                    rows.forEach(row => {
+                        const routeCell = row.cells[3];
+
+                        // Restore trước
+                        if (routeCell) restoreOriginal(routeCell, 'data-orig-html');
+
+                        if (!query) {
+                            row.style.display = '';
+                            return;
+                        }
+
+                        const routeText = (routeCell?.textContent || '').toLowerCase();
+                        const matched = routeText.includes(query);
+
+                        row.style.display = matched ? '' : 'none';
+
+                        if (matched && routeCell) {
+                            saveOriginal(routeCell, 'data-orig-html');
+                            routeCell.innerHTML = highlightText(routeCell.innerHTML, query);
+                        }
+                    });
+                });
+            }
+
+            // Bulk delete
+            document.addEventListener('click', async function (e) {
+                var btn = e.target.closest('.js-action-button');
+                if (!btn) return;
+
+                var formId = btn.getAttribute('data-form-id');
+                if (!formId) return;
+                var form = document.getElementById(formId);
+                if (!form) return;
+
+                if (btn.getAttribute('data-require-selection') === '1') {
+                    var checked = document.querySelectorAll('.js-assign-check:checked');
+                    if (!checked.length) {
+                        if (window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 lộ trình.');
+                        return;
+                    }
+                }
+
+                var title = btn.getAttribute('data-confirm-title') || 'Xác nhận';
+                var message = btn.getAttribute('data-confirm-message') || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({ title: title, message: message });
+                }
+
+                if (!ok) return;
+                ensureAntiForgery(form);
+                showLoading();
+
+                if (formId.startsWith('deleteAssignForm-')) {
+                    form.submit();
+                } else {
+                    form.requestSubmit();
+                }
+            });
+
+            // Checkbox management
+            const bulkDeleteBtn = document.getElementById('btnBulkDeleteAssigns');
+            const rowChecks = Array.prototype.slice.call(document.querySelectorAll('.js-assign-check'));
+
+            function updateBulkDeleteState() {
+                if (!bulkDeleteBtn) return;
+
+                var checkedCount = document.querySelectorAll('.js-assign-check:checked').length;
+                var hasSelection = checkedCount > 0;
+
+                bulkDeleteBtn.disabled = !hasSelection;
+                bulkDeleteBtn.classList.toggle('d-none', !hasSelection);
+            }
+
+            rowChecks.forEach(function (c) {
+                c.addEventListener('change', updateBulkDeleteState);
+            });
+
+            updateBulkDeleteState();
+
+            loadBusses();
+            loadDrivers();
+            loadRoutes();
+        })();
+    </script>
+}

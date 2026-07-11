@@ -1,0 +1,8 @@
+﻿@model BusManagement.ViewModels.TripRequest.TripRequestApprovalHistoryPageViewModel
+@{
+    ViewData["Title"] = "Lịch sử xử lý";
+}
+
+<div class="container py-3">
+    @await Html.PartialAsync("_HistoryContent", Model)
+</div>

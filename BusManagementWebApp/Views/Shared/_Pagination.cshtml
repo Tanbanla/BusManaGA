@@ -1,0 +1,254 @@
+﻿@model dynamic
+@{
+    // Collect property values safely via reflection without dynamic lambda usage
+    var dict = new Dictionary<string, object?>();
+    if (Model != null)
+    {
+        var t = Model.GetType();
+        foreach (var name in new[] { "PageIndex", "TotalPages", "PageSize", "Action", "Term", "Factory", "Line", "Process", "SearchFields", "SearchFieldsList", "RouteExtras" })
+        {
+            try
+            {
+                var p = t.GetProperty(name);
+                if (p != null)
+                {
+                    dict[name] = p.GetValue(Model);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+    string? GetString(string key) { return dict.TryGetValue(key, out var v) ? v?.ToString() : null; }
+
+    int current = 1; int total = 1; int pageSize = 10;
+    int.TryParse(GetString("PageIndex"), out current);
+    if (current < 1)
+    {
+        current = 1;
+    }
+
+    int.TryParse(GetString("TotalPages"), out total);
+    if (total < 1)
+    {
+        total = 1;
+    }
+
+    int.TryParse(GetString("PageSize"), out pageSize);
+    if (pageSize < 1)
+    {
+        pageSize = 10;
+    }
+
+    string actionName = GetString("Action") ?? "Index";
+    string? term = GetString("Term");
+    string? factory = GetString("Factory");
+    string? line = GetString("Line");
+    string? process = GetString("Process");
+    string? searchFieldsRaw = GetString("SearchFields");
+
+    // Build combined search fields list
+    var combinedSearchFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    if (!string.IsNullOrWhiteSpace(searchFieldsRaw))
+    {
+        foreach (var part in searchFieldsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            combinedSearchFields.Add(part.Trim());
+        }
+    }
+    if (dict.TryGetValue("SearchFieldsList", out var listObj) && listObj is IEnumerable<string> listEnum)
+    {
+        foreach (var sf in listEnum)
+        {
+            if (!string.IsNullOrWhiteSpace(sf))
+            {
+                combinedSearchFields.Add(sf.Trim());
+            }
+        }
+    }
+
+    // Route extras dictionary if provided
+    IDictionary<string, string?>? routeExtras = null;
+    if (dict.TryGetValue("RouteExtras", out var extrasObj))
+    {
+        if (extrasObj is IDictionary<string, string?> dictNullable)
+        {
+            routeExtras = dictNullable;
+        }
+        else if (extrasObj is IDictionary<string, string> dictString)
+        {
+            routeExtras = dictString.ToDictionary(k => k.Key, v => (string?)v.Value);
+        }
+    }
+
+    int window = 5;
+    int startPage = Math.Max(1, current - window / 2);
+    int endPage = startPage + window - 1;
+    if (endPage > total)
+    {
+        endPage = total;
+        startPage = Math.Max(1, endPage - window + 1);
+    }
+
+    var currentQuery = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+    foreach (var q in Context.Request.Query)
+    {
+        var values = q.Value.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!).ToList();
+        if (values.Count > 0)
+        {
+            currentQuery[q.Key] = values;
+        }
+    }
+
+    Dictionary<string, List<string>> BuildQueryMap(int page, int? forcedPageSize = null)
+    {
+        var map = currentQuery.ToDictionary(k => k.Key, v => v.Value.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        void setSingle(string key, string? value)
+        {
+            map.Remove(key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                map[key] = new List<string> { value };
+            }
+        }
+
+        setSingle("page", page.ToString());
+        setSingle("pageSize", (forcedPageSize ?? pageSize).ToString());
+
+        if (!string.IsNullOrWhiteSpace(term))
+        {
+            setSingle("term", term);
+        }
+        if (!string.IsNullOrWhiteSpace(factory))
+        {
+            setSingle("factory", factory);
+        }
+        if (!string.IsNullOrWhiteSpace(line))
+        {
+            setSingle("line", line);
+        }
+        if (!string.IsNullOrWhiteSpace(process))
+        {
+            setSingle("process", process);
+        }
+
+        if (routeExtras != null)
+        {
+            foreach (var kv in routeExtras)
+            {
+                setSingle(kv.Key, kv.Value);
+            }
+        }
+
+        if (combinedSearchFields.Count > 0)
+        {
+            map["searchFields"] = combinedSearchFields.ToList();
+        }
+
+        return map;
+    }
+
+    string BuildQuery(int page, int? forcedPageSize = null)
+    {
+        var parts = new List<string>();
+        foreach (var kv in BuildQueryMap(page, forcedPageSize))
+        {
+            foreach (var value in kv.Value)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    parts.Add(kv.Key + "=" + System.Net.WebUtility.UrlEncode(value));
+                }
+            }
+        }
+        return string.Join('&', parts);
+    }
+
+    string UrlWith(int page, int? forcedPageSize = null)
+    {
+        var baseUrl = Url.Action(actionName) ?? "";
+        var q = BuildQuery(page, forcedPageSize);
+        return string.IsNullOrEmpty(q) ? baseUrl : baseUrl + "?" + q;
+    }
+
+    var pageSizeOptions = new[] { 10, 20, 50, 100, 200, 500, 1000 };
+}
+<style>
+    .pagination-shell .page-size-chip {
+        border-radius: 999px;
+        min-width: 44px;
+    }
+
+    .pagination-shell .pagination.pager-rounded {
+        gap: .35rem;
+    }
+
+    .pagination-shell .pagination.pager-rounded .page-link {
+        border-radius: 999px;
+        min-width: 36px;
+        text-align: center;
+        border: 1px solid #dbe2ea;
+        color: #334155;
+    }
+
+    .pagination-shell .pagination.pager-rounded .page-item.active .page-link {
+        background: #0d6efd;
+        border-color: #0d6efd;
+        color: #fff;
+    }
+
+    .pagination-shell .pagination.pager-rounded .page-item.disabled .page-link {
+        border-color: #e2e8f0;
+    }
+</style>
+
+<div class="pagination-shell d-flex flex-wrap gap-2 justify-content-between align-items-center border-top p-3">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="small text-muted">Số lượng hiển thị:</span>
+        <div class="d-flex align-items-center gap-1 flex-wrap" role="group" aria-label="Page size">
+            @foreach (var size in pageSizeOptions)
+            {
+                <a class="btn btn-sm page-size-chip @(pageSize == size ? "btn-primary" : "btn-outline-primary")" href="@UrlWith(1, size)">@size</a>
+            }
+        </div>
+    </div>
+
+    @if (total > 1)
+    {
+        <nav aria-label="Pagination">
+            <ul class="pagination pagination-sm pager-rounded mb-0">
+                <li class="page-item @(current == 1 ? "disabled" : null)"><a class="page-link" href="@UrlWith(current - 1)">«</a></li>
+                @if (startPage > 1)
+                {
+                    <li class="page-item"><a class="page-link" href="@UrlWith(1)">1</a></li>
+                    @if (startPage > 2)
+                    {
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    }
+                }
+                @for (int p = startPage; p <= endPage; p++)
+                {
+                    if (p == current)
+                    {
+                        <li class="page-item active"><span class="page-link">@p</span></li>
+                    }
+                    else
+                    {
+                        <li class="page-item"><a class="page-link" href="@UrlWith(p)">@p</a></li>
+                    }
+                }
+                @if (endPage < total)
+                {
+                    if (endPage < total - 1)
+                    {
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    }
+                    <li class="page-item"><a class="page-link" href="@UrlWith(total)">@total</a></li>
+                }
+                <li class="page-item @(current == total ? "disabled" : null)"><a class="page-link" href="@UrlWith(current + 1)">»</a></li>
+            </ul>
+        </nav>
+    }
+</div>

@@ -1,0 +1,858 @@
+﻿@{
+    ViewData["Title"] = "Home";
+}
+
+<style>
+    .dashboard-container {
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .home-hero {
+        position: relative;
+        min-height: calc(100vh - 130px);
+        width: 100%;
+        max-width: 100%;
+        border-radius: 18px;
+        overflow: hidden;
+        background: radial-gradient(circle at 20% 20%, #eff6ff 0%, #dbeafe 36%, #bfdbfe 60%, #93c5fd 100%);
+        border: 1px solid #bfdbfe;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.28);
+        transition: background .4s ease, border-color .35s ease;
+    }
+
+    .home-hero.is-night {
+        background: radial-gradient(circle at 18% 12%, #1e293b 0%, #0f172a 48%, #020617 100%);
+        border-color: #334155;
+    }
+
+    .day-night-toggle {
+        position: absolute;
+        right: 14px;
+        top: 14px;
+        z-index: 6;
+        border: 1px solid #cbd5e1;
+        background: rgba(255,255,255,.9);
+        color: #0f172a;
+        border-radius: 999px;
+        padding: 7px 12px;
+        font-size: .85rem;
+        font-weight: 600;
+        backdrop-filter: blur(6px);
+    }
+
+    .home-brand-logo {
+        position: absolute;
+        left: 14px;
+        top: 14px;
+        z-index: 6;
+        width: 102px;
+        height: auto;
+        pointer-events: none;
+        user-select: none;
+    }
+
+    .home-brand-logo-night {
+        display: none;
+    }
+
+    .home-hero.is-night .home-brand-logo {
+        display: none;
+    }
+
+    .home-hero.is-night .home-brand-logo-night {
+        display: block;
+    }
+
+    .home-hero.is-night .day-night-toggle {
+        background: rgba(15,23,42,.75);
+        color: #e2e8f0;
+        border-color: #475569;
+    }
+
+    .night-stars {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        opacity: 0;
+        transition: opacity .35s ease;
+        pointer-events: none;
+        background-image:
+            radial-gradient(2px 2px at 8% 16%, rgba(255,255,255,.9), transparent 60%),
+            radial-gradient(1.6px 1.6px at 24% 22%, rgba(255,255,255,.85), transparent 60%),
+            radial-gradient(2px 2px at 38% 12%, rgba(255,255,255,.9), transparent 60%),
+            radial-gradient(1.8px 1.8px at 54% 26%, rgba(255,255,255,.85), transparent 60%),
+            radial-gradient(2px 2px at 70% 14%, rgba(255,255,255,.9), transparent 60%),
+            radial-gradient(1.6px 1.6px at 82% 23%, rgba(255,255,255,.82), transparent 60%),
+            radial-gradient(2px 2px at 92% 11%, rgba(255,255,255,.88), transparent 60%);
+    }
+
+    .home-hero.is-night .night-stars { opacity: .95; }
+
+    .home-hero::after {
+        content: "";
+        position: absolute;
+        inset: auto 0 0 0;
+        height: 180px;
+        background: linear-gradient(to top, rgba(2, 6, 23, .16), rgba(2, 6, 23, 0));
+        pointer-events: none;
+        z-index: 2;
+    }
+
+    .home-road {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 110px;
+        background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+        z-index: 1;
+    }
+
+    .home-road::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 16px;
+        height: 6px;
+        background: repeating-linear-gradient(
+            90deg,
+            transparent 0 24px,
+            rgba(255, 255, 255, .9) 24px 64px,
+            transparent 64px 90px
+        );
+        animation: roadDash 1.2s linear infinite;
+        opacity: .95;
+    }
+
+    /* Matching additional lane marking (identical style to ::before to avoid visual jitter) */
+    .home-road .lane-mark {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 6px;
+        top: 46px; /* place below the first stripe */
+        background: repeating-linear-gradient(
+            90deg,
+            transparent 0 24px,
+            rgba(255, 255, 255, .9) 24px 64px,
+            transparent 64px 90px
+        );
+        animation: roadDash 1.2s linear infinite;
+        opacity: .95;
+        pointer-events: none;
+        z-index: 2;
+    }
+
+    /* Second identical lane marking (same style, offset lower) */
+    .home-road .lane-mark.lane-mark-2 {
+        top: 76px; /* offset further down for a third lane */
+    }
+
+    .home-road .roadside-trees {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -92px;
+        height: 92px;
+        pointer-events: none;
+        z-index: 3;
+        overflow: hidden;
+        opacity: 0;
+        visibility: hidden;
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+        mask-image: linear-gradient(to right, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+    }
+
+    .home-road .roadside-trees.is-ready {
+        opacity: 1;
+        visibility: visible;
+    }
+
+        .home-road .roadside-trees-track {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 3780px;
+            animation: roadTreeDash 25.2s linear infinite;
+            will-change: transform;
+        }
+
+    .home-road .tree {
+        position: absolute;
+        bottom: 0;
+        width: 54px;
+        height: 86px;
+    }
+
+    .home-road .tree::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 0;
+        width: 10px;
+        height: 24px;
+        transform: translateX(-50%);
+        background: #7c2d12;
+        border-radius: 3px;
+    }
+
+    .home-road .tree::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .home-road .tree-type-1::after {
+        bottom: 16px;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, #86efac 0%, #22c55e 58%, #15803d 100%);
+    }
+
+    .home-road .tree-type-2::after {
+        bottom: 16px;
+        width: 0;
+        height: 0;
+        border-left: 22px solid transparent;
+        border-right: 22px solid transparent;
+        border-bottom: 48px solid #16a34a;
+        filter: drop-shadow(0 0 0 #14532d);
+    }
+
+    .home-road .tree-type-3::after {
+        bottom: 14px;
+        width: 30px;
+        height: 50px;
+        border-radius: 20px;
+        background: linear-gradient(180deg, #4ade80 0%, #15803d 100%);
+    }
+
+    .home-hero.is-night .home-road .tree::before {
+        background: #78350f;
+    }
+
+    .home-hero.is-night .home-road .tree-type-1::after {
+        background: radial-gradient(circle at 35% 30%, #4ade80 0%, #16a34a 58%, #14532d 100%);
+    }
+
+    .home-hero.is-night .home-road .tree-type-2::after {
+        border-bottom-color: #15803d;
+    }
+
+    .home-hero.is-night .home-road .tree-type-3::after {
+        background: linear-gradient(180deg, #22c55e 0%, #14532d 100%);
+    }
+
+    @@keyframes roadTreeDash {
+        from { transform: translateX(0); }
+        to   { transform: translateX(-1890px); }
+    }
+
+    @@keyframes roadDash {
+        from { transform: translateX(0); }
+        to { transform: translateX(-90px); }
+    }
+
+    .cloud {
+        position: absolute;
+        z-index: 1;
+        pointer-events: none;
+        opacity: .9;
+        filter: drop-shadow(0 4px 10px rgba(15, 23, 42, .08));
+    }
+
+    .home-hero.is-night .cloud { opacity: .35; }
+
+    .cloud,
+    .cloud::before,
+    .cloud::after {
+        background: rgba(255,255,255,.95);
+        border-radius: 999px;
+    }
+
+    .cloud::before,
+    .cloud::after {
+        content: "";
+        position: absolute;
+    }
+
+    .cloud-1 { top: 10%; left: -180px; width: 120px; height: 42px; animation: cloudMove 92s linear infinite; }
+    .cloud-1::before { width: 46px; height: 46px; left: 16px; top: -20px; }
+    .cloud-1::after { width: 52px; height: 52px; right: 14px; top: -22px; }
+
+    .cloud-2 { top: 20%; left: -260px; width: 160px; height: 50px; animation: cloudMove 65s linear infinite; animation-delay: -20s; }
+    .cloud-2::before { width: 56px; height: 56px; left: 20px; top: -22px; }
+    .cloud-2::after { width: 62px; height: 62px; right: 24px; top: -26px; }
+
+    .cloud-3 { top: 32%; left: -220px; width: 130px; height: 44px; animation: cloudMove 100s linear infinite; animation-delay: -38s; }
+    .cloud-3::before { width: 44px; height: 44px; left: 16px; top: -16px; }
+    .cloud-3::after { width: 48px; height: 48px; right: 18px; top: -18px; }
+
+    .cloud-4 {top: 45%;left: -300px;width: 180px;height: 60px;animation: cloudMove 150s linear infinite;animation-delay: -5s;}
+    .cloud-4::before {width: 70px;height: 70px;left: 24px;top: -28px;}
+    .cloud-4::after {width: 76px;height: 76px;right: 26px;top: -30px;}
+
+    .cloud-5 {top: 65%;left: -200px;width: 140px;height: 48px;animation: cloudMove 88s linear infinite;animation-delay: -12s;}
+    .cloud-5::before {width: 50px;height: 50px;left: 18px;top: -20px;}
+    .cloud-5::after {width: 58px;height: 58px;right: 20px;top: -24px;}
+
+
+    @@keyframes cloudMove {
+        from { transform: translateX(0); }
+        to { transform: translateX(calc(100vw + 420px)); }
+    }
+
+    .home-system-title {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        /* justify-content: center; */
+        text-align: center;
+        z-index: 4;
+        pointer-events: none;
+        margin-top: 1rem;
+    }
+
+    .home-system-title h1 {
+        font-size: clamp(1.8rem, 4vw, 3.6rem);
+        font-weight: 800;
+        letter-spacing: .02em;
+        color: #0f172a;
+        text-shadow: 0 6px 18px rgba(255,255,255,.55);
+        margin-bottom: .45rem;
+    }
+
+    .home-system-title p {
+        font-size: clamp(.95rem, 1.6vw, 1.2rem);
+        color: #1e3a8a;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .home-system-contact {
+        margin-top: .55rem;
+    }
+
+    .home-system-contact p {
+        font-size: clamp(.78rem, 1.15vw, .95rem);
+        font-weight: 600;
+        margin: .12rem 0;
+        color: #1e3a8a;
+    }
+
+    .home-hero.is-night .home-system-title h1,
+    .home-hero.is-night .home-system-title p {
+        color: #e2e8f0;
+        text-shadow: 0 6px 14px rgba(2,6,23,.45);
+    }
+
+    .bus-lottie-track {
+        position: absolute;
+        left: -220px;
+        width: 190px;
+        height: 92px;
+        z-index: 4;
+        opacity: 1;
+        pointer-events: none;
+        will-change: transform;
+        filter: drop-shadow(0 10px 18px rgba(15, 23, 42, .45));
+    }
+
+    .bus-lottie-track .bus-lottie {
+        width: 100%;
+        height: 100%;
+    }
+
+    .bus-lottie-track::after {
+        content: "";
+        position: absolute;
+        right: -6px;
+        top: 46%;
+        width: 230px;
+        height: 70px;
+        transform: translateY(-50%);
+        background: linear-gradient(90deg, rgba(255, 245, 157, .55) 0%, rgba(255, 245, 157, .2) 45%, rgba(255, 245, 157, 0) 100%);
+        clip-path: polygon(0 40%, 100% 0, 100% 100%, 0 60%);
+        opacity: 0;
+        transition: opacity .3s ease;
+        pointer-events: none;
+    }
+
+    /* .home-hero.is-night .bus-lottie-track::after { opacity: .9; } */
+
+
+    .bus-1 { top: calc(100% - 260px + 25px); animation: busRun 14s linear infinite; }
+    .bus-2 { top: calc(100% - 260px + 46px); animation: busRun 18s linear infinite; animation-delay: -6s; }
+    .bus-3 { top: calc(100% - 260px + 68px); animation: busRun 16s linear infinite; animation-delay: -10s; }
+    .bus-4 { top: calc(100% - 260px + 88px); animation: busRun 20s linear infinite; animation-delay: -4s; }
+    .bus-5 { top: calc(100% - 260px + 100px); animation: busRun 10s linear infinite; }
+
+    .bus-1 .bus-lottie,
+    .bus-3 .bus-lottie,
+    .bus-5 .bus-lottie {
+        filter: drop-shadow(0 0 10px rgba(59, 130, 246, .55));
+    }
+
+    @@keyframes busRun {
+        from { transform: translateX(0); }
+        to { transform: translateX(calc(100vw + 520px)); }
+    }
+
+    .home-definition-box {
+        position: absolute;
+        right: 18px;
+        bottom: 16px;
+        width: min(640px, calc(100% - 36px));
+        background: rgba(15, 23, 42, .9);
+        color: #f8fafc;
+        border: 1px solid rgba(148, 163, 184, .55);
+        border-radius: 14px;
+        box-shadow: 0 18px 42px rgba(2, 6, 23, .35);
+        padding: 14px 16px;
+        z-index: 5;
+        backdrop-filter: blur(6px);
+    }
+
+    .home-definition-box h6 {
+        color: #bfdbfe;
+        margin-bottom: .55rem;
+    }
+
+    .home-definition-box p,
+    .home-definition-box li {
+        font-size: .83rem;
+        line-height: 1.45;
+        margin-bottom: .42rem;
+    }
+
+    .home-definition-box ol {
+        padding-left: 1rem;
+        margin: 0;
+    }
+    @@media (max-width: 1700px) {
+        .home-hero { min-height: calc(100vh - 130px); }
+        .home-system-title h1 { font-size: clamp(1.6rem, 3vw, 2.8rem); }
+        .home-system-title p { font-size: clamp(.88rem, 1.3vw, 1.05rem); }
+        .home-definition-box { width: min(580px, calc(100% - 32px)); }
+    }
+    @@media (max-width: 1460px) {
+        .home-hero { min-height: calc(100vh - 130px); }
+        .home-definition-box { width: min(600px, calc(100% - 32px)); }
+        .home-system-title h1 { font-size: clamp(1.55rem, 3.2vw, 2.7rem); }
+        .home-system-title p { font-size: clamp(.86rem, 1.35vw, 1.02rem); }
+        .home-definition-box h6 { font-size: .94rem; }
+        .home-definition-box p,
+        .home-definition-box li { font-size: .79rem; }
+    }
+
+    @@media (max-width: 1305px) {
+        .home-hero { min-height: calc(100vh - 130px); }
+        .home-system-title h1 { font-size: clamp(1.35rem, 2.8vw, 2.3rem); }
+        .home-system-title p { font-size: clamp(.8rem, 1.25vw, .95rem); }
+        .home-definition-box {
+            width: min(540px, calc(100% - 28px));
+            padding: 12px 14px;
+        }
+        .home-definition-box h6 { font-size: .9rem; }
+        .home-definition-box p,
+        .home-definition-box li { font-size: .75rem; }
+    }
+
+    @@media (max-height: 820px) {
+        .home-hero { min-height: calc(100vh - 120px); }
+
+        .home-system-title { margin-top: .4rem; }
+        .home-system-title h1 { font-size: clamp(1.2rem, 2.5vw, 2rem); }
+        .home-system-title p { font-size: clamp(.78rem, 1.2vw, .92rem); }
+        .home-system-contact p { font-size: clamp(.72rem, 1vw, .84rem); margin: .08rem 0; }
+
+        .home-road { height: 100px; }
+
+        .bus-lottie-track { width: 160px; height: 78px; }
+        .bus-1 { top: calc(100% - 218px + 0px); }
+        .bus-2 { top: calc(100% - 218px + 28px); }
+        .bus-3 { top: calc(100% - 218px + 56px); }
+        .bus-4 { top: calc(100% - 218px + 84px); }
+        .bus-5 { top: calc(100% - 218px + 112px); }
+
+        .home-definition-box {
+            max-height: 36vh;
+            overflow-y: auto;
+            padding: 10px 12px;
+            bottom: 12px;
+        }
+        .home-definition-box h6 { font-size: .88rem; margin-bottom: .4rem; }
+        .home-definition-box p,
+        .home-definition-box li { font-size: .75rem; line-height: 1.38; }
+    }
+
+    @@media (max-height: 700px) {
+        .home-hero { min-height: calc(100vh - 120px); }
+
+        .home-system-title { margin-top: .25rem; }
+        .home-system-title h1 { font-size: clamp(1.05rem, 2vw, 1.6rem); }
+        .home-system-title p { font-size: .76rem; }
+        .home-system-contact p { font-size: .7rem; margin: .05rem 0; }
+
+        .home-road { height: 90px; }
+
+        .bus-lottie-track { width: 148px; height: 72px; }
+        .bus-1 { top: calc(100% - 200px + 0px); }
+        .bus-2 { top: calc(100% - 200px + 26px); }
+        .bus-3 { top: calc(100% - 200px + 52px); }
+        .bus-4 { top: calc(100% - 200px + 78px); }
+        .bus-5 { top: calc(100% - 200px + 104px); }
+
+        .home-definition-box {
+            max-height: 38vh;
+            padding: 8px 10px;
+            bottom: 8px;
+        }
+        .home-definition-box h6 { font-size: .82rem; margin-bottom: .3rem; }
+        .home-definition-box p,
+        .home-definition-box li { font-size: .7rem; line-height: 1.3; margin-bottom: .28rem; }
+    }
+
+/* Scale 200% trên màn 1080p → ~960×540px CSS */
+    @@media (max-height: 580px) {
+        .home-hero { min-height: calc(100vh - 100px); }
+
+        .home-system-title { margin-top: .2rem; }
+        .home-system-title h1 { font-size: clamp(.95rem, 3.5vw, 1.35rem); }
+        .home-system-title p { font-size: .7rem; }
+        .home-system-contact p { font-size: .65rem; }
+
+        .home-road { height: 80px; }
+
+        .bus-lottie-track { width: 130px; height: 64px; }
+        .bus-1 { top: calc(100% - 178px + 0px); }
+        .bus-2 { top: calc(100% - 178px + 22px); }
+        .bus-3 { top: calc(100% - 178px + 44px); }
+        .bus-4 { top: calc(100% - 178px + 66px); }
+        .bus-5 { top: calc(100% - 178px + 88px); }
+
+        .home-definition-box {
+            max-height: 40vh;
+            padding: 7px 9px;
+            bottom: 6px;
+            right: 10px;
+            left: 10px;
+            width: auto;
+            border-radius: 10px;
+        }
+        .home-definition-box h6 { font-size: .78rem; margin-bottom: .25rem; }
+        .home-definition-box p,
+        .home-definition-box li { font-size: .67rem; line-height: 1.28; margin-bottom: .22rem; }
+
+        .cloud-2, .cloud-3, .cloud-4 { display: none; }
+    }
+    @@media (max-width: 1200px) {
+        .home-hero { min-height: calc(100vh - 120px); }
+
+        .bus-lottie-track { width: 178px; height: 86px; }
+        .bus-1 { top: calc(100% - 238px + 0px); }
+        .bus-2 { top: calc(100% - 238px + 34px); }
+        .bus-3 { top: calc(100% - 238px + 68px); }
+        .bus-4 { top: calc(100% - 238px + 102px); }
+        .bus-5 { top: calc(100% - 238px + 136px); }
+
+        .home-definition-box {
+            right: 14px;
+            bottom: 14px;
+            width: min(510px, calc(100% - 28px));
+        }
+    }
+
+    @@media (max-width: 1000px) {
+        .home-hero { min-height: calc(100vh - 120px); }
+
+        .home-system-title {
+            margin-top: .8rem;
+            padding: 0 10px;
+        }
+
+        .bus-lottie-track { width: 166px; height: 80px; }
+        .bus-1 { top: calc(100% - 222px + 0px); }
+        .bus-2 { top: calc(100% - 222px + 30px); }
+        .bus-3 { top: calc(100% - 222px + 60px); }
+        .bus-4 { top: calc(100% - 222px + 90px); }
+        .bus-5 { top: calc(100% - 222px + 120px); }
+
+        .home-definition-box {
+            max-height: 45vh;
+            overflow-y: auto;
+            width: calc(100% - 24px);
+            right: 12px;
+        }
+    }
+
+    @@media (max-width: 900px) {
+        .home-hero { min-height: calc(100vh - 122px); }
+
+        .bus-lottie-track { width: 158px; height: 76px; }
+        .bus-1 { top: calc(100% - 210px + 0px); }
+        .bus-2 { top: calc(100% - 210px + 28px); }
+        .bus-3 { top: calc(100% - 210px + 56px); }
+        .bus-4 { top: calc(100% - 210px + 84px); }
+        .bus-5 { top: calc(100% - 210px + 112px); }
+
+        .home-definition-box {
+            max-height: 42vh;
+            padding: 11px 12px;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .home-hero {
+            min-height: calc(100vh - 116px);
+            border-radius: 14px;
+        }
+
+        .day-night-toggle {
+            top: 10px;
+            right: 10px;
+            padding: 6px 10px;
+            font-size: .79rem;
+        }
+
+        .home-system-title { margin-top: .66rem; }
+        .home-system-title p { font-size: .95rem; }
+
+        .home-definition-box {
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            width: auto;
+            max-height: 40vh;
+        }
+    }
+
+    @@media (max-width: 640px) {
+        .home-road { height: 102px; }
+
+        .bus-lottie-track { width: 150px; height: 74px; }
+        .bus-1 { top: calc(100% - 200px + 0px); }
+        .bus-2 { top: calc(100% - 200px + 32px); }
+        .bus-3 { top: calc(100% - 200px + 64px); }
+        .bus-4 { top: calc(100% - 200px + 96px); }
+        .bus-5 { top: calc(100% - 200px + 128px); }
+
+        .home-definition-box p,
+        .home-definition-box li {
+            font-size: .78rem;
+            line-height: 1.38;
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .home-hero {
+            min-height: calc(100vh - 108px);
+            border-radius: 12px;
+        }
+
+        .home-definition-box {
+            max-height: 37vh;
+            padding: 10px 11px;
+        }
+
+        .cloud-2,
+        .cloud-3,
+        .bus-5 {
+            display: none;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .home-system-title h1 { font-size: clamp(1.3rem, 7vw, 1.9rem); }
+        .home-system-title p { font-size: .82rem; }
+
+        .home-definition-box {
+            max-height: 34vh;
+            padding: 9px 10px;
+        }
+
+        .home-definition-box p,
+        .home-definition-box li {
+            font-size: .74rem;
+        }
+    }
+
+    @@media (max-width: 420px) {
+        .home-hero { min-height: calc(100vh - 100px); }
+
+        .day-night-toggle {
+            top: 8px;
+            right: 8px;
+            padding: 5px 9px;
+            font-size: .74rem;
+        }
+
+        .home-definition-box {
+            left: 8px;
+            right: 8px;
+            bottom: 8px;
+            max-height: 32vh;
+        }
+
+        .cloud-4,
+        .bus-4 {
+            display: none;
+        }
+    }
+</style>
+
+<div class="pt-3 pb-2 dashboard-container">
+    <div class="home-hero" id="homeHero">
+        <img src="~/img/blue-brother-logo-transparent.png" alt="Brother Logo" class="home-brand-logo" />
+        <img src="~/img/white-brother-logo-transparent.png" alt="Brother Logo" class="home-brand-logo home-brand-logo-night" />
+        <button type="button" id="toggleDayNight" class="day-night-toggle" aria-label="Switch Day Night">🌙 Night</button>
+
+        <div class="night-stars"></div>
+        <div class="cloud cloud-1"></div>
+        <div class="cloud cloud-2"></div>
+        <div class="cloud cloud-3"></div>
+        <div class="cloud cloud-4"></div>
+        <div class="cloud cloud-5"></div>
+        <div class="cloud cloud-6"></div>
+
+        <div class="home-system-title">
+            <h1>HỆ THỐNG QUẢN LÝ XE CÔNG TY</h1>
+            <p>BIVN Bus Management System</p>
+            <div class="home-system-contact">
+                <p>Phòng Hành chính</p>
+                <p>Hotline: 1018 / 0899.090.244</p>
+                <p>E-mail: BIVNgabus@brother-bivn.com.vn</p>
+            </div>
+        </div>
+
+        <div class="home-road">
+            <div class="roadside-trees">
+                <div class="roadside-trees-track">
+                    <div class="tree tree-type-1" style="left: 0px;"></div>
+                    <div class="tree tree-type-2" style="left: 180px;"></div>
+                    <div class="tree tree-type-1" style="left: 360px;"></div>
+                    <div class="tree tree-type-1" style="left: 540px;"></div>
+                    <div class="tree tree-type-3" style="left: 720px;"></div>
+                    <div class="tree tree-type-3" style="left: 900px;"></div>
+                    <div class="tree tree-type-1" style="left: 1080px;"></div>
+                    <div class="tree tree-type-2" style="left: 1260px;"></div>
+                    <div class="tree tree-type-2" style="left: 1440px;"></div>
+                    <div class="tree tree-type-1" style="left: 1620px;"></div>
+                    <div class="tree tree-type-2" style="left: 1800px;"></div>
+                    <div class="tree tree-type-3" style="left: 1980px;"></div>
+                    <div class="tree tree-type-1" style="left: 2160px;"></div>
+                    <div class="tree tree-type-2" style="left: 2340px;"></div>
+                    <div class="tree tree-type-3" style="left: 2520px;"></div>
+                    <div class="tree tree-type-1" style="left: 2700px;"></div>
+                    <div class="tree tree-type-2" style="left: 2880px;"></div>
+                    <div class="tree tree-type-3" style="left: 3060px;"></div>
+                    <div class="tree tree-type-1" style="left: 3240px;"></div>
+                    <div class="tree tree-type-2" style="left: 3420px;"></div>
+                    <div class="tree tree-type-3" style="left: 3600px;"></div>
+
+                </div>
+            </div>
+            <div class="lane-mark"></div>
+            <div class="lane-mark lane-mark-2"></div>
+        </div>
+
+        <div class="bus-lottie-track bus-1"><div id="busLottie1" class="bus-lottie" style="width:200px; height:200px;"></div></div>
+        <div class="bus-lottie-track bus-2"><div id="busLottie2" class="bus-lottie" style="width:250px; height:250px;"></div></div>
+        <div class="bus-lottie-track bus-3"><div id="busLottie3" class="bus-lottie" style="width:250px; height:250px;"></div></div>
+        <div class="bus-lottie-track bus-4"><div id="busLottie4" class="bus-lottie" style="width:250px; height:250px;"></div></div>
+        <div class="bus-lottie-track bus-5"><div id="busLottie5" class="bus-lottie" style="width:250px; height:250px;"></div></div>
+
+        <div class="home-definition-box">
+            <h6 class="fw-semibold">Định nghĩa về xe Công ty</h6>
+            <p>Công ty chỉ sắp xếp xe phục vụ cho công việc của Công ty, và được phân chia thành các loại sau:</p>
+            <ol>
+                <li><strong>Xe đi làm:</strong> Là xe đón CNV đến công ty làm việc và về sau khi hết ca làm việc.</li>
+                <li><strong>Xe trung chuyển giữa các nhà máy:</strong> Là xe đưa đón người di chuyển giữa các nhà máy theo thời gian quy định.</li>
+                <li><strong>Xe công vụ:</strong> Là xe dùng để di chuyển ra ngoài vì mục đích công việc hoặc cần phải giao tài liệu, hàng hóa gấp tới các cơ quan bên ngoài của ngày làm việc.</li>
+                <li><strong>Xe công tác:</strong> Là xe sử dụng cho mục đích công việc ngoài ngày làm việc.</li>
+                <li><strong>Xe sử dụng cho mục đích khác:</strong> Là xe ngoài các trường hợp (1), (2), (3), (4), như: xe về quê; xe đưa đón CNV đi khám sức khỏe, xe đưa CNV chuyển viện, xe đón người ngoài công ty như khách, ứng viên,...</li>
+            </ol>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    (function () {
+        if (typeof lottie === 'undefined') return;
+
+        function renderBus(containerId, speed) {
+            var el = document.getElementById(containerId);
+            if (!el) return;
+            var anim = lottie.loadAnimation({
+                container: el,
+                renderer: 'svg',
+                loop: true,
+                autoplay: true,
+                path: '/lotties/bus_loader.json'
+            });
+            anim.setSpeed(speed || 0.5);
+        }
+
+        renderBus('busLottie1', 0.5);
+        renderBus('busLottie2', 0.5);
+        renderBus('busLottie3', 0.5);
+        renderBus('busLottie4', 0.5);
+        renderBus('busLottie5', 1);
+    })();
+
+    (function () {
+        var hero = document.getElementById('homeHero');
+        var btn = document.getElementById('toggleDayNight');
+        if (!hero || !btn) return;
+        var isManualMode = false;
+
+        function applyMode(mode) {
+            var isNight = mode === 'night';
+            hero.classList.toggle('is-night', isNight);
+            btn.textContent = isNight ? '☀️ Day' : '🌙 Night';
+        }
+
+        function getModeByGmt7() {
+            var now = new Date();
+            var utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+            var gmt7 = new Date(utcMs + (7 * 60 * 60000));
+            var hour = gmt7.getHours();
+            return (hour >= 17 || hour < 6) ? 'night' : 'day';
+        }
+
+        applyMode(getModeByGmt7());
+
+        setInterval(function () {
+            if (isManualMode) return;
+            applyMode(getModeByGmt7());
+        }, 60000);
+
+        btn.addEventListener('click', function () {
+            isManualMode = true;
+            var next = hero.classList.contains('is-night') ? 'day' : 'night';
+            applyMode(next);
+        });
+    })();
+
+    (function () {
+        var treeLayers = document.querySelectorAll('.home-road .roadside-trees');
+        if (!treeLayers.length) return;
+
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                treeLayers.forEach(function (el) {
+                    el.classList.add('is-ready');
+                });
+            });
+        });
+    })();
+</script>
+}

@@ -1,0 +1,488 @@
+﻿@using BusManagement.Model.Common.Enum
+@using BusManagementWebApp.Helpers
+@model BusManagement.ViewModels.TripRequest.TripRequestPageViewModel
+@{
+    ViewData["Title"] = "Đăng ký xe công tác";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+}
+
+<style>
+    .trip-card { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .05); }
+    .bus-status-row-pending { background-color: #f3f4f6; }
+    .bus-status-row-processing { background-color: #dbeafe; }
+    .bus-status-row-approved { background-color: #dcfce7; }
+    .bus-status-row-rejected { background-color: #fee2e2; }
+
+    #createTripRequestModal .modal-body,
+    [id^="editTripRequestModal-"] .modal-body,
+    #approvalHistoryModal .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .lottie-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.25); display: none; align-items: center; justify-content: center; z-index: 2000; }
+    .lottie-overlay.show { display: flex; }
+    #approvalSuccessLottie { width: 280px; height: 280px; }
+</style>
+
+<div class="trip-card p-3 p-md-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Đăng ký xe công tác</h5>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTripRequestModal"><i class="fa-solid fa-plus me-1"></i>Đăng ký mới</button>
+            <form method="get" asp-controller="TripRequest" asp-action="Export" class="d-inline">
+                <input type="hidden" name="department" value="@Model.Department" />
+                <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                <input type="hidden" name="phone" value="@Model.Phone" />
+                <input type="hidden" name="purpose" value="@Model.Purpose" />
+                <input type="hidden" name="tripType" value="@Model.TripType" />
+                <input type="hidden" name="status" value="@Model.Status" />
+                <input type="hidden" name="dateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="dateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                <button type="submit" class="btn btn-success"><i class="fa-solid fa-file-excel me-1"></i>Xuất Excel</button>
+            </form>
+            @if (Model.CanManageAll)
+            {
+                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importTripRequestModal"><i class="fa-solid fa-file-import me-1"></i>Import</button>
+            }
+        </div>
+    </div>
+
+    <form method="get" show-loading asp-controller="TripRequest" asp-action="Index" class="row g-2 mb-3">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <div class="col-md-2"><input class="form-control" name="department" value="@Model.Department" placeholder="Phòng ban" /></div>
+        <div class="col-md-2"><input class="form-control" name="employeeCode" value="@Model.EmployeeCode" placeholder="MNV" /></div>
+        <div class="col-md-2"><input class="form-control" name="employeeName" value="@Model.EmployeeName" placeholder="Họ tên" /></div>
+        <div class="col-md-2"><input class="form-control" name="phone" value="@Model.Phone" placeholder="SĐT" /></div>
+        <div class="col-md-2"><input class="form-control" name="purpose" value="@Model.Purpose" placeholder="Mục đích" /></div>
+        <div class="col-md-2">
+            <select class="form-select" name="tripType">
+                <option value="">Loại chuyến</option>
+                <option value="ONE_WAY" selected="@(string.Equals(Model.TripType,"ONE_WAY",StringComparison.OrdinalIgnoreCase))">1 chiều</option>
+                <option value="TWO_WAY" selected="@(string.Equals(Model.TripType,"TWO_WAY",StringComparison.OrdinalIgnoreCase))">2 chiều</option>
+            </select>
+        </div>
+        <div class="col-md-2"><input type="date" class="form-control" name="dateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" /></div>
+        <div class="col-md-2"><input type="date" class="form-control" name="dateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" /></div>
+        <div class="col-md-2">
+            <select class="form-select" name="status">
+                <option value="">Trạng thái</option>
+                <option value="0" selected="@(Model.Status == TripRequestStatuses.PendingQlsc)">Chờ QLSC</option>
+                <option value="1" selected="@(Model.Status == TripRequestStatuses.QlscApproved)">Chờ QLTC</option>
+                <option value="3" selected="@(Model.Status == TripRequestStatuses.QltcApproved)">Chờ GA báo giá</option>
+                <option value="5" selected="@(Model.Status == TripRequestStatuses.QuoteSentByGa)">Chờ CNV phản hồi</option>
+                <option value="7" selected="@(Model.Status == TripRequestStatuses.EmployeeAcceptedQuote)">Chờ GA lái xe</option>
+                <option value="8" selected="@(Model.Status == TripRequestStatuses.Completed)">Hoàn thành</option>
+                <option value="2" selected="@(Model.Status == TripRequestStatuses.QlscRejected)">QLSC từ chối</option>
+                <option value="4" selected="@(Model.Status == TripRequestStatuses.QltcRejected)">QLTC từ chối</option>
+                <option value="9" selected="@(Model.Status == TripRequestStatuses.GaRejected)">GA từ chối</option>
+            </select>
+        </div>
+        <div class="col-md-1 d-grid"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">Thao tác</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">STT</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">Trạng thái</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">Phòng ban</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">Họ tên</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">MNV</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">SĐT</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">SL người</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">Loại chuyến</th>
+
+                    <th colspan="4" class="text-center align-middle text-nowrap">Chiều đi</th>
+                    <th colspan="4" class="text-center align-middle text-nowrap">Chiều về</th>
+
+                    <th rowspan="2" class="text-center align-middle text-nowrap">Mục đích</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">Báo giá</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">Lái xe</th>
+                    <th rowspan="2" class="text-center align-middle text-nowrap">Phản hồi</th>
+                </tr>
+                <tr>
+                    <th class="text-center text-nowrap">Ngày đưa</th>
+                    <th class="text-center text-nowrap">Giờ đưa</th>
+                    <th class="text-center text-nowrap">Điểm đón</th>
+                    <th class="text-center text-nowrap">Điểm đến</th>
+
+                    <th class="text-center text-nowrap">Ngày đưa</th>
+                    <th class="text-center text-nowrap">Giờ đưa</th>
+                    <th class="text-center text-nowrap">Điểm đón</th>
+                    <th class="text-center text-nowrap">Điểm đến</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Requests.Any())
+                {
+                    <tr><td colspan="15" class="text-center text-muted">Không có dữ liệu.</td></tr>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.Requests.Count; i++)
+                    {
+                        var item = Model.Requests[i];
+                        <tr class="@item.StatusRowClass">
+                            <td class="text-center">
+                                <button type="button" class="btn btn-primary btn-sm js-history-btn mb-1" data-history-url="@Url.Action("History", "TripRequestApproval", new { id = item.Id, modal = true })"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                                @if (item.CanEdit)
+                                {
+                                    <button type="button" class="btn btn-warning btn-sm mb-1" data-bs-toggle="modal" data-bs-target="#editTripRequestModal-@item.Id"><i class="fa-solid fa-pen"></i></button>
+                                }
+                                @if (item.CanDelete)
+                                {
+                                    <form method="post" asp-controller="TripRequest" asp-action="Delete" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@item.Id" />
+                                        <input type="hidden" name="SearchDepartment" value="@Model.Department" />
+                                        <input type="hidden" name="SearchEmployeeCode" value="@Model.EmployeeCode" />
+                                        <input type="hidden" name="SearchEmployeeName" value="@Model.EmployeeName" />
+                                        <input type="hidden" name="SearchPhone" value="@Model.Phone" />
+                                        <input type="hidden" name="SearchPurpose" value="@Model.Purpose" />
+                                        <input type="hidden" name="SearchTripType" value="@Model.TripType" />
+                                        <input type="hidden" name="SearchStatus" value="@Model.Status" />
+                                        <input type="hidden" name="SearchDateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                                        <input type="hidden" name="SearchDateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+                                        <button type="submit" class="btn btn-danger btn-sm mb-1"><i class="fa-solid fa-trash"></i></button>
+                                    </form>
+                                }
+                            </td>
+                            <td>@(startIndex + i)</td>
+                            <td><span class="badge @item.StatusBadgeClass">@item.StatusText</span></td>
+                            <td>@item.DepartmentName</td>
+                            <td>@item.EmployeeName</td>
+                            <td>@item.EmployeeCode</td>
+                            <td>@item.Phone</td>
+                            <td>@item.PassengerCount</td>
+                            <td>@(string.Equals(item.TripType,"TWO_WAY",StringComparison.OrdinalIgnoreCase)?"2 chiều":"1 chiều")</td>
+                            @* <td>@item.PickupGo?.ToString("dd/MM/yyyy HH:mm")<br /><small>@item.FromGo → @item.ToGo</small></td>
+                            @if (@item.PickupReturn.HasValue)
+                            {
+                                <td>@item.PickupReturn?.ToString("dd/MM/yyyy HH:mm")<br /><small>@item.FromReturn → @item.ToReturn</small></td>
+                            }
+                            else
+                            {
+                                <td></td>
+                            } *@
+                            <!-- Chiều đi -->
+                            <td>@item.PickupGo?.ToString("dd/MM/yyyy")</td>
+                            <td>@item.PickupGo?.ToString("HH:mm")</td>
+                            <td>@item.FromGo</td>
+                            <td>@item.ToGo</td>
+
+                            <!-- Chiều về -->
+                            @if (item.PickupReturn.HasValue)
+                            {
+                                <td>@item.PickupReturn?.ToString("dd/MM/yyyy")</td>
+                                <td>@item.PickupReturn?.ToString("HH:mm")</td>
+                                <td>@item.FromReturn</td>
+                                <td>@item.ToReturn</td>
+                            }
+                            else
+                            {
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            }
+
+                            <td>@item.Purpose</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(item.QuotePath))
+                                {
+                                    <a href="@item.QuotePath" target="_blank">File</a>
+                                }
+                            </td>
+                            <td>@item.DriverInfo</td>
+                            <td>
+                                @if (item.QuoteConfirm == true) { <span class="badge bg-success">Đồng ý</span> }
+                                else if (item.QuoteConfirm == false) { <span class="badge bg-danger">Từ chối</span> }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Index",
+        Controller = "TripRequest",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["department"] = Model.Department,
+            ["employeeCode"] = Model.EmployeeCode,
+            ["employeeName"] = Model.EmployeeName,
+            ["phone"] = Model.Phone,
+            ["purpose"] = Model.Purpose,
+            ["tripType"] = Model.TripType,
+            ["status"] = Model.Status?.ToString(),
+            ["dateFrom"] = Model.DateFrom?.ToString("yyyy-MM-dd"),
+            ["dateTo"] = Model.DateTo?.ToString("yyyy-MM-dd")
+        }
+    })
+</div>
+
+<div class="modal fade" id="approvalHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Lịch sử xử lý</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body" id="approvalHistoryModalBody"></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="createTripRequestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Đăng ký xe công tác</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <form method="post" show-loading asp-controller="TripRequest" asp-action="Create" class="js-trip-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="SearchDepartment" value="@Model.Department" />
+                    <input type="hidden" name="SearchEmployeeCode" value="@Model.EmployeeCode" />
+                    <input type="hidden" name="SearchEmployeeName" value="@Model.EmployeeName" />
+                    <input type="hidden" name="SearchPhone" value="@Model.Phone" />
+                    <input type="hidden" name="SearchPurpose" value="@Model.Purpose" />
+                    <input type="hidden" name="SearchTripType" value="@Model.TripType" />
+                    <input type="hidden" name="SearchStatus" value="@Model.Status" />
+                    <input type="hidden" name="SearchDateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="SearchDateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="Page" value="@Model.PageNumber" />
+                    <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12"><h6>Thông tin người sử dụng</h6></div>
+                        <div class="col-md-4"><label class="form-label">MNV</label><input class="form-control js-employee-code-autofill" name="EmployeeCode" value="@Model.CurrentEmployeeCode" required /></div>
+                        <div class="col-md-4"><label class="form-label">Họ tên</label><input class="form-control" name="EmployeeName" value="@Model.CurrentEmployeeName" required /></div>
+                        <div class="col-md-4"><label class="form-label">Phòng ban</label><input class="form-control js-department-name" name="DepartmentName" readonly /></div>
+                        <input type="hidden" name="DepartmentCode" value="@Model.CurrentDepartmentCode" />
+                        <div class="col-md-4"><label class="form-label">SĐT</label><input class="form-control" name="Phone" /></div>
+                        <div class="col-md-4"><label class="form-label">Số lượng người</label><input type="number" class="form-control" name="PassengerCount" min="1" /></div>
+                        <div class="col-md-4"><label class="form-label">Loại chuyến</label>
+                            <select class="form-select js-triptype" name="TripType" required>
+                                <option value="ONE_WAY">1 chiều</option>
+                                <option value="TWO_WAY">2 chiều</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12"><h6>Chiều đi</h6></div>
+                        <div class="col-md-3"><label class="form-label">Ngày đón</label><input type="date" class="form-control" name="PickupGoDate" required /></div>
+                        <div class="col-md-3"><label class="form-label">Giờ đón</label><input type="time" class="form-control" name="PickupGoTime" required /></div>
+                        <div class="col-md-3"><label class="form-label">Đón từ điểm</label><input class="form-control" name="FromGo" required /></div>
+                        <div class="col-md-3"><label class="form-label">Tới điểm</label><input class="form-control" name="ToGo" required /></div>
+
+                        <div class="col-12 js-return-section"><h6>Chiều về</h6></div>
+                        <div class="col-md-3 js-return-section"><label class="form-label">Ngày đón</label><input type="date" class="form-control" name="PickupReturnDate" /></div>
+                        <div class="col-md-3 js-return-section"><label class="form-label">Giờ đón</label><input type="time" class="form-control" name="PickupReturnTime" /></div>
+                        <div class="col-md-3 js-return-section"><label class="form-label">Đón từ điểm</label><input class="form-control" name="FromReturn" /></div>
+                        <div class="col-md-3 js-return-section"><label class="form-label">Tới điểm</label><input class="form-control" name="ToReturn" /></div>
+
+                        <div class="col-12"><label class="form-label">Mục đích</label><textarea class="form-control" rows="4" name="Purpose"></textarea></div>
+                        <div class="col-md-6"><label class="form-label">QLSC phê duyệt</label><select class="form-select" name="QlscApprove" required><option value="">-- Chọn --</option>@foreach (var u in Model.QlscUsers) { <option value="@u.CHR_ADID">@u.NVCHR_NAME (@u.CHR_ADID)</option> }</select></div>
+                        <div class="col-md-6"><label class="form-label">QLTC phê duyệt</label><select class="form-select" name="QltcApprove" required><option value="">-- Chọn --</option>@foreach (var u in Model.QltcUsers) { <option value="@u.CHR_ADID">@u.NVCHR_NAME (@u.CHR_ADID)</option> }</select></div>
+                    </div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Gửi</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@foreach (var item in Model.Requests.Where(x => x.CanEdit))
+{
+    <div class="modal fade" id="editTripRequestModal-@item.Id" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Cập nhật đơn #@item.Id</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <form method="post" show-loading asp-controller="TripRequest" asp-action="Update" class="js-trip-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="Id" value="@item.Id" />
+                        <input type="hidden" name="SearchDepartment" value="@Model.Department" />
+                        <input type="hidden" name="SearchEmployeeCode" value="@Model.EmployeeCode" />
+                        <input type="hidden" name="SearchEmployeeName" value="@Model.EmployeeName" />
+                        <input type="hidden" name="SearchPhone" value="@Model.Phone" />
+                        <input type="hidden" name="SearchPurpose" value="@Model.Purpose" />
+                        <input type="hidden" name="SearchTripType" value="@Model.TripType" />
+                        <input type="hidden" name="SearchStatus" value="@Model.Status" />
+                        <input type="hidden" name="SearchDateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="SearchDateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-md-4"><label class="form-label">MNV</label><input class="form-control js-employee-code-autofill" name="EmployeeCode" value="@item.EmployeeCode" required /></div>
+                            <div class="col-md-4"><label class="form-label">Họ tên</label><input class="form-control" name="EmployeeName" value="@item.EmployeeName" required /></div>
+                            <div class="col-md-4"><label class="form-label">Phòng ban</label><input class="form-control js-department-name" name="DepartmentName" value="@item.DepartmentName" readonly /></div>
+                            <input type="hidden" name="DepartmentCode" value="@item.DepartmentCode" />
+                            <div class="col-md-4"><label class="form-label">SĐT</label><input class="form-control" name="Phone" value="@item.Phone" /></div>
+                            <div class="col-md-4"><label class="form-label">Số lượng người</label><input type="number" class="form-control" name="PassengerCount" value="@item.PassengerCount" min="1" /></div>
+                            <div class="col-md-4"><label class="form-label">Loại chuyến</label>
+                                <select class="form-select js-triptype" name="TripType" required>
+                                    <option value="ONE_WAY" selected="@(!string.Equals(item.TripType, "TWO_WAY", StringComparison.OrdinalIgnoreCase))">1 chiều</option>
+                                    <option value="TWO_WAY" selected="@(string.Equals(item.TripType, "TWO_WAY", StringComparison.OrdinalIgnoreCase))">2 chiều</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3"><label class="form-label">Ngày đón đi</label><input type="date" class="form-control" name="PickupGoDate" value="@item.PickupGo?.ToString("yyyy-MM-dd")" required /></div>
+                            <div class="col-md-3"><label class="form-label">Giờ đón đi</label><input type="time" class="form-control" name="PickupGoTime" value="@item.PickupGo?.ToString("HH:mm")" required /></div>
+                            <div class="col-md-3"><label class="form-label">Đón từ điểm</label><input class="form-control" name="FromGo" value="@item.FromGo" required /></div>
+                            <div class="col-md-3"><label class="form-label">Tới điểm</label><input class="form-control" name="ToGo" value="@item.ToGo" required /></div>
+                            <div class="col-md-3 js-return-section"><label class="form-label">Ngày đón về</label><input type="date" class="form-control" name="PickupReturnDate" value="@item.PickupReturn?.ToString("yyyy-MM-dd")" /></div>
+                            <div class="col-md-3 js-return-section"><label class="form-label">Giờ đón về</label><input type="time" class="form-control" name="PickupReturnTime" value="@item.PickupReturn?.ToString("HH:mm")" /></div>
+                            <div class="col-md-3 js-return-section"><label class="form-label">Đón từ điểm</label><input class="form-control" name="FromReturn" value="@item.FromReturn" /></div>
+                            <div class="col-md-3 js-return-section"><label class="form-label">Tới điểm</label><input class="form-control" name="ToReturn" value="@item.ToReturn" /></div>
+                            <div class="col-12"><label class="form-label">Mục đích</label><textarea class="form-control" rows="4" name="Purpose">@item.Purpose</textarea></div>
+                            <div class="col-md-6"><label class="form-label">QLSC phê duyệt</label><select class="form-select" name="QlscApprove" required><option value="">-- Chọn --</option>@foreach (var u in Model.QlscUsers) { <option value="@u.CHR_ADID" selected="@(string.Equals(item.QlscApprove, u.CHR_ADID, StringComparison.OrdinalIgnoreCase))">@u.NVCHR_NAME (@u.CHR_ADID)</option> }</select></div>
+                            <div class="col-md-6"><label class="form-label">QLTC phê duyệt</label><select class="form-select" name="QltcApprove" required><option value="">-- Chọn --</option>@foreach (var u in Model.QltcUsers) { <option value="@u.CHR_ADID" selected="@(string.Equals(item.QltcApprove, u.CHR_ADID, StringComparison.OrdinalIgnoreCase))">@u.NVCHR_NAME (@u.CHR_ADID)</option> }</select></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<div id="lottieOverlay" class="lottie-overlay">
+    <div id="approvalSuccessLottie"></div>
+</div>
+
+@if (Model.CanManageAll)
+{
+    <div class="modal fade" id="importTripRequestModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Import đơn xe công tác</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <form method="post" show-loading asp-controller="TripRequest" asp-action="Import" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="department" value="@Model.Department" />
+                        <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                        <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                        <input type="hidden" name="phone" value="@Model.Phone" />
+                        <input type="hidden" name="purpose" value="@Model.Purpose" />
+                        <input type="hidden" name="tripType" value="@Model.TripType" />
+                        <input type="hidden" name="status" value="@Model.Status" />
+                        <input type="hidden" name="dateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="dateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                        <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                        <div class="small text-muted mt-2">Định dạng: STT,Phòng ban,MNV,Họ tên,SĐT,SL người,Loại chuyến,Ngày đi,Giờ đi,Điểm đón đi,Điểm tới đi,Ngày về,Giờ về,Điểm đón về,Điểm tới về,Mục đích,Trạng thái</div>
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-success">Import</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    @if (TempData["TripRequestSuccess"] is string s) { <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(s)));</script> }
+    @if (TempData["TripRequestError"] is string e) { <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(e)));</script> }
+
+    <script>
+        (function(){
+            async function resolveEmployeeInfo(form){
+                var codeInput = form.querySelector('input[name="EmployeeCode"]');
+                if (!codeInput) return;
+                var code = (codeInput.value || '').trim();
+                if (!code) return;
+
+                var response = await fetch('@Url.Action("ResolveEmployeeByCode", "TripRequest")?employeeCode=' + encodeURIComponent(code));
+                if (!response.ok) return;
+                var result = await response.json();
+                if (!result || !result.success || !result.data) return;
+
+                var employeeNameInput = form.querySelector('input[name="EmployeeName"]');
+                var phoneInput = form.querySelector('input[name="Phone"]');
+                var departmentCodeInput = form.querySelector('input[name="DepartmentCode"]');
+                var departmentNameInput = form.querySelector('input[name="DepartmentName"]');
+
+                if (employeeNameInput) employeeNameInput.value = result.data.employeeName || '';
+                if (phoneInput) phoneInput.value = result.data.phone || '';
+                if (departmentCodeInput) departmentCodeInput.value = result.data.departmentCode || '';
+                if (departmentNameInput) departmentNameInput.value = result.data.departmentName || '';
+            }
+
+            document.addEventListener('blur', function(e){
+                var input = e.target.closest('.js-employee-code-autofill');
+                if (!input) return;
+                var form = input.closest('form');
+                if (!form) return;
+                resolveEmployeeInfo(form);
+            }, true);
+
+            document.querySelectorAll('.js-trip-form').forEach(function(form){ resolveEmployeeInfo(form); });
+
+            function toggleReturn(form){
+                var tripType = (form.querySelector('[name="TripType"]') || {}).value || 'ONE_WAY';
+                form.querySelectorAll('.js-return-section').forEach(function(el){
+                    el.style.display = tripType === 'TWO_WAY' ? '' : 'none';
+                });
+            }
+
+            document.querySelectorAll('.js-trip-form').forEach(function(form){
+                var tripTypeSelect = form.querySelector('[name="TripType"]');
+                if (tripTypeSelect) {
+                    tripTypeSelect.addEventListener('change', function(){ toggleReturn(form); });
+                    toggleReturn(form);
+                }
+            });
+
+            var historyModalEl = document.getElementById('approvalHistoryModal');
+            var historyModalBody = document.getElementById('approvalHistoryModalBody');
+            if (historyModalEl && historyModalBody) {
+                var historyModal = bootstrap.Modal.getOrCreateInstance(historyModalEl);
+                document.addEventListener('click', async function (e) {
+                    var btn = e.target.closest('.js-history-btn');
+                    if (!btn) return;
+
+                    historyModalBody.innerHTML = '<div class="text-center text-muted py-4">Đang tải...</div>';
+                    historyModal.show();
+
+                    try {
+                        var response = await fetch(btn.getAttribute('data-history-url'), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        if (!response.ok) throw new Error('Load history failed');
+                        historyModalBody.innerHTML = await response.text();
+                    } catch {
+                        historyModalBody.innerHTML = '<div class="alert alert-danger mb-0">Không thể tải lịch sử xử lý.</div>';
+                    }
+                });
+            }
+
+            var shouldCelebrate = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["TripRequestCelebrate"] != null));
+            if (shouldCelebrate && window.lottie) {
+                var overlay = document.getElementById('lottieOverlay');
+                var container = document.getElementById('approvalSuccessLottie');
+                if (overlay && container) {
+                    overlay.classList.add('show');
+                    container.innerHTML = '';
+                    lottie.loadAnimation({
+                        container: container,
+                        renderer: 'svg',
+                        loop: false,
+                        autoplay: true,
+                        path: '/lotties/congratulations_smiley.json'
+                    });
+                    setTimeout(function () { overlay.classList.remove('show'); }, 2500);
+                }
+            }
+        })();
+    </script>
+}

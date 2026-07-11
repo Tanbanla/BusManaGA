@@ -1,0 +1,621 @@
+﻿@model BusManagement.ViewModels.Admin.UsersPageViewModel
+@{
+    ViewData["Title"] = "Quản lý người dùng";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+}
+
+<style>
+    .admin-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    .table thead th { white-space: nowrap; }
+</style>
+
+<div class="admin-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Danh sách người dùng</h5>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                <i class="fa-solid fa-plus me-1"></i>Thêm mới
+            </button>
+            <form id="exportUsersForm" method="get" asp-controller="Admin" asp-action="ExportUsers" class="d-inline js-export-form" data-no-loader>
+                <input type="hidden" name="keyword" value="@Model.Keyword" />
+                <input type="hidden" name="name" value="@Model.Name" />
+                <input type="hidden" name="position" value="@Model.Position" />
+                <input type="hidden" name="roleId" value="@Model.RoleId" />
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                </button>
+            </form>
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importUserModal">
+                <i class="fa-solid fa-file-import me-1"></i>Import Excel
+            </button>
+            <button id="btnBulkDeleteUsers" type="button" class="btn btn-danger js-action-button d-none"
+                    data-form-id="bulkDeleteForm"
+                    data-confirm-title="Xóa nhiều người dùng"
+                    data-confirm-message="Bạn có chắc chắn muốn xóa các người dùng đã chọn?"
+                    data-require-selection="1"
+                    disabled>
+                <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+            </button>
+        </div>
+    </div>
+
+    <form method="get" asp-controller="Admin" asp-action="Users" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="keyword" value="@Model.Keyword" placeholder="Mã nhân viên / ADID" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="name" value="@Model.Name" placeholder="Tên người dùng" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <input class="form-control" name="position" value="@Model.Position" placeholder="Vị trí" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select class="form-select" name="roleId">
+                <option value="">Tất cả vai trò</option>
+                @foreach (var role in Model.Roles)
+                {
+                    if (Model.RoleId == role.ID)
+                    {
+                        <option value="@role.ID" selected>@role.NVCHR_ROLE_NAME</option>
+                    }
+                    else
+                    {
+                        <option value="@role.ID">@role.NVCHR_ROLE_NAME</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3 d-grid d-md-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm</button>
+        </div>
+    </form>
+
+    <form id="bulkDeleteForm" method="post" asp-controller="Admin" asp-action="DeleteUsers" class="js-confirm js-require-selection"
+          data-confirm-title="Xóa nhiều người dùng"
+          data-confirm-message="Bạn có chắc chắn muốn xóa các người dùng đã chọn?">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="keyword" value="@Model.Keyword" />
+        <input type="hidden" name="searchName" value="@Model.Name" />
+        <input type="hidden" name="searchPosition" value="@Model.Position" />
+        <input type="hidden" name="searchRoleId" value="@Model.RoleId" />
+        <input type="hidden" name="page" value="@Model.PageNumber" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 40px;"><input id="chkAllUsers" type="checkbox" class="form-check-input" /></th>
+                    <th>Mã NV</th>
+                    <th>ADID</th>
+                    <th>Họ tên</th>
+                    <th>Vị trí</th>
+                    <th>Mã phòng</th>
+                    <th>Tên phòng</th>
+                    <th>Vai trò</th>
+                    <th>Trạng thái</th>
+                    <th>Khóa</th>
+                    <th>Đăng nhập gần nhất</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Users.Any())
+                {
+                    <tr>
+                        <td colspan="12" class="text-center text-muted py-4">Không có dữ liệu người dùng.</td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var user in Model.Users)
+                    {
+                        <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input js-user-check" name="ids" value="@user.ID" form="bulkDeleteForm" />
+                            </td>
+                            <td>@user.CHR_EMPLOYEE_ID</td>
+                            <td>@user.CHR_ADID</td>
+                            <td>@user.NVCHR_NAME</td>
+                            <td>@user.CHR_POSITION</td>
+                            <td>@user.CHR_SEC_CODE</td>
+                            <td>@user.CHR_SEC_NAME</td>
+                            <td><span class="badge bg-primary-subtle text-primary">@Model.GetRoleName(user.INT_ROLE_ID)</span></td>
+                            <td>
+                                @if (user.BIT_IS_ACTIVE == true)
+                                {
+                                    <span class="badge bg-success-subtle text-success">Đang hoạt động</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary">Ngưng hoạt động</span>
+                                }
+                            </td>
+                            <td>
+                                @if (user.INT_LOCK == 1)
+                                {
+                                    <span class="badge bg-danger-subtle text-danger">Đang khóa</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success-subtle text-success">Mở khóa</span>
+                                }
+                            </td>
+                            <td>@(user.DTM_LAST_LOGIN?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                            <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-primary ms-1 mb-1" data-bs-toggle="modal" data-bs-target="#editUserModal-@user.ID">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <form id="lockForm-@user.ID" method="post" asp-controller="Admin" asp-action="ToggleLockUser" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@user.ID" />
+                                        <input type="hidden" name="lockUser" value="@(user.INT_LOCK == 1 ? "0" : "1")" />
+                                        <input type="hidden" name="keyword" value="@Model.Keyword" />
+                                        <input type="hidden" name="searchName" value="@Model.Name" />
+                                        <input type="hidden" name="searchPosition" value="@Model.Position" />
+                                        <input type="hidden" name="searchRoleId" value="@Model.RoleId" />
+                                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                        <button class="btn btn-sm @(user.INT_LOCK == 1 ? "btn-success" : "btn-warning") js-action-button ms-1 mb-1" type="button"
+                                                data-form-id="lockForm-@user.ID"
+                                                data-confirm-title="@(user.INT_LOCK == 1 ? "Mở khóa tài khoản" : "Khóa tài khoản")"
+                                                data-confirm-message="@(user.INT_LOCK == 1 ? "Bạn có chắc chắn muốn mở khóa tài khoản này?" : "Bạn có chắc chắn muốn khóa tài khoản này?")"><i class="fa-solid @(user.INT_LOCK == 1 ? "fa-lock-open" : "fa-lock")"></i></button>
+                                    </form>
+                                    <form id="deleteForm-@user.ID" method="post" asp-controller="Admin" asp-action="DeleteUser" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@user.ID" />
+                                        <input type="hidden" name="keyword" value="@Model.Keyword" />
+                                        <input type="hidden" name="searchName" value="@Model.Name" />
+                                        <input type="hidden" name="searchPosition" value="@Model.Position" />
+                                        <input type="hidden" name="searchRoleId" value="@Model.RoleId" />
+                                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                        <button class="btn btn-sm btn-danger js-action-button ms-1 mb-1" type="button"
+                                                data-form-id="deleteForm-@user.ID"
+                                                data-confirm-title="Xóa người dùng"
+                                                data-confirm-message="Bạn có chắc chắn muốn xóa người dùng này?"><i class="fa-solid fa-trash"></i></button>
+                                    </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Users",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["keyword"] = Model.Keyword,
+            ["name"] = Model.Name,
+            ["position"] = Model.Position,
+            ["roleId"] = Model.RoleId?.ToString()
+        }
+    })
+</div>
+
+<div class="modal fade dragable-modal" id="createUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm người dùng</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-controller="Admin" asp-action="CreateUser" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="Keyword" value="@Model.Keyword" />
+                    <input type="hidden" name="SearchName" value="@Model.Name" />
+                    <input type="hidden" name="SearchPosition" value="@Model.Position" />
+                    <input type="hidden" name="SearchRoleId" value="@Model.RoleId" />
+                    <input type="hidden" name="Page" value="@Model.PageNumber" />
+                    <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Mã nhân viên</label>
+                            <input class="form-control js-user-employee-code-autofill" name="EmployeeId" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">ADID</label>
+                            <input class="form-control js-user-adid-autofill" name="Adid" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Họ tên</label>
+                            <input class="form-control" name="EmployeeName" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Vị trí</label>
+                            <input class="form-control" name="Position" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Mã phòng</label>
+                            <input class="form-control" name="SecCode" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Tên phòng</label>
+                            <input class="form-control" name="SecName" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Mật khẩu</label>
+                            <input class="form-control" name="Password" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Vai trò</label>
+                            <select class="form-select" name="RoleId">
+                                @foreach (var role in Model.Roles)
+                                {
+                                    <option value="@role.ID">@role.NVCHR_ROLE_NAME</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Trạng thái</label>
+                            <select class="form-select" name="IsActive">
+                                <option value="true">Đang hoạt động</option>
+                                <option value="false">Ngưng hoạt động</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Trạng thái khóa</label>
+                            <select class="form-select" name="Lock">
+                                <option value="0">Mở khóa</option>
+                                <option value="1">Khóa</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Số ngày khóa</label>
+                            <input type="number" min="0" class="form-control" name="LockDay" value="0" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@foreach (var user in Model.Users)
+{
+    <div class="modal fade dragable-modal" id="editUserModal-@user.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chỉnh sửa người dùng - @user.NVCHR_NAME</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="Admin" asp-action="UpdateUser" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="ID" value="@user.ID" />
+                        <input type="hidden" name="Keyword" value="@Model.Keyword" />
+                        <input type="hidden" name="SearchName" value="@Model.Name" />
+                        <input type="hidden" name="SearchPosition" value="@Model.Position" />
+                        <input type="hidden" name="SearchRoleId" value="@Model.RoleId" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mã nhân viên</label>
+                                <input class="form-control js-user-employee-code-autofill" name="EmployeeId" value="@user.CHR_EMPLOYEE_ID" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">ADID</label>
+                                <input class="form-control js-user-adid-autofill" name="Adid" value="@user.CHR_ADID" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Họ tên</label>
+                                <input class="form-control" name="EmployeeName" value="@user.NVCHR_NAME" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Vị trí</label>
+                                <input class="form-control" name="Position" value="@user.CHR_POSITION" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mã phòng</label>
+                                <input class="form-control" name="SecCode" value="@user.CHR_SEC_CODE" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tên phòng</label>
+                                <input class="form-control" name="SecName" value="@user.CHR_SEC_NAME" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mật khẩu (để trống nếu không đổi)</label>
+                                <input class="form-control" name="Password" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Vai trò</label>
+                                <select class="form-select" name="RoleId">
+                                    @foreach (var role in Model.Roles)
+                                    {
+                                        if (user.INT_ROLE_ID == role.ID)
+                                        {
+                                            <option value="@role.ID" selected>@role.NVCHR_ROLE_NAME</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@role.ID">@role.NVCHR_ROLE_NAME</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Trạng thái</label>
+                                <select class="form-select" name="IsActive">
+                                    @if (user.BIT_IS_ACTIVE == true)
+                                    {
+                                        <option value="true" selected>Đang hoạt động</option>
+                                        <option value="false">Ngưng hoạt động</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="true">Đang hoạt động</option>
+                                        <option value="false" selected>Ngưng hoạt động</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Trạng thái khóa</label>
+                                <select class="form-select" name="Lock">
+                                    @if (user.INT_LOCK == 1)
+                                    {
+                                        <option value="0">Mở khóa</option>
+                                        <option value="1" selected>Khóa</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="0" selected>Mở khóa</option>
+                                        <option value="1">Khóa</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Số ngày khóa</label>
+                                <input type="number" min="0" class="form-control" name="LockDay" value="@(user.INT_LOCK_DAY ?? 0)" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="modal fade dragable-modal" id="importUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import người dùng từ Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-controller="Admin" asp-action="ImportUsers" enctype="multipart/form-data" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="keyword" value="@Model.Keyword" />
+                    <input type="hidden" name="searchName" value="@Model.Name" />
+                    <input type="hidden" name="searchPosition" value="@Model.Position" />
+                    <input type="hidden" name="searchRoleId" value="@Model.RoleId" />
+                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                    <label class="form-label">Chọn file Excel/CSV</label>
+                    <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                    <div class="small text-muted mt-2">
+                        Định dạng: <code>EmployeeId,Adid,EmployeeName,Position,SecCode,SecName,RoleId,IsActive,Lock,LockDay,LastLogin</code>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-success">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @if (TempData["AdminUserSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["AdminUserError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            function ensureAntiForgery(form) {
+                if (!form) return;
+                var tokenInForm = form.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenInForm) return;
+
+                var globalToken = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!globalToken) return;
+
+                var cloned = document.createElement('input');
+                cloned.type = 'hidden';
+                cloned.name = '__RequestVerificationToken';
+                cloned.value = globalToken.value;
+                form.appendChild(cloned);
+            }
+
+            function showLoading() {
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
+            }
+
+            function hideLoading() {
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+            }
+
+            document.querySelectorAll('form.js-post-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    ensureAntiForgery(form);
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-search-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-export-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                    setTimeout(function () {
+                        hideLoading();
+                    }, 2500);
+                });
+            });
+
+            async function resolveUserProfile(form) {
+                if (!form) return;
+
+                var employeeCodeInput = form.querySelector('input[name="EmployeeId"]');
+                var adidInput = form.querySelector('input[name="Adid"]');
+                if (!employeeCodeInput && !adidInput) return;
+
+                var employeeCode = employeeCodeInput ? (employeeCodeInput.value || '').trim() : '';
+                var adid = adidInput ? (adidInput.value || '').trim() : '';
+                if (!employeeCode && !adid) return;
+
+                try {
+                    var url = '@Url.Action("ResolveUserProfile", "Admin")' + '?employeeCode=' + encodeURIComponent(employeeCode) + '&adid=' + encodeURIComponent(adid);
+                    var response = await fetch(url, { method: 'GET' });
+                    if (!response.ok) return;
+
+                    var result = await response.json();
+                    if (!result || !result.success || !result.data) return;
+
+                    if (employeeCodeInput && result.data.employeeCode) employeeCodeInput.value = result.data.employeeCode;
+                    if (adidInput && result.data.adid) adidInput.value = result.data.adid;
+
+                    var employeeNameInput = form.querySelector('input[name="EmployeeName"]');
+                    var positionInput = form.querySelector('input[name="Position"]');
+                    var secCodeInput = form.querySelector('input[name="SecCode"]');
+                    var secNameInput = form.querySelector('input[name="SecName"]');
+
+                    if (employeeNameInput) employeeNameInput.value = result.data.employeeName || '';
+                    if (positionInput) positionInput.value = result.data.position || '';
+                    if (secCodeInput) secCodeInput.value = result.data.secCode || '';
+                    if (secNameInput) secNameInput.value = result.data.secName || '';
+                } catch {
+                }
+            }
+
+            document.addEventListener('blur', function (e) {
+                var trigger = e.target.closest('.js-user-employee-code-autofill, .js-user-adid-autofill');
+                if (!trigger) return;
+                var form = trigger.closest('form');
+                if (!form) return;
+                resolveUserProfile(form);
+            }, true);
+
+            document.addEventListener('keydown', function (e) {
+                var trigger = e.target.closest('.js-user-employee-code-autofill, .js-user-adid-autofill');
+                if (!trigger) return;
+                if (e.key !== 'Enter') return;
+                var form = trigger.closest('form');
+                if (!form) return;
+                e.preventDefault();
+                resolveUserProfile(form);
+            });
+
+            document.addEventListener('click', async function (e) {
+                var btn = e.target.closest('.js-action-button');
+                if (!btn) return;
+
+                var formId = btn.getAttribute('data-form-id');
+                if (!formId) return;
+                var form = document.getElementById(formId);
+                if (!form) return;
+
+                if (btn.getAttribute('data-require-selection') === '1') {
+                    var checked = document.querySelectorAll('.js-user-check:checked');
+                    if (!checked.length) {
+                        if (window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 người dùng.');
+                        return;
+                    }
+                }
+
+                var title = btn.getAttribute('data-confirm-title') || 'Xác nhận';
+                var message = btn.getAttribute('data-confirm-message') || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({ title: title, message: message });
+                }
+
+                if (!ok) return;
+                ensureAntiForgery(form);
+                showLoading();
+                form.requestSubmit();
+            });
+
+            var chkAll = document.getElementById('chkAllUsers');
+            var bulkDeleteBtn = document.getElementById('btnBulkDeleteUsers');
+            var userChecks = Array.prototype.slice.call(document.querySelectorAll('.js-user-check'));
+
+            function updateBulkDeleteState() {
+                if (!bulkDeleteBtn) return;
+
+                var checkedCount = document.querySelectorAll('.js-user-check:checked').length;
+                var hasSelection = checkedCount > 0;
+
+                bulkDeleteBtn.disabled = !hasSelection;
+                bulkDeleteBtn.classList.toggle('d-none', !hasSelection);
+
+                if (chkAll) {
+                    var total = userChecks.length;
+                    chkAll.checked = total > 0 && checkedCount === total;
+                    chkAll.indeterminate = checkedCount > 0 && checkedCount < total;
+                }
+            }
+
+            if (chkAll) {
+                chkAll.addEventListener('change', function () {
+                    document.querySelectorAll('.js-user-check').forEach(function (c) {
+                        c.checked = chkAll.checked;
+                    });
+                    updateBulkDeleteState();
+                });
+            }
+
+            userChecks.forEach(function (c) {
+                c.addEventListener('change', updateBulkDeleteState);
+            });
+
+            updateBulkDeleteState();
+        })();
+    </script>
+}

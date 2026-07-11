@@ -1,0 +1,508 @@
+﻿@model BusManagement.ViewModels.QltcManager.QltcManagerPageViewModel
+@{
+    ViewData["Title"] = "Quản lý QLTC";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+}
+
+<div class="card shadow-sm border-0 rounded-3 p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Quản lý QLTC & địa chỉ gợi ý</h5>
+        <div class="d-flex flex-wrap gap-2">
+            @if (Model.CanManage)
+            {
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createQltcModal">
+                    <i class="fa-solid fa-plus me-1"></i>Thêm mới
+                </button>
+            }
+
+            <form method="get" asp-controller="QltcManager" asp-action="Export" class="d-inline">
+                <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                <input type="hidden" name="department" value="@Model.Department" />
+                <input type="hidden" name="position" value="@Model.Position" />
+                <input type="hidden" name="phone" value="@Model.Phone" />
+                <input type="hidden" name="city" value="@Model.City" />
+                <input type="hidden" name="suggestedAddress" value="@Model.SuggestedAddress" />
+                <button type="submit" class="btn btn-success"><i class="fa-solid fa-file-excel me-1"></i>Xuất Excel</button>
+            </form>
+
+            @if (Model.CanManage)
+            {
+                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importQltcModal">
+                    <i class="fa-solid fa-file-import me-1"></i>Import Excel
+                </button>
+            }
+        </div>
+    </div>
+
+    <form method="get" asp-controller="QltcManager" asp-action="Index" class="row g-2 mb-3">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+        <div class="col-12 col-md-6 col-lg-2">
+            <input class="form-control" name="employeeCode" value="@Model.EmployeeCode" placeholder="Mã NV" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <input class="form-control" name="employeeName" value="@Model.EmployeeName" placeholder="Tên NV" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select class="w-100 selectpicker" data-live-search="true" data-size="8" name="department" title="Tất cả phòng ban">
+                <option value="">Tất cả phòng ban</option>
+                @foreach (var section in Model.Sections)
+                {
+                    var secCode = section.CHR_CODE?.Trim();
+                    var secName = section.CHR_NAME ?? section.CHR_SECTION_NAME ?? secCode;
+                    if (string.IsNullOrWhiteSpace(secCode))
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(Model.Department, secCode, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="@secCode" selected>@secName</option>
+                    }
+                    else
+                    {
+                        <option value="@secCode">@secName</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select class="form-select" name="position">
+                <option value="">Tất cả chức vụ</option>
+                @if (string.Equals(Model.Position, "Section Manager", StringComparison.OrdinalIgnoreCase))
+                {
+                    <option value="Section Manager" selected>Section Manager</option>
+                }
+                else
+                {
+                    <option value="Section Manager">Section Manager</option>
+                }
+                @if (string.Equals(Model.Position, "Assistant Section Manager", StringComparison.OrdinalIgnoreCase))
+                {
+                    <option value="Assistant Section Manager" selected>Assistant Section Manager</option>
+                }
+                else
+                {
+                    <option value="Assistant Section Manager">Assistant Section Manager</option>
+                }
+                @if (string.Equals(Model.Position, "Deputy General Manager", StringComparison.OrdinalIgnoreCase))
+                {
+                    <option value="Deputy General Manager" selected>Deputy General Manager</option>
+                }
+                else
+                {
+                    <option value="Deputy General Manager">Deputy General Manager</option>
+                }
+                @if (string.Equals(Model.Position, "General Manager", StringComparison.OrdinalIgnoreCase))
+                {
+                    <option value="General Manager" selected>General Manager</option>
+                }
+                else
+                {
+                    <option value="General Manager">General Manager</option>
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <input class="form-control" name="phone" value="@Model.Phone" placeholder="Số điện thoại" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select id="searchCitySelect" class="form-select js-city-select" name="city" data-allow-empty="true">
+                <option value="">Tất cả tỉnh/thành</option>
+                @foreach (var cityOption in Model.Cities)
+                {
+                    if (!string.IsNullOrWhiteSpace(cityOption.NVCHR_CITY_NAME))
+                    {
+                        var cityName = cityOption.NVCHR_CITY_NAME.Trim();
+                        if (string.Equals(Model.City, cityName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@cityName" data-city-id="@cityOption.ID" selected>@cityName</option>
+                        }
+                        else
+                        {
+                            <option value="@cityName" data-city-id="@cityOption.ID">@cityName</option>
+                        }
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="suggestedAddress" value="@Model.SuggestedAddress" placeholder="Địa chỉ gợi ý" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-1 d-grid">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>STT</th>
+                    <th>Mã nhân viên</th>
+                    <th>Tên nhân viên</th>
+                    <th>Phòng ban</th>
+                    <th>Chức vụ</th>
+                    <th>Số điện thoại</th>
+                    <th>Tỉnh</th>
+                    <th>Điểm đón/trả từ BIVN</th>
+                    <th>Địa chỉ chi tiết</th>
+                    <th>Địa chỉ gợi ý</th>
+                    @if (Model.CanManage)
+                    {
+                        <th class="text-end">Thao tác</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Employees.Any())
+                {
+                    <tr>
+                        <td colspan="@(Model.CanManage ? 11 : 10)" class="text-center text-muted py-4">Không có dữ liệu QLTC.</td>
+                    </tr>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.Employees.Count; i++)
+                    {
+                        var employee = Model.Employees[i];
+                        <tr>
+                            <td>@(startIndex + i)</td>
+                            <td>@employee.CHR_EMPLOYEE_ID</td>
+                            <td>@employee.NVCHR_EMPLOYEE_NAME</td>
+                            <td title="@employee.CHR_CODE_SEC">@Model.GetDepartmentName(employee.CHR_CODE_SEC)</td>
+                            <td>@employee.CHR_POSITION</td>
+                            <td>@employee.CHR_PHONE</td>
+                            <td>@employee.NVCHR_CITY</td>
+                            <td>@employee.NVCHR_SUGGESTED_PICKUP_FROM_BIVN</td>
+                            <td>@employee.NVCHR_ADDRESS_DETAIL</td>
+                            <td>@employee.NVCHR_SUGGESTED_ADDRESS</td>
+                            @if (Model.CanManage)
+                            {
+                                <td class="text-end">
+                                        <button type="button" class="btn btn-primary mb-1" data-bs-toggle="modal" data-bs-target="#editQltcModal-@employee.ID">
+                                            <i class="fa-solid fa-pen"></i>
+                                        </button>
+                                        <form id="deleteQltcForm-@employee.ID" method="post" asp-controller="QltcManager" asp-action="Delete" class="d-inline ms-1">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@employee.ID" />
+                                            <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                                            <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                                            <input type="hidden" name="department" value="@Model.Department" />
+                                            <input type="hidden" name="position" value="@Model.Position" />
+                                            <input type="hidden" name="phone" value="@Model.Phone" />
+                                            <input type="hidden" name="city" value="@Model.City" />
+                                            <input type="hidden" name="suggestedAddress" value="@Model.SuggestedAddress" />
+                                            <input type="hidden" name="page" value="@Model.PageNumber" />
+                                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                            <button type="submit" class="btn btn-danger" onclick="return confirm('Bạn có chắc chắn muốn xóa QLTC này?');">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </form>
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Index",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["employeeCode"] = Model.EmployeeCode,
+            ["employeeName"] = Model.EmployeeName,
+            ["department"] = Model.Department,
+            ["position"] = Model.Position,
+            ["phone"] = Model.Phone,
+            ["city"] = Model.City,
+            ["suggestedAddress"] = Model.SuggestedAddress
+        }
+    })
+</div>
+
+@if (Model.CanManage)
+{
+    <div class="modal fade" id="createQltcModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm QLTC</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" asp-controller="QltcManager" asp-action="Create">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="SearchEmployeeCode" value="@Model.EmployeeCode" />
+                        <input type="hidden" name="SearchEmployeeName" value="@Model.EmployeeName" />
+                        <input type="hidden" name="SearchDepartment" value="@Model.Department" />
+                        <input type="hidden" name="SearchPosition" value="@Model.Position" />
+                        <input type="hidden" name="SearchPhone" value="@Model.Phone" />
+                        <input type="hidden" name="SearchCity" value="@Model.City" />
+                        <input type="hidden" name="SearchSuggestedAddress" value="@Model.SuggestedAddress" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mã nhân viên</label>
+                                <input class="form-control js-employee-code-autofill" name="EmployeeCode" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tên nhân viên</label>
+                                <input class="form-control" name="EmployeeName" readonly />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Phòng ban</label>
+                                <input class="form-control" name="Department" readonly />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Chức vụ</label>
+                                <input class="form-control" name="Position" readonly />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Số điện thoại</label>
+                                <input class="form-control" name="Phone" readonly />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tỉnh</label>
+                                <select class="form-select" name="City">
+                                    <option value="">-- Chọn tỉnh/thành --</option>
+                                    @foreach (var cityOption in Model.Cities)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(cityOption.NVCHR_CITY_NAME))
+                                        {
+                                            var cityName = cityOption.NVCHR_CITY_NAME.Trim();
+                                            <option value="@cityName">@cityName</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Điểm đón trả gợi ý từ BIVN</label>
+                                <input class="form-control" name="SuggestedPickupFromBivn" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Địa chỉ chi tiết</label>
+                                <textarea class="form-control" name="AddressDetail" rows="3"></textarea>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Địa chỉ gợi ý</label>
+                                <textarea class="form-control" name="SuggestedAddress" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @foreach (var employee in Model.Employees)
+    {
+        <div class="modal fade" id="editQltcModal-@employee.ID" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cập nhật QLTC - @employee.NVCHR_EMPLOYEE_NAME</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" asp-controller="QltcManager" asp-action="Update">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <input type="hidden" name="ID" value="@employee.ID" />
+                            <input type="hidden" name="SearchEmployeeCode" value="@Model.EmployeeCode" />
+                            <input type="hidden" name="SearchEmployeeName" value="@Model.EmployeeName" />
+                            <input type="hidden" name="SearchDepartment" value="@Model.Department" />
+                            <input type="hidden" name="SearchPosition" value="@Model.Position" />
+                            <input type="hidden" name="SearchPhone" value="@Model.Phone" />
+                            <input type="hidden" name="SearchCity" value="@Model.City" />
+                            <input type="hidden" name="SearchSuggestedAddress" value="@Model.SuggestedAddress" />
+                            <input type="hidden" name="Page" value="@Model.PageNumber" />
+                            <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Mã nhân viên</label>
+                                    <input class="form-control" name="EmployeeCode" value="@employee.CHR_EMPLOYEE_ID" readonly />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Tên nhân viên</label>
+                                    <input class="form-control" value="@employee.NVCHR_EMPLOYEE_NAME" readonly />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Phòng ban</label>
+                                    <input class="form-control" name="Department" value="@Model.GetDepartmentName(employee.CHR_CODE_SEC)" readonly />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Chức vụ</label>
+                                    <input class="form-control" name="Position" value="@employee.CHR_POSITION" readonly />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Số điện thoại</label>
+                                    <input class="form-control" name="Phone" value="@employee.CHR_PHONE" readonly />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Tỉnh</label>
+                                    <select class="form-select" name="City">
+                                        <option value="">-- Chọn tỉnh/thành --</option>
+                                        @foreach (var cityOption in Model.Cities)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(cityOption.NVCHR_CITY_NAME))
+                                            {
+                                                var cityName = cityOption.NVCHR_CITY_NAME.Trim();
+                                                if (string.Equals(employee.NVCHR_CITY, cityName, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <option value="@cityName" selected>@cityName</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@cityName">@cityName</option>
+                                                }
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Điểm đón trả gợi ý từ BIVN</label>
+                                    <input class="form-control" name="SuggestedPickupFromBivn" value="@employee.NVCHR_SUGGESTED_PICKUP_FROM_BIVN" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Địa chỉ chi tiết</label>
+                                    <textarea class="form-control" name="AddressDetail" rows="3">@employee.NVCHR_ADDRESS_DETAIL</textarea>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Địa chỉ gợi ý</label>
+                                    <textarea class="form-control" name="SuggestedAddress" rows="3">@employee.NVCHR_SUGGESTED_ADDRESS</textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="modal fade" id="importQltcModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Import QLTC</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" asp-controller="QltcManager" asp-action="Import" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                        <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                        <input type="hidden" name="department" value="@Model.Department" />
+                        <input type="hidden" name="position" value="@Model.Position" />
+                        <input type="hidden" name="phone" value="@Model.Phone" />
+                        <input type="hidden" name="city" value="@Model.City" />
+                        <input type="hidden" name="suggestedAddress" value="@Model.SuggestedAddress" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                        <label class="form-label">Chọn file Excel/CSV</label>
+                        <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                        <div class="small text-muted mt-2">
+                            Định dạng import nhanh: <code>EmployeeCode,SuggestedPickupFromBivn,SuggestedAddress</code>.
+                            <br />
+                            Hoặc import lại file export (hệ thống tự đọc cột Mã nhân viên + Điểm đón trả gợi ý từ BIVN + Địa chỉ gợi ý).
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-success">Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    @if (TempData["QltcManagerSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["QltcManagerError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            async function resolveEmployeeInfo(form) {
+                if (!form) return;
+                var employeeCodeInput = form.querySelector('input[name="EmployeeCode"]');
+                if (!employeeCodeInput) return;
+                var employeeCode = (employeeCodeInput.value || '').trim();
+                if (!employeeCode) return;
+
+                var url = '@Url.Action("ResolveEmployeeByCode", "QltcManager")' + '?employeeCode=' + encodeURIComponent(employeeCode);
+                var response = await fetch(url, { method: 'GET' });
+                if (!response.ok) return;
+
+                var result = await response.json();
+                if (!result || !result.success || !result.data) {
+                    if (window.AppCommon && result && result.message) {
+                        AppCommon.warning(result.message);
+                    }
+                    return;
+                }
+
+                var employeeNameInput = form.querySelector('input[name="EmployeeName"]');
+                var departmentInput = form.querySelector('input[name="Department"]');
+                var positionInput = form.querySelector('input[name="Position"]');
+                var phoneInput = form.querySelector('input[name="Phone"]');
+                var cityInput = form.querySelector('input[name="City"]');
+                var citySelect = form.querySelector('select[name="City"]');
+                var suggestedPickupFromBivnInput = form.querySelector('input[name="SuggestedPickupFromBivn"]');
+                var addressDetailInput = form.querySelector('textarea[name="AddressDetail"], input[name="AddressDetail"]');
+                var suggestedAddressInput = form.querySelector('textarea[name="SuggestedAddress"], input[name="SuggestedAddress"]');
+
+                if (employeeNameInput) employeeNameInput.value = result.data.employeeName || '';
+                if (departmentInput) departmentInput.value = result.data.departmentName || '';
+                if (positionInput) positionInput.value = result.data.position || '';
+                if (phoneInput) phoneInput.value = result.data.phone || '';
+                if (cityInput) cityInput.value = result.data.city || '';
+                if (citySelect) citySelect.value = result.data.city || '';
+                if (suggestedPickupFromBivnInput) {
+                    suggestedPickupFromBivnInput.value = result.data.suggestedPickupFromBivn || '';
+                }
+
+                if (addressDetailInput) addressDetailInput.value = result.data.addressDetail || '';
+                if (suggestedAddressInput) {
+                    suggestedAddressInput.value = result.data.suggestedAddress || '';
+                }
+            }
+
+            document.addEventListener('blur', function (e) {
+                var input = e.target.closest('.js-employee-code-autofill');
+                if (!input) return;
+                var form = input.closest('form');
+                if (!form) return;
+                resolveEmployeeInfo(form);
+            }, true);
+        })();
+    </script>
+}

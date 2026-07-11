@@ -1,0 +1,235 @@
+﻿@{
+    ViewData["Title"] = "Thẻ sử dụng xe đi làm";
+}
+
+<style>
+    .using-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    .using-card .table thead th {
+        white-space: nowrap;
+        vertical-align: middle;
+        text-align: center;
+    }
+
+    .using-filter-row th {
+        background: #f8fafc;
+        min-width: 120px;
+    }
+
+    .using-actions .btn {
+        min-width: 110px;
+    }
+
+    .confirm-cell {
+        color: #15803d;
+        font-weight: 600;
+        text-align: center;
+    }
+</style>
+
+<div class="using-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <div>
+            <h5 class="m-0">Quản lý thẻ sử dụng xe đi làm</h5>
+            <div class="small text-muted">Tra cứu và cập nhật danh sách công nhân viên đã có thẻ</div>
+        </div>
+    </div>
+
+    <div class="search-area">
+        <div class="row mb-2 align-items-center">
+            <div class="col-md-2" style="max-width: 120px;">
+                <label class="title-label">MNV</label>
+            </div>
+            <div class="col-md-2">
+                <input type="text" class="form-control green-input" />
+            </div>
+        </div>
+
+        <div class="row mb-3 align-items-center">
+            <div class="col-md-2" style="max-width: 120px;">
+                <label class="title-label">Phòng ban</label>
+            </div>
+            <div class="col-md-2">
+                <select class="form-control green-input">
+                    <option>Tất cả</option>
+                    <option>HCNS</option>
+                    <option>Kế toán</option>
+                    <option>IT</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="using-actions d-flex flex-wrap gap-2 mb-4">
+        <button class="btn btn-primary"><i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm</button>
+        <button class="btn btn-warning text-white"><i class="fa-solid fa-pen me-1"></i>Cập nhật</button>
+        <button class="btn btn-danger"><i class="fa-solid fa-trash me-1"></i>Xóa</button>
+        <button class="btn btn-secondary"><i class="fa-solid fa-rotate-right me-1"></i>Làm mới</button>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle js-using-card-table">
+            <thead class="table-light">
+                <tr>
+                    <th width="60">STT</th>
+                    <th>Mã nhân viên</th>
+                    <th>Phòng ban</th>
+                    <th>Họ và tên</th>
+                    <th>Số xe chiều đón và chiều về</th>
+                    <th>Điểm đón/trả</th>
+                    <th>Xác nhận</th>
+                </tr>
+                <tr class="using-filter-row">
+                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="0" placeholder="Lọc" /></th>
+                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="1" placeholder="Lọc" /></th>
+                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="2" placeholder="Lọc" /></th>
+                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="3" placeholder="Lọc" /></th>
+                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="4" placeholder="Lọc" /></th>
+                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="5" placeholder="Lọc" /></th>
+                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="6" placeholder="Lọc" /></th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @for (int i = 1; i <= 24; i++)
+                {
+                    var dep = i % 3 == 0 ? "HCNS" : (i % 3 == 1 ? "Kế toán" : "IT");
+                    <tr>
+                        <td>@i</td>
+                        <td>NV@i.ToString("000")</td>
+                        <td>@dep</td>
+                        <td>Nhân viên @i</td>
+                        <td>@(i % 2 == 0 ? "Xe 01 / Xe 03" : "Xe 02 / Xe 04")</td>
+                        <td>@(i % 2 == 0 ? "Cổng chính" : "Cổng phụ")</td>
+                        <td class="confirm-cell">Đã có thẻ</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mt-2">
+        <div class="small text-muted js-using-page-info"></div>
+        <nav aria-label="Using car pagination">
+            <ul class="pagination pagination-sm mb-0 js-using-pagination"></ul>
+        </nav>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const table = document.querySelector('.js-using-card-table');
+            if (!table) {
+                return;
+            }
+
+            const filters = Array.from(table.querySelectorAll('.js-using-filter'));
+            const rows = Array.from(table.querySelectorAll('tbody tr'));
+            const pageInfo = document.querySelector('.js-using-page-info');
+            const pagination = document.querySelector('.js-using-pagination');
+
+            const pageSize = 8;
+            let currentPage = 1;
+
+            const normalize = (value) => (value || '').toString().trim().toLowerCase();
+
+            const getFilteredRows = () => {
+                const filterValues = filters.map((filter) => normalize(filter.value));
+
+                return rows.filter((row) => {
+                    const cells = row.querySelectorAll('td');
+
+                    for (let i = 0; i < filterValues.length; i++) {
+                        const keyword = filterValues[i];
+                        if (!keyword) {
+                            continue;
+                        }
+
+                        const cellText = normalize(cells[i]?.textContent);
+                        if (!cellText.includes(keyword)) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
+            };
+
+            const renderPagination = (totalPages) => {
+                if (!pagination) {
+                    return;
+                }
+
+                pagination.innerHTML = '';
+
+                const addItem = (label, page, disabled, active) => {
+                    const li = document.createElement('li');
+                    li.className = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
+
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'page-link';
+                    btn.textContent = label;
+                    btn.disabled = disabled;
+
+                    btn.addEventListener('click', function () {
+                        if (disabled || page === currentPage) {
+                            return;
+                        }
+
+                        currentPage = page;
+                        render();
+                    });
+
+                    li.appendChild(btn);
+                    pagination.appendChild(li);
+                };
+
+                addItem('«', currentPage - 1, currentPage <= 1, false);
+                for (let i = 1; i <= totalPages; i++) {
+                    addItem(String(i), i, false, i === currentPage);
+                }
+                addItem('»', currentPage + 1, currentPage >= totalPages, false);
+            };
+
+            const render = () => {
+                const filteredRows = getFilteredRows();
+                const totalCount = filteredRows.length;
+                const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+                if (currentPage > totalPages) {
+                    currentPage = totalPages;
+                }
+
+                const startIndex = totalCount === 0 ? 0 : ((currentPage - 1) * pageSize + 1);
+                const endIndex = totalCount === 0 ? 0 : Math.min(currentPage * pageSize, totalCount);
+
+                rows.forEach((row) => row.style.display = 'none');
+
+                const pageRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+                pageRows.forEach((row) => row.style.display = '');
+
+                if (pageInfo) {
+                    pageInfo.textContent = 'Hiển thị ' + startIndex + ' - ' + endIndex + ' / ' + totalCount;
+                }
+
+                renderPagination(totalPages);
+            };
+
+            filters.forEach((filter) => {
+                filter.addEventListener('input', function () {
+                    currentPage = 1;
+                    render();
+                });
+            });
+
+            render();
+        });
+    </script>
+}

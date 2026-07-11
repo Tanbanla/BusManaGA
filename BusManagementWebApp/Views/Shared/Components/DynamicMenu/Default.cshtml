@@ -1,0 +1,31 @@
+@model BusManagement.ViewModels.Shared.DynamicMenuViewModel
+
+<ul class="navbar-nav menu-system">
+    @foreach (var menu in Model.Items)
+    {
+        var hasChildren = menu.Children.Any();
+        var href = (!string.IsNullOrWhiteSpace(menu.Controller) && !string.IsNullOrWhiteSpace(menu.Action))
+            ? (Url.Action(menu.Action, menu.Controller) ?? "#")
+            : "#";
+
+        <li class="nav-item">
+            <a class="nav-link" href="@href">
+                @if (!string.IsNullOrWhiteSpace(menu.Icon))
+                {
+                    <i class="@menu.Icon me-1"></i>
+                }
+                @menu.MenuName
+            </a>
+
+            @if (hasChildren)
+            {
+                <ul class="dropdown-menu-custom">
+                    @foreach (var child in menu.Children)
+                    {
+                        @await Html.PartialAsync("~/Views/Shared/Components/DynamicMenu/_DynamicMenuNode.cshtml", child)
+                    }
+                </ul>
+            }
+        </li>
+    }
+</ul>

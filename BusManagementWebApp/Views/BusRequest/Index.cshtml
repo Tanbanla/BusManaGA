@@ -1,0 +1,1071 @@
+﻿@using BusManagement.Model.Common.Enum
+@model BusManagement.ViewModels.BusRequest.BusRequestPageViewModel
+@{
+    ViewData["Title"] = "Đăng ký/Hủy xe đi làm";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+}
+
+<style>
+    .busrequest-card { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .05); }
+    .table thead th { white-space: nowrap; vertical-align: middle; }
+    .form-group-shell { border: 1px solid #e2e8f0; border-radius: 10px; padding: .9rem; }
+    .form-group-title { font-size: .8rem; font-weight: 700; color: #2563eb; margin-bottom: .6rem; text-transform: uppercase; letter-spacing: .4px; }
+    .vehicle-menu .dropdown-menu { min-width: 100%; }
+    .vehicle-menu .dropend .dropdown-menu { top: 0; left: 100%; margin-left: .1rem; }
+    .vehicle-menu .dropend:hover > .dropdown-menu { display: block; }
+
+    .dropdown-toggle-custom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .submenu-icon {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .bus-status-row-pending { background-color: #f3f4f6; }
+    .bus-status-row-processing { background-color: #dbeafe; }
+    .bus-status-row-approved { background-color: #dcfce7; }
+    .bus-status-row-rejected { background-color: #fee2e2; }
+    .lottie-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.25); display: none; align-items: center; justify-content: center; z-index: 2000; }
+    .lottie-overlay.show { display: flex; }
+    #approvalSuccessLottie { width: 280px; height: 280px; }
+</style>
+
+<div class="busrequest-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <h5 class="m-0">Đăng ký / Hủy xe đi làm</h5>
+            <button type="button" class="btn btn-lg btn-primary" data-bs-toggle="modal" data-bs-target="#createBusRequestModal">
+                <i class="fa-solid fa-plus me-1"></i>Đăng ký đơn mới
+            </button>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <form method="get" asp-controller="BusRequest" asp-action="Export" class="d-inline js-export-form" data-no-loader>
+                <input type="hidden" name="department" value="@Model.Department" />
+                <input type="hidden" name="departments" value="@Model.Departments" />
+                <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                <input type="hidden" name="position" value="@Model.Position" />
+                <input type="hidden" name="address" value="@Model.Address" />
+                <input type="hidden" name="requestTypeId" value="@Model.RequestTypeId" />
+                <input type="hidden" name="requestTypeIds" value="@Model.RequestTypeIds" />
+                <input type="hidden" name="routeKeyword" value="@Model.RouteKeyword" />
+                <input type="hidden" name="busStopId" value="@Model.BusStopId" />
+                <input type="hidden" name="busStopIds" value="@Model.BusStopIds" />
+                <input type="hidden" name="dateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="dateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="note" value="@Model.Note" />
+                <input type="hidden" name="status" value="@Model.Status" />
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                </button>
+            </form>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#routeCapacityModal">
+                <i class="fa-solid fa-bus me-1"></i>Xem dung lượng xe
+            </button>
+            @if (Model.CanManageAll)
+            {
+                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importBusRequestModal">
+                    <i class="fa-solid fa-file-import me-1"></i>Import Excel
+                </button>
+            }
+        </div>
+    </div>
+
+    <form method="get" show-loading asp-controller="BusRequest" asp-action="Index" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <input type="hidden" name="departments" value="@Model.Departments" class="js-filter-departments" />
+        <input type="hidden" name="requestTypeIds" value="@Model.RequestTypeIds" class="js-filter-requesttypes" />
+        <input type="hidden" name="busStopIds" value="@Model.BusStopIds" class="js-filter-busstops" />
+
+        <div class="col-12 col-md-4 col-lg-3">
+            <select class="w-100 selectpicker js-filter-select-departments" data-live-search="true" data-size="8" multiple title="Chọn phòng ban">
+                @foreach (var sec in Model.Sections)
+                {
+                    var secCode = sec.CHR_CODE?.Trim();
+                    var secName = sec.CHR_NAME ?? sec.CHR_SECTION_NAME ?? secCode;
+                    if (string.IsNullOrWhiteSpace(secCode))
+                    {
+                        continue;
+                    }
+
+                    if (Model.SelectedDepartments.Any(x => string.Equals(x, secCode, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        <option value="@secCode" selected>@secName</option>
+                    }
+                    else
+                    {
+                        <option value="@secCode">@secName</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-3 col-lg-2"><input class="form-control" name="employeeCode" value="@Model.EmployeeCode" placeholder="Mã NV" /></div>
+        <div class="col-12 col-md-3 col-lg-2"><input class="form-control" name="employeeName" value="@Model.EmployeeName" placeholder="Họ tên" /></div>
+        <div class="col-12 col-md-3 col-lg-2"><input class="form-control" name="position" value="@Model.Position" placeholder="Chức vụ" /></div>
+        <div class="col-12 col-md-4 col-lg-3"><input class="form-control" name="address" value="@Model.Address" placeholder="Địa chỉ" /></div>
+        <div class="col-12 col-md-4 col-lg-3">
+            <select class="w-100 selectpicker js-filter-select-requesttypes" data-live-search="true" data-size="8" multiple title="Chọn loại đơn">
+                @foreach (var rt in Model.RequestTypes)
+                {
+                    if (Model.SelectedRequestTypeIds.Contains(rt.ID))
+                    {
+                        <option value="@rt.ID" selected>@rt.NVCHR_REQUEST_TYPE</option>
+                    }
+                    else
+                    {
+                        <option value="@rt.ID">@rt.NVCHR_REQUEST_TYPE</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-4 col-lg-2"><input class="form-control" name="routeKeyword" value="@Model.RouteKeyword" placeholder="Tuyến xe" /></div>
+        <div class="col-12 col-md-4 col-lg-3">
+            <select class="w-100 selectpicker js-filter-select-busstops" data-live-search="true" data-size="8" multiple title="Chọn điểm đón">
+                @foreach (var bs in Model.BusStops)
+                {
+                    if (Model.SelectedBusStopIds.Contains(bs.ID))
+                    {
+                        <option value="@bs.ID" selected>@bs.NVCHR_STOP_NAME</option>
+                    }
+                    else
+                    {
+                        <option value="@bs.ID">@bs.NVCHR_STOP_NAME</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-3 col-lg-2"><input type="date" class="form-control" name="dateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" /></div>
+        <div class="col-12 col-md-3 col-lg-2"><input type="date" class="form-control" name="dateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" /></div>
+        <div class="col-12 col-md-4 col-lg-2">
+            <select class="form-select" name="status">
+                <option value="">Trạng thái</option>
+                <option value="0" selected="@(Model.Status == 0)">Chưa xử lý</option>
+                <option value="1" selected="@(Model.Status == 1)">Đang xử lý</option>
+                <option value="3" selected="@(Model.Status == 3)">Đã hoàn thành</option>
+                <option value="2" selected="@(Model.Status == 2)">Bị từ chối (QLSC)</option>
+                <option value="4" selected="@(Model.Status == 4)">Bị từ chối (GA)</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-4 col-lg-2"><input class="form-control" name="note" value="@Model.Note" placeholder="Ghi chú" /></div>
+        <div class="col-12 col-md-2 col-lg-1 d-grid"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>STT</th>
+                    <th class="text-end">Thao tác</th>
+                    <th>Trạng thái</th>
+                    <th>Phòng ban</th>
+                    <th>Mã NV</th>
+                    <th>Họ tên</th>
+                    <th>Chức vụ</th>
+                    <th>Địa chỉ</th>
+                    <th>Loại đơn</th>
+                    <th>Tuyến xe</th>
+                    <th>Điểm đón</th>
+                    <th>Ngày sử dụng/Hủy xe</th>
+                    <th>Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Requests.Any())
+                {
+                    <tr><td colspan="13" class="text-center text-muted py-4">Không có dữ liệu đơn yêu cầu.</td></tr>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.Requests.Count; i++)
+                    {
+                        var item = Model.Requests[i];
+                        <tr class="@item.StatusRowClass">
+                            <td>@(startIndex + i)</td>
+                            <td class="text-center">
+                                <button type="button"
+                                        class="btn btn-primary btn-sm js-history-btn"
+                                        data-history-url="@Url.Action("History", "BusRequestApproval", new { id = item.Id, modal = true })"
+                                        title="Xem lịch sử phê duyệt">
+                                    <i class="fa-solid fa-clock-rotate-left"></i>
+                                </button>
+                                @if (item.CanEdit)
+                                {
+                                    <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editBusRequestModal-@item.Id">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                }
+                            </td>
+                            <td><span class="badge @item.StatusBadgeClass">@item.StatusText</span></td>
+                            <td>@item.DepartmentName</td>
+                            <td>@item.EmployeeCode</td>
+                            <td>@item.EmployeeName</td>
+                            <td>@item.Position</td>
+                            <td>@item.Address</td>
+                            <td>@item.RequestTypeName</td>
+                            <td>@item.RouteDisplay</td>
+                            <td>@item.BusStopDisplay</td>
+                            <td>@item.UseOrCancelDate?.ToString("dd/MM/yyyy")</td>
+                            <td>@item.Note</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Index",
+        Controller = "BusRequest",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["department"] = Model.Department,
+            ["departments"] = Model.Departments,
+            ["employeeCode"] = Model.EmployeeCode,
+            ["employeeName"] = Model.EmployeeName,
+            ["position"] = Model.Position,
+            ["address"] = Model.Address,
+            ["requestTypeId"] = Model.RequestTypeId?.ToString(),
+            ["requestTypeIds"] = Model.RequestTypeIds,
+            ["routeKeyword"] = Model.RouteKeyword,
+            ["busStopId"] = Model.BusStopId?.ToString(),
+            ["busStopIds"] = Model.BusStopIds,
+            ["dateFrom"] = Model.DateFrom?.ToString("yyyy-MM-dd"),
+            ["dateTo"] = Model.DateTo?.ToString("yyyy-MM-dd"),
+            ["note"] = Model.Note,
+            ["status"] = Model.Status?.ToString()
+        }
+    })
+</div>
+
+<div class="modal fade dragable-modal" id="routeCapacityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-bus me-2 text-primary"></i>Dung lượng tuyến xe đang hoạt động</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="routeCapacityContainer" class="row g-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade dragable-modal" id="approvalHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Lịch sử phê duyệt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="approvalHistoryModalBody"></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade dragable-modal" id="createBusRequestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Tạo đơn đăng ký/hủy xe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" show-loading asp-controller="BusRequest" asp-action="Create" class="js-post-form js-busrequest-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="SearchDepartment" value="@Model.Department" />
+                    <input type="hidden" name="SearchDepartments" value="@Model.Departments" />
+                    <input type="hidden" name="SearchEmployeeCode" value="@Model.EmployeeCode" />
+                    <input type="hidden" name="SearchEmployeeName" value="@Model.EmployeeName" />
+                    <input type="hidden" name="SearchPosition" value="@Model.Position" />
+                    <input type="hidden" name="SearchAddress" value="@Model.Address" />
+                    <input type="hidden" name="SearchRequestTypeId" value="@Model.RequestTypeId" />
+                    <input type="hidden" name="SearchRequestTypeIds" value="@Model.RequestTypeIds" />
+                    <input type="hidden" name="SearchRoute" value="@Model.RouteKeyword" />
+                    <input type="hidden" name="SearchBusStopId" value="@Model.BusStopId" />
+                    <input type="hidden" name="SearchBusStopIds" value="@Model.BusStopIds" />
+                    <input type="hidden" name="SearchDateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="SearchDateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="SearchNote" value="@Model.Note" />
+                    <input type="hidden" name="SearchStatus" value="@Model.Status" />
+                    <input type="hidden" name="Page" value="@Model.PageNumber" />
+                    <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="form-group-shell">
+                                <div class="form-group-title">Thông tin CNV</div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label">Mã nhân viên</label>
+                                        <input class="form-control js-employee-code-autofill" name="EmployeeCode" value="@Model.CurrentEmployeeCode" required />
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label">Họ tên</label>
+                                        <input class="form-control" name="EmployeeName" value="@Model.CurrentEmployeeName" required />
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label">Phòng ban</label>
+                                        <select class="form-select" name="DepartmentCode" required>
+                                            <option value="">-- Chọn phòng ban --</option>
+                                            @foreach (var sec in Model.Sections)
+                                            {
+                                                var secCode = sec.CHR_CODE?.Trim();
+                                                var secName = sec.CHR_NAME ?? sec.CHR_SECTION_NAME ?? secCode;
+                                                if (string.IsNullOrWhiteSpace(secCode))
+                                                {
+                                                    continue;
+                                                }
+
+                                                if (string.Equals(Model.CurrentDepartmentCode, secCode, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <option value="@secCode" selected>@secName</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@secCode">@secName</option>
+                                                }
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Địa chỉ</label>
+                                        <input class="form-control" name="Address" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-group-shell">
+                                <div class="form-group-title">Thông tin xe đi làm</div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label">Loại đơn</label>
+                                        <select class="form-select" name="RequestTypeId" required>
+                                            <option value="">-- Chọn loại đơn --</option>
+                                            @foreach (var rt in Model.RequestTypes)
+                                            {
+                                                <option value="@rt.ID">@rt.NVCHR_REQUEST_TYPE</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-4 vehicle-menu">
+                                        <label class="form-label">Loại xe</label>
+                                        <div class="dropdown js-vehicle-menu">
+                                            <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle js-vehicle-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                -- Chọn loại xe / khu vực --
+                                            </button>
+                                            <ul class="dropdown-menu w-100 js-vehicle-menu-root">
+                                                @foreach (var vt in Model.VehicleAreas)
+                                                {
+                                                    <li class="dropend">
+                                                        <a class="dropdown-item dropdown-toggle-custom"> <span>@vt.Key</span>
+                                                            <i class="fa-solid fa-chevron-right submenu-icon"></i>
+                                                        </a>
+
+                                                        <ul class="dropdown-menu">
+                                                            @foreach (var area in vt.Value)
+                                                            {
+                                                                <li><a class="dropdown-item js-vehicle-choice" href="javascript:void(0)" data-type="@vt.Key" data-area="@area">@area</a></li>
+                                                            }
+                                                        </ul>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </div>
+                                        <input type="hidden" name="VehicleType" class="js-vehicle-type-input" required />
+                                        <input type="hidden" name="VehicleArea" class="js-vehicle-area-input" required />
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label">Tuyến xe</label>
+                                        <select class="form-select js-route-assign" name="BusRouteAssignId" required>
+                                            <option value="">-- Chọn tuyến xe --</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label">Điểm đón trả</label>
+                                        <select class="form-select js-bus-stop" name="BusStopId" required>
+                                            <option value="">-- Chọn điểm đón --</option>
+                                            @foreach (var bs in Model.BusStops)
+                                            {
+                                                <option value="@bs.ID">@bs.NVCHR_STOP_NAME</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label">Ngày bắt đầu sử dụng / Hủy xe</label>
+                                        <input type="date" class="form-control" name="UseOrCancelDate" value="@DateTime.Now.ToString("yyyy-MM-dd")" required />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-group-shell">
+                                <div class="form-group-title">Phê duyệt</div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label">Chọn QLSC phê duyệt</label>
+                                        <select class="form-select" name="QlscApprove" required>
+                                            <option value="">-- Chọn QLSC --</option>
+                                            @foreach (var u in Model.QlscUsers)
+                                            {
+                                                <option value="@u.CHR_ADID">@u.NVCHR_NAME (@u.CHR_ADID)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label">Ghi chú</label>
+                                        <input class="form-control" name="Note" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Gửi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@foreach (var item in Model.Requests.Where(x => x.CanEdit))
+{
+    <div class="modal fade dragable-modal" id="editBusRequestModal-@item.Id" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cập nhật đơn - @item.EmployeeCode</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" show-loading asp-controller="BusRequest" asp-action="Update" class="js-post-form js-busrequest-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="Id" value="@item.Id" />
+                        <input type="hidden" name="SearchDepartment" value="@Model.Department" />
+                        <input type="hidden" name="SearchDepartments" value="@Model.Departments" />
+                        <input type="hidden" name="SearchEmployeeCode" value="@Model.EmployeeCode" />
+                        <input type="hidden" name="SearchEmployeeName" value="@Model.EmployeeName" />
+                        <input type="hidden" name="SearchPosition" value="@Model.Position" />
+                        <input type="hidden" name="SearchAddress" value="@Model.Address" />
+                        <input type="hidden" name="SearchRequestTypeId" value="@Model.RequestTypeId" />
+                        <input type="hidden" name="SearchRequestTypeIds" value="@Model.RequestTypeIds" />
+                        <input type="hidden" name="SearchRoute" value="@Model.RouteKeyword" />
+                        <input type="hidden" name="SearchBusStopId" value="@Model.BusStopId" />
+                        <input type="hidden" name="SearchBusStopIds" value="@Model.BusStopIds" />
+                        <input type="hidden" name="SearchDateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="SearchDateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="SearchNote" value="@Model.Note" />
+                        <input type="hidden" name="SearchStatus" value="@Model.Status" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="form-group-shell">
+                                    <div class="form-group-title">Thông tin CNV</div>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-4"><label class="form-label">Mã nhân viên</label><input class="form-control js-employee-code-autofill" name="EmployeeCode" value="@item.EmployeeCode" required /></div>
+                                        <div class="col-12 col-md-4"><label class="form-label">Họ tên</label><input class="form-control" name="EmployeeName" value="@item.EmployeeName" required /></div>
+                                        <div class="col-12 col-md-4"><label class="form-label">Phòng ban</label>
+                                            <select class="form-select" name="DepartmentCode" required>
+                                                <option value="">-- Chọn phòng ban --</option>
+                                                @foreach (var sec in Model.Sections)
+                                                {
+                                                    var secCode = sec.CHR_CODE?.Trim();
+                                                    var secName = sec.CHR_NAME ?? sec.CHR_SECTION_NAME ?? secCode;
+                                                    if (string.IsNullOrWhiteSpace(secCode))
+                                                    {
+                                                        continue;
+                                                    }
+
+                                                    if (string.Equals(item.DepartmentCode, secCode, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        <option value="@secCode" selected>@secName</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@secCode">@secName</option>
+                                                    }
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-12"><label class="form-label">Địa chỉ</label><input class="form-control" name="Address" value="@item.Address" /></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-group-shell">
+                                    <div class="form-group-title">Thông tin xe đi làm</div>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-4"><label class="form-label">Loại đơn</label>
+                                            <select class="form-select" name="RequestTypeId" required>
+                                                <option value="">-- Chọn loại đơn --</option>
+                                                @foreach (var rt in Model.RequestTypes)
+                                                {
+                                                    if (item.RequestTypeId == rt.ID)
+                                                    {
+                                                        <option value="@rt.ID" selected>@rt.NVCHR_REQUEST_TYPE</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@rt.ID">@rt.NVCHR_REQUEST_TYPE</option>
+                                                    }
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-12 col-md-4 vehicle-menu">
+                                            <label class="form-label">Loại xe</label>
+                                            <div class="dropdown js-vehicle-menu">
+                                                <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle js-vehicle-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    -- Chọn loại xe / khu vực --
+                                                </button>
+                                                <ul class="dropdown-menu w-100 js-vehicle-menu-root">
+                                                    @foreach (var vt in Model.VehicleAreas)
+                                                    {
+                                                        <li class="dropend">
+                                                            <a class="dropdown-item dropdown-toggle-custom"> <span>@vt.Key</span>
+                                                                <i class="fa-solid fa-chevron-right submenu-icon"></i>
+                                                            </a>
+                                                            <ul class="dropdown-menu">
+                                                                @foreach (var area in vt.Value)
+                                                                {
+                                                                    <li><a class="dropdown-item js-vehicle-choice" href="javascript:void(0)" data-type="@vt.Key" data-area="@area">@area</a></li>
+                                                                }
+                                                            </ul>
+                                                        </li>
+                                                    }
+                                                </ul>
+                                            </div>
+                                            <input type="hidden" name="VehicleType" class="js-vehicle-type-input" required />
+                                            <input type="hidden" name="VehicleArea" class="js-vehicle-area-input" required />
+                                        </div>
+                                        <div class="col-12 col-md-4"><label class="form-label">Tuyến xe</label><select class="form-select js-route-assign" name="BusRouteAssignId" data-selected="@item.BusRouteAssignId" data-route-display="@item.RouteDisplay"><option value="">-- Chọn tuyến xe --</option></select></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Điểm đón trả</label><select class="form-select js-bus-stop" name="BusStopId" required>
+                                            <option value="">-- Chọn điểm đón --</option>
+                                            @foreach (var bs in Model.BusStops)
+                                            {
+                                                if (item.BusStopId == bs.ID)
+                                                {
+                                                    <option value="@bs.ID" selected>@bs.NVCHR_STOP_NAME</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@bs.ID">@bs.NVCHR_STOP_NAME</option>
+                                                }
+                                            }
+                                        </select></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Ngày sử dụng / Hủy xe</label><input type="date" class="form-control" name="UseOrCancelDate" value="@item.UseOrCancelDate?.ToString("yyyy-MM-dd")" required /></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-group-shell">
+                                    <div class="form-group-title">Phê duyệt</div>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6"><label class="form-label">Chọn QLSC phê duyệt</label><select class="form-select" name="QlscApprove" required>
+                                            <option value="">-- Chọn QLSC --</option>
+                                            @foreach (var u in Model.QlscUsers)
+                                            {
+                                                if (string.Equals(item.QlscApprove, u.CHR_ADID, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <option value="@u.CHR_ADID" selected>@u.NVCHR_NAME (@u.CHR_ADID)</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@u.CHR_ADID">@u.NVCHR_NAME (@u.CHR_ADID)</option>
+                                                }
+                                            }
+                                        </select></div>
+                                        <div class="col-12 col-md-6"><label class="form-label">Ghi chú</label><input class="form-control" name="Note" value="@item.Note" /></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        @if (item.Status == (int)BusRequestStatus.QlscRejected || item.Status == (int)BusRequestStatus.GaRejected)
+                        {
+                            <button type="submit" class="btn btn-primary">Gửi phê duyệt lại</button>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        }
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<div id="lottieOverlay" class="lottie-overlay">
+    <div id="approvalSuccessLottie"></div>
+</div>
+
+@if (Model.CanManageAll)
+{
+    <div class="modal fade dragable-modal" id="importBusRequestModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Import đăng ký/hủy xe</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="BusRequest" asp-action="Import" enctype="multipart/form-data" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="department" value="@Model.Department" />
+                        <input type="hidden" name="departments" value="@Model.Departments" />
+                        <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                        <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                        <input type="hidden" name="position" value="@Model.Position" />
+                        <input type="hidden" name="address" value="@Model.Address" />
+                        <input type="hidden" name="requestTypeId" value="@Model.RequestTypeId" />
+                        <input type="hidden" name="requestTypeIds" value="@Model.RequestTypeIds" />
+                        <input type="hidden" name="routeKeyword" value="@Model.RouteKeyword" />
+                        <input type="hidden" name="busStopId" value="@Model.BusStopId" />
+                        <input type="hidden" name="busStopIds" value="@Model.BusStopIds" />
+                        <input type="hidden" name="dateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="dateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="note" value="@Model.Note" />
+                        <input type="hidden" name="status" value="@Model.Status" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                        <label class="form-label">Chọn file Excel/CSV</label>
+                        <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                        <div class="small text-muted mt-2">Định dạng: <code>STT,Phòng ban,Mã NV,Họ tên,Chức vụ,Loại đơn,Loại xe,Khu vực,Tuyến xe,Điểm đón,Ngày sử dụng/Hủy xe,QLSC,Ghi chú</code></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-success">Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    @if (TempData["BusRequestSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["BusRequestError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            var vehicleAreas = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.VehicleAreas));
+
+            function ensureAntiForgery(form) {
+                if (!form) return;
+                var tokenInForm = form.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenInForm) return;
+
+                var globalToken = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!globalToken) return;
+
+                var cloned = document.createElement('input');
+                cloned.type = 'hidden';
+                cloned.name = '__RequestVerificationToken';
+                cloned.value = globalToken.value;
+                form.appendChild(cloned);
+            }
+
+            function showLoading() { if (typeof window.showLoading === 'function') window.showLoading(); }
+            function hideLoading() { if (typeof window.hideLoading === 'function') window.hideLoading(); }
+
+            document.querySelectorAll('form.js-post-form').forEach(function (form) {
+                form.addEventListener('submit', function () { ensureAntiForgery(form); showLoading(); });
+            });
+
+            document.querySelectorAll('form.js-search-form').forEach(function (form) {
+                function getSelectedValues(selectElement) {
+                    if (!selectElement) return [];
+
+                    // Ưu tiên: lấy từ Bootstrap Selectpicker nếu có
+                    if (window.jQuery) {
+                        try {
+                            var jQueryValues = window.jQuery(selectElement).val();
+                            if (Array.isArray(jQueryValues)) {
+                                return jQueryValues.filter(Boolean);
+                            }
+                            if (typeof jQueryValues === 'string' && jQueryValues) {
+                                return [jQueryValues];
+                            }
+                        } catch (e) {
+                            console.warn('Error getting jQuery values:', e);
+                        }
+                    }
+
+                    // Fallback 1: selectedOptions (DOM native)
+                    if (selectElement.selectedOptions && selectElement.selectedOptions.length > 0) {
+                        return Array.from(selectElement.selectedOptions).map(function (o) {
+                            return o.value;
+                        }).filter(Boolean);
+                    }
+
+                    // Fallback 2: tìm tất cả option có selected=true
+                    var selected = selectElement.querySelectorAll('option:checked');
+                    if (selected.length > 0) {
+                        return Array.from(selected).map(function (o) {
+                            return o.value;
+                        }).filter(Boolean);
+                    }
+
+                    return [];
+                }
+
+                function syncMultiFilterHidden() {
+                    var departmentSelect = form.querySelector('.js-filter-select-departments');
+                    var requestTypeSelect = form.querySelector('.js-filter-select-requesttypes');
+                    var busStopSelect = form.querySelector('.js-filter-select-busstops');
+
+                    var departmentsHidden = form.querySelector('.js-filter-departments');
+                    var requestTypesHidden = form.querySelector('.js-filter-requesttypes');
+                    var busStopsHidden = form.querySelector('.js-filter-busstops');
+
+                    if (departmentsHidden && departmentSelect) {
+                        departmentsHidden.value = getSelectedValues(departmentSelect).join(',');
+                    }
+
+                    if (requestTypesHidden && requestTypeSelect) {
+                        requestTypesHidden.value = getSelectedValues(requestTypeSelect).join(',');
+                    }
+
+                    if (busStopsHidden && busStopSelect) {
+                        busStopsHidden.value = getSelectedValues(busStopSelect).join(',');
+                    }
+                }
+
+                syncMultiFilterHidden();
+
+                if (window.jQuery) {
+                    window.jQuery(form).on('changed.bs.select', '.js-filter-select-departments,.js-filter-select-requesttypes,.js-filter-select-busstops', function () {
+                        syncMultiFilterHidden();
+                    });
+                }
+
+                form.querySelectorAll('.js-filter-select-departments,.js-filter-select-requesttypes,.js-filter-select-busstops').forEach(function (selectElement) {
+                    selectElement.addEventListener('change', syncMultiFilterHidden);
+                });
+
+                form.addEventListener('submit', function () {
+                    syncMultiFilterHidden();
+
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-export-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                    setTimeout(function () { hideLoading(); }, 2500);
+                });
+            });
+
+            async function resolveEmployeeInfo(form) {
+                var employeeCodeInput = form.querySelector('input[name="EmployeeCode"]');
+                if (!employeeCodeInput) return;
+                var employeeCode = (employeeCodeInput.value || '').trim();
+                if (!employeeCode) return;
+
+                var response = await fetch('@Url.Action("ResolveEmployeeByCode", "BusRequest")?employeeCode=' + encodeURIComponent(employeeCode));
+                if (!response.ok) return;
+                var result = await response.json();
+                if (!result || !result.success || !result.data) return;
+
+                var employeeNameInput = form.querySelector('input[name="EmployeeName"]');
+                var departmentInput = form.querySelector('input[name="DepartmentCode"]');
+                var departmentSelect = form.querySelector('select[name="DepartmentCode"]');
+                var addressInput = form.querySelector('input[name="Address"]');
+                if (employeeNameInput) employeeNameInput.value = result.data.employeeName || '';
+                if (departmentInput) departmentInput.value = result.data.departmentCode || '';
+                if (addressInput) addressInput.value = result.data.address || '';
+                if (departmentSelect) {
+                    var departmentCode = result.data.departmentCode || '';
+                    var matched = Array.prototype.find.call(departmentSelect.options, function (opt) {
+                        return (opt.value || '').toLowerCase() === departmentCode.toLowerCase();
+                    });
+                    if (matched) {
+                        departmentSelect.value = matched.value;
+                    }
+                }
+            }
+
+            document.addEventListener('blur', function (e) {
+                var input = e.target.closest('.js-employee-code-autofill');
+                if (!input) return;
+                var form = input.closest('form');
+                if (!form) return;
+                resolveEmployeeInfo(form);
+            }, true);
+
+            function fillAreaSelect(form) {
+                var typeSelect = form.querySelector('.js-vehicle-type');
+                var areaSelect = form.querySelector('.js-vehicle-area');
+                if (!typeSelect || !areaSelect) return;
+
+                var selectedType = typeSelect.value || '';
+                var areas = vehicleAreas[selectedType] || [];
+                var selectedArea = areaSelect.getAttribute('data-selected') || '';
+
+                areaSelect.innerHTML = '<option value="">-- Chọn khu vực --</option>';
+                areas.forEach(function (a) {
+                    var option = document.createElement('option');
+                    option.value = a;
+                    option.textContent = a;
+                    if (selectedArea && selectedArea.toLowerCase() === a.toLowerCase()) option.selected = true;
+                    areaSelect.appendChild(option);
+                });
+            }
+
+            function inferTypeAreaFromRouteDisplay(routeDisplay) {
+                var text = (routeDisplay || '').toString().toLowerCase();
+                if (!text) return { type: '', area: '' };
+
+                var foundType = '';
+                var foundArea = '';
+
+                Object.keys(vehicleAreas).forEach(function (typeKey) {
+                    if (foundType) return;
+                    var areas = vehicleAreas[typeKey] || [];
+                    areas.forEach(function (area) {
+                        if (foundType) return;
+                        if (text.indexOf((area || '').toLowerCase()) >= 0) {
+                            foundType = typeKey;
+                            foundArea = area;
+                        }
+                    });
+                });
+
+                return { type: foundType, area: foundArea };
+            }
+
+            function initVehicleMenu(form) {
+                var menuRoot = form.querySelector('.js-vehicle-menu-root');
+                var menuBtn = form.querySelector('.js-vehicle-menu-btn');
+                var typeInput = form.querySelector('.js-vehicle-type-input');
+                var areaInput = form.querySelector('.js-vehicle-area-input');
+                if (!menuRoot || !menuBtn || !typeInput || !areaInput) return;
+
+                menuRoot.querySelectorAll('.js-vehicle-choice').forEach(function (choice) {
+                    choice.addEventListener('click', function () {
+                        var type = choice.getAttribute('data-type') || '';
+                        var area = choice.getAttribute('data-area') || '';
+                        typeInput.value = type;
+                        areaInput.value = area;
+                        menuBtn.textContent = type + ' - ' + area;
+                        fillRouteAssignSelect(form);
+                    });
+                });
+            }
+
+            async function fillRouteAssignSelect(form) {
+                var routeSelect = form.querySelector('.js-route-assign');
+                if (!routeSelect) return;
+
+                var typeInput = form.querySelector('.js-vehicle-type-input');
+                var areaInput = form.querySelector('.js-vehicle-area-input');
+                var typeSelect = form.querySelector('.js-vehicle-type');
+                var areaSelect = form.querySelector('.js-vehicle-area');
+
+                var vehicleType = typeInput ? (typeInput.value || '') : (typeSelect ? (typeSelect.value || '') : '');
+                var area = areaInput ? (areaInput.value || '') : (areaSelect ? (areaSelect.value || '') : '');
+                routeSelect.innerHTML = '<option value="">-- Chọn tuyến xe --</option>';
+                if (!vehicleType || !area) return;
+
+                var url = '@Url.Action("GetRouteAssignOptions", "BusRequest")' + '?vehicleType=' + encodeURIComponent(vehicleType) + '&area=' + encodeURIComponent(area);
+                var res = await fetch(url);
+                if (!res.ok) return;
+                var data = await res.json();
+                var selected = routeSelect.getAttribute('data-selected') || '';
+                data.forEach(function (item) {
+                    var option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.displayName;
+                    if (selected && selected === String(item.id)) option.selected = true;
+                    routeSelect.appendChild(option);
+                });
+            }
+
+            function wireRequestForm(form) {
+                if (!form) return;
+                var typeSelect = form.querySelector('.js-vehicle-type');
+                var areaSelect = form.querySelector('.js-vehicle-area');
+                var typeInput = form.querySelector('.js-vehicle-type-input');
+                var areaInput = form.querySelector('.js-vehicle-area-input');
+                var menuBtn = form.querySelector('.js-vehicle-menu-btn');
+                initVehicleMenu(form);
+
+                var routeSelect = form.querySelector('.js-route-assign');
+                if (routeSelect && typeInput && areaInput && (!typeInput.value || !areaInput.value)) {
+                    var inferredFromRoute = inferTypeAreaFromRouteDisplay(routeSelect.getAttribute('data-route-display') || '');
+                    if (inferredFromRoute.type) {
+                        typeInput.value = inferredFromRoute.type;
+                        areaInput.value = inferredFromRoute.area || '';
+                        if (menuBtn) {
+                            menuBtn.textContent = inferredFromRoute.type + ' - ' + (inferredFromRoute.area || '');
+                        }
+                    }
+                }
+
+                if (!typeSelect || !areaSelect) {
+                    fillRouteAssignSelect(form);
+                    return;
+                }
+
+                if ((!typeSelect.value || !areaSelect.getAttribute('data-selected')) && routeSelect) {
+                    var inferred = inferTypeAreaFromRouteDisplay(routeSelect.getAttribute('data-route-display') || '');
+                    if (inferred.type) {
+                        typeSelect.value = inferred.type;
+                        areaSelect.setAttribute('data-selected', inferred.area || '');
+                    }
+                }
+
+                fillAreaSelect(form);
+                fillRouteAssignSelect(form);
+
+                typeSelect.addEventListener('change', function () {
+                    areaSelect.setAttribute('data-selected', '');
+                    fillAreaSelect(form);
+                    fillRouteAssignSelect(form);
+                });
+
+                areaSelect.addEventListener('change', function () {
+                    fillRouteAssignSelect(form);
+                });
+            }
+
+            document.querySelectorAll('.js-busrequest-form').forEach(function (form) {
+                wireRequestForm(form);
+            });
+
+            var historyModalEl = document.getElementById('approvalHistoryModal');
+            var historyModalBody = document.getElementById('approvalHistoryModalBody');
+            if (historyModalEl && historyModalBody) {
+                var historyModal = bootstrap.Modal.getOrCreateInstance(historyModalEl);
+                document.addEventListener('click', async function (e) {
+                    var btn = e.target.closest('.js-history-btn');
+                    if (!btn) return;
+
+                    var url = btn.getAttribute('data-history-url');
+                    if (!url) return;
+
+                    historyModalBody.innerHTML = '<div class="text-center text-muted py-4">Đang tải...</div>';
+                    historyModal.show();
+
+                    try {
+                        var response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        if (!response.ok) throw new Error('Load history failed');
+                        historyModalBody.innerHTML = await response.text();
+                    } catch {
+                        historyModalBody.innerHTML = '<div class="alert alert-danger mb-0">Không thể tải lịch sử phê duyệt.</div>';
+                    }
+                });
+            }
+
+            var shouldCelebrate = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["BusRequestCelebrate"] != null));
+            if (shouldCelebrate && window.lottie) {
+                var overlay = document.getElementById('lottieOverlay');
+                var container = document.getElementById('approvalSuccessLottie');
+                if (overlay && container) {
+                    overlay.classList.add('show');
+                    container.innerHTML = '';
+                    lottie.loadAnimation({
+                        container: container,
+                        renderer: 'svg',
+                        loop: false,
+                        autoplay: true,
+                        path: '/lotties/congratulations_smiley.json'
+                    });
+                    setTimeout(function () { overlay.classList.remove('show'); }, 2500);
+                }
+            }
+
+            function escapeHtml(value) {
+                return (value || '').toString()
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            async function loadRouteCapacities() {
+                var container = document.getElementById('routeCapacityContainer');
+                if (!container) return;
+
+                container.innerHTML = '<div class="col-12 text-center text-muted py-4">Đang tải dữ liệu...</div>';
+
+                try {
+                    var response = await fetch('@Url.Action("GetActiveRouteCapacities", "BusRequest")', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    if (!response.ok) throw new Error('Load capacity failed');
+
+                    var rows = await response.json();
+                    if (!Array.isArray(rows) || rows.length === 0) {
+                        container.innerHTML = '<div class="col-12 text-center text-muted py-4">Không có tuyến xe đang hoạt động.</div>';
+                        return;
+                    }
+
+                    container.innerHTML = rows.map(function (item) {
+                        var level = item.level || 'secondary';
+                        var display = escapeHtml(item.routeDisplay || 'Chưa có tên tuyến');
+                        var currentUser = item.currentUser || 0;
+                        var capacity = item.capacity || 0;
+                        var percentRaw = Math.max(0, Number(item.percentRaw || 0));
+                        var percentBar = Math.max(0, Math.min(100, Number(item.percentBar || 0)));
+                        var percentText = percentRaw.toFixed(1) + '%';
+
+                        return '<div class="col-12 col-md-6">'
+                            + '<div class="border rounded-3 p-3 h-100">'
+                            + '<div class="d-flex justify-content-between align-items-start mb-2">'
+                            + '<div class="fw-semibold"><i class="fa-solid fa-bus text-' + level + ' me-2"></i>' + display + '</div>'
+                            + '<span class="badge bg-' + level + '">' + currentUser + '/' + capacity + '</span>'
+                            + '</div>'
+                            + '<div class="progress" style="height: 14px;">'
+                            + '<div class="progress-bar bg-' + level + '" role="progressbar" style="width:' + percentBar.toFixed(1) + '%" aria-valuenow="' + percentRaw.toFixed(1) + '" aria-valuemin="0" aria-valuemax="100"></div>'
+                            + '</div>'
+                            + '<div class="small text-muted mt-2">Mức sử dụng: <strong>' + percentText + '</strong></div>'
+                            + '</div>'
+                            + '</div>';
+                    }).join('');
+                } catch {
+                    container.innerHTML = '<div class="col-12"><div class="alert alert-danger mb-0">Không thể tải dữ liệu dung lượng tuyến xe.</div></div>';
+                }
+            }
+
+            var routeCapacityModalEl = document.getElementById('routeCapacityModal');
+            if (routeCapacityModalEl) {
+                routeCapacityModalEl.addEventListener('show.bs.modal', function () {
+                    loadRouteCapacities();
+                });
+            }
+        })();
+    </script>
+}

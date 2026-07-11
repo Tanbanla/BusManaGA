@@ -1,0 +1,503 @@
+﻿@model dynamic
+@{
+    ViewData["Title"] = "Quản lý đơn vị hành chính";
+    var activeTab = (string?)ViewData["ActiveTab"] ?? "cities";
+}
+
+<style>
+    .card-shell { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .05); }
+    .table thead th { white-space: nowrap; vertical-align: middle; }
+
+    /* stronger visual for active tab */
+    .nav-tabs .nav-link {
+        color: #495057;
+        background: transparent;
+        border: 1px solid transparent;
+        border-top-left-radius: .5rem;
+        border-top-right-radius: .5rem;
+    }
+    .nav-tabs .nav-link.active {
+        color: #fff;
+        background: #0d6efd;
+        border-color: #0d6efd #0d6efd transparent;
+        box-shadow: 0 6px 18px rgba(13, 110, 253, 0.12);
+    }
+</style>
+
+<div class="card-shell p-3 p-md-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Quản lý đơn vị hành chính</h5>
+    </div>
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link @(activeTab == "cities" ? "active" : "")" href="@Url.Action("Index", "AdminUnit", new { tab = "cities" })">Thành phố</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link @(activeTab == "wards" ? "active" : "")" href="@Url.Action("Index", "AdminUnit", new { tab = "wards" })">Xã/Phường</a>
+        </li>
+    </ul>
+
+    @if (activeTab == "cities")
+    {
+        var vm = Model as BusManagement.ViewModels.Admin.CityPageViewModel;
+        var startIndex = vm.TotalCount == 0 ? 0 : ((vm.PageNumber - 1) * vm.PageSize + 1);
+        var endIndex = Math.Min(vm.PageNumber * vm.PageSize, vm.TotalCount);
+
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCityModal"><i class="fa-solid fa-plus me-1"></i>Thêm mới</button>
+                <form method="get" asp-controller="AdminUnit" asp-action="ExportCities" class="d-inline js-export-form">
+                    <input type="hidden" name="code" value="@vm.SearchCode" />
+                    <input type="hidden" name="name" value="@vm.SearchName" />
+                    <input type="hidden" name="isActive" value="@vm.IsActive" />
+                    <button type="submit" class="btn btn-success"><i class="fa-solid fa-file-excel me-1"></i>Xuất Excel</button>
+                </form>
+                <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importCityModal"><i class="fa-solid fa-file-import me-1"></i>Import Excel</button>
+                <button id="btnBulkDeleteCities" type="button" class="btn btn-danger js-action-button d-none" data-form-id="bulkDeleteCitiesForm" data-confirm-title="Xóa nhiều thành phố" data-confirm-message="Bạn có chắc chắn muốn xóa các thành phố đã chọn?" data-require-selection="1" disabled><i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn</button>
+            </div>
+        </div>
+
+        <form method="get" asp-controller="AdminUnit" asp-action="Index" class="row g-2 mb-3 js-search-form">
+            <input type="hidden" name="tab" value="cities" />
+            <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="pageSize" value="@vm.PageSize" />
+
+            <div class="col-12 col-md-4">
+                <input class="form-control" name="code" value="@vm.SearchCode" placeholder="Mã thành phố" />
+            </div>
+            <div class="col-12 col-md-4">
+                <input class="form-control" name="name" value="@vm.SearchName" placeholder="Tên thành phố" />
+            </div>
+            <div class="col-12 col-md-3">
+                <select class="form-select" name="isActive">
+                    <option value="">Tất cả trạng thái</option>
+                    @if (vm.IsActive == true)
+                    {
+                        <option value="true" selected>Đang hoạt động</option>
+                        <option value="false">Ngưng hoạt động</option>
+                    }
+                    else if (vm.IsActive == false)
+                    {
+                        <option value="true">Đang hoạt động</option>
+                        <option value="false" selected>Ngưng hoạt động</option>
+                    }
+                    else
+                    {
+                        <option value="true">Đang hoạt động</option>
+                        <option value="false">Ngưng hoạt động</option>
+                    }
+                </select>
+            </div>
+            <div class="col-12 col-md-1 d-grid">
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+        </form>
+
+        <form id="bulkDeleteCitiesForm" method="post" asp-controller="AdminUnit" asp-action="DeleteManyCities" class="js-confirm js-require-selection" data-confirm-title="Xóa nhiều thành phố" data-confirm-message="Bạn có chắc chắn muốn xóa các thành phố đã chọn?">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="page" value="@vm.PageNumber" />
+            <input type="hidden" name="pageSize" value="@vm.PageSize" />
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:40px;"><input id="chkAllCities" type="checkbox" class="form-check-input" /></th>
+                        <th>STT</th>
+                        <th>Mã</th>
+                        <th>Tên thành phố</th>
+                        <th>Trạng thái</th>
+                        <th>Thời gian tạo</th>
+                        <th>Thời gian cập nhật</th>
+                        <th>Người cập nhật</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!vm.Cities.Any())
+                    {
+                        <tr><td colspan="9" class="text-center text-muted py-4">Không có dữ liệu thành phố.</td></tr>
+                    }
+                    else
+                    {
+                        for (var i = 0; i < vm.Cities.Count; i++)
+                        {
+                            var city = vm.Cities[i];
+                            <tr>
+                                <td><input type="checkbox" class="form-check-input js-city-check" name="ids" value="@city.ID" form="bulkDeleteCitiesForm" /></td>
+                                <td>@(startIndex + i)</td>
+                                <td>@city.CHR_CITY_CODE</td>
+                                <td>@city.NVCHR_CITY_NAME</td>
+                                <td>@(city.BIT_IS_ACTIVE == true ? "Đang hoạt động" : "Ngưng hoạt động")</td>
+                                <td>@city.DTM_CREATE.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@(city.DTM_UPDATE?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                                <td>@(city.CHR_USER_UPDATE ?? "-")</td>
+                                <td class="text-end">
+                                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editCityModal-@city.ID"><i class="fa-solid fa-pen"></i></button>
+                                    <form id="deleteCityForm-@city.ID" method="post" asp-controller="AdminUnit" asp-action="DeleteCity" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@city.ID" />
+                                        <button class="btn btn-danger js-action-button ms-1" type="button" data-form-id="deleteCityForm-@city.ID" data-confirm-title="Xóa thành phố" data-confirm-message="Bạn có chắc chắn muốn xóa thành phố này?"><i class="fa-solid fa-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @vm.TotalCount</div>
+        @await Html.PartialAsync("_Pagination", new {
+            PageIndex = vm.PageNumber,
+            TotalPages = vm.TotalPages,
+            PageSize = vm.PageSize,
+            Action = "Index",
+            Controller = "AdminUnit",
+            Term = (string?)null,
+            RouteExtras = new Dictionary<string, string?> { ["tab"] = "cities", ["code"] = vm.SearchCode, ["name"] = vm.SearchName, ["isActive"] = vm.IsActive?.ToString().ToLowerInvariant() }
+        })
+
+        <!-- Create City Modal -->
+        <div class="modal fade" id="createCityModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title">Thêm thành phố</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <form method="post" asp-controller="AdminUnit" asp-action="CreateCity" class="js-post-form">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <div class="mb-3"><label class="form-label">Mã thành phố</label><input class="form-control" name="CHR_CITY_CODE" /></div>
+                            <div class="mb-3"><label class="form-label">Tên thành phố</label><input class="form-control" name="NVCHR_CITY_NAME" required /></div>
+                            <div class="mb-3"><label class="form-label">Trạng thái</label><select class="form-select" name="BIT_IS_ACTIVE"><option value="true">Đang hoạt động</option><option value="false">Ngưng hoạt động</option></select></div>
+                        </div>
+                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        @foreach (var city in vm.Cities)
+        {
+            <div class="modal fade" id="editCityModal-@city.ID" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header"><h5 class="modal-title">Cập nhật thành phố - @city.NVCHR_CITY_NAME</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                        <form method="post" asp-controller="AdminUnit" asp-action="UpdateCity" class="js-post-form">
+                            @Html.AntiForgeryToken()
+                            <div class="modal-body">
+                                <input type="hidden" name="ID" value="@city.ID" />
+                                <div class="mb-3"><label class="form-label">Mã thành phố</label><input class="form-control" name="CHR_CITY_CODE" value="@city.CHR_CITY_CODE" /></div>
+                                <div class="mb-3"><label class="form-label">Tên thành phố</label><input class="form-control" name="NVCHR_CITY_NAME" value="@city.NVCHR_CITY_NAME" required /></div>
+                                <div class="mb-3"><label class="form-label">Trạng thái</label><select class="form-select" name="BIT_IS_ACTIVE">
+                                    @if (city.BIT_IS_ACTIVE == true) { <option value="true" selected>Đang hoạt động</option><option value="false">Ngưng hoạt động</option> }
+                                    else { <option value="true">Đang hoạt động</option><option value="false" selected>Ngưng hoạt động</option> }
+                                </select></div>
+                            </div>
+                            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Import City Modal -->
+        <div class="modal fade" id="importCityModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title">Import thành phố từ Excel/CSV</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <form method="post" asp-controller="AdminUnit" asp-action="ImportCities" enctype="multipart/form-data" class="js-post-form">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <label class="form-label">Chọn file Excel/CSV</label>
+                            <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                            <div class="small text-muted mt-2">Định dạng: <code>CityCode,CityName</code> (cột trạng thái/thông tin hệ thống đã bị loại bỏ)</div>
+                        </div>
+                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-success">Import</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+    else if (activeTab == "wards")
+    {
+        var vm = Model as BusManagement.ViewModels.Admin.WardPageViewModel;
+        var startIndex = vm.TotalCount == 0 ? 0 : ((vm.PageNumber - 1) * vm.PageSize + 1);
+        var endIndex = Math.Min(vm.PageNumber * vm.PageSize, vm.TotalCount);
+
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createWardModal"><i class="fa-solid fa-plus me-1"></i>Thêm mới</button>
+                <form method="get" asp-controller="AdminUnit" asp-action="ExportWards" class="d-inline js-export-form">
+                    <input type="hidden" name="cityId" value="@vm.CityId" />
+                    <input type="hidden" name="wardName" value="@vm.WardName" />
+                    <input type="hidden" name="isActive" value="@vm.IsActive" />
+                    <button type="submit" class="btn btn-success"><i class="fa-solid fa-file-excel me-1"></i>Xuất Excel</button>
+                </form>
+                <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importWardModal"><i class="fa-solid fa-file-import me-1"></i>Import Excel</button>
+                <button id="btnBulkDeleteWards" type="button" class="btn btn-danger js-action-button d-none" data-form-id="bulkDeleteWardsForm" data-confirm-title="Xóa nhiều xã/phường" data-confirm-message="Bạn có chắc chắn muốn xóa các xã/phường đã chọn?" data-require-selection="1" disabled><i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn</button>
+            </div>
+        </div>
+
+        <form method="get" asp-controller="AdminUnit" asp-action="Index" class="row g-2 mb-3 js-search-form">
+            <input type="hidden" name="tab" value="wards" />
+            <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="pageSize" value="@vm.PageSize" />
+
+            <div class="col-12 col-md-4">
+                <select class="form-select" name="cityId">
+                    <option value="">Tất cả thành phố</option>
+                    @foreach (var c in vm.Cities)
+                    {
+                        if (vm.CityId.HasValue && vm.CityId.Value == c.ID)
+                        {
+                            <option value="@c.ID" selected>@c.NVCHR_CITY_NAME</option> 
+                        }
+                        else
+                        {
+                            <option value="@c.ID">@c.NVCHR_CITY_NAME</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-12 col-md-4">
+                <input class="form-control" name="wardName" value="@vm.WardName" placeholder="Tên xã/phường" />
+            </div>
+            <div class="col-12 col-md-3">
+                <select class="form-select" name="isActive">
+                    <option value="">Tất cả trạng thái</option>
+                    @if (vm.IsActive == true)
+                    {
+                        <option value="true" selected>Đang hoạt động</option>
+                        <option value="false">Ngưng hoạt động</option>
+                    }
+                    else if (vm.IsActive == false)
+                    {
+                        <option value="true">Đang hoạt động</option>
+                        <option value="false" selected>Ngưng hoạt động</option>
+                    }
+                    else
+                    {
+                        <option value="true">Đang hoạt động</option>
+                        <option value="false">Ngưng hoạt động</option>
+                    }
+                </select>
+            </div>
+            <div class="col-12 col-md-1 d-grid">
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+        </form>
+
+        <form id="bulkDeleteWardsForm" method="post" asp-controller="AdminUnit" asp-action="DeleteManyWards" class="js-confirm js-require-selection" data-confirm-title="Xóa nhiều xã/phường" data-confirm-message="Bạn có chắc chắn muốn xóa các xã/phường đã chọn?">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="cityId" value="@vm.CityId" />
+            <input type="hidden" name="page" value="@vm.PageNumber" />
+            <input type="hidden" name="pageSize" value="@vm.PageSize" />
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:40px;"><input id="chkAllWards" type="checkbox" class="form-check-input" /></th>
+                        <th>STT</th>
+                        <th>Thành phố</th>
+                        <th>Mã xã</th>
+                        <th>Tên xã/phường</th>
+                        <th>Trạng thái</th>
+                        <th>Thời gian tạo</th>
+                        <th>Thời gian cập nhật</th>
+                        <th>Người cập nhật</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!vm.Wards.Any())
+                    {
+                        <tr><td colspan="10" class="text-center text-muted py-4">Không có dữ liệu xã/phường.</td></tr>
+                    }
+                    else
+                    {
+                        // need city names, cities list available in vm.Cities
+                        var cityMap = vm.Cities.ToDictionary(c => c.ID, c => c.NVCHR_CITY_NAME);
+                        for (var i = 0; i < vm.Wards.Count; i++)
+                        {
+                            var ward = vm.Wards[i];
+                            <tr>
+                                <td><input type="checkbox" class="form-check-input js-ward-check" name="ids" value="@ward.ID" form="bulkDeleteWardsForm" /></td>
+                                <td>@(startIndex + i)</td>
+                                <td>@(ward.INT_CITY_ID.HasValue && ward.INT_CITY_ID.Value > 0 && cityMap.ContainsKey(ward.INT_CITY_ID.Value) ? cityMap[ward.INT_CITY_ID.Value] : "-")</td>
+                                <td>@ward.CHR_WARD_CODE</td>
+                                <td>@ward.NVCHR_WARD_NAME</td>
+                                <td>@(ward.BIT_IS_ACTIVE == true ? "Đang hoạt động" : "Ngưng hoạt động")</td>
+                                <td>@ward.DTM_CREATE.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@(ward.DTM_UPDATE?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                                <td>@(ward.CHR_USER_UPDATE ?? "-")</td>
+                                <td class="text-end">
+                                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editWardModal-@ward.ID"><i class="fa-solid fa-pen"></i></button>
+                                    <form id="deleteWardForm-@ward.ID" method="post" asp-controller="AdminUnit" asp-action="DeleteWard" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@ward.ID" />
+                                        <input type="hidden" name="cityId" value="@vm.CityId" />
+                                        <button class="btn btn-danger js-action-button ms-1" type="button" data-form-id="deleteWardForm-@ward.ID" data-confirm-title="Xóa xã/phường" data-confirm-message="Bạn có chắc chắn muốn xóa xã/phường này?"><i class="fa-solid fa-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @vm.TotalCount</div>
+        @await Html.PartialAsync("_Pagination", new {
+            PageIndex = vm.PageNumber,
+            TotalPages = vm.TotalPages,
+            PageSize = vm.PageSize,
+            Action = "Index",
+            Controller = "AdminUnit",
+            Term = (string?)null,
+            RouteExtras = new Dictionary<string, string?> { ["tab"] = "wards", ["cityId"] = vm.CityId?.ToString(), ["wardName"] = vm.WardName, ["isActive"] = vm.IsActive?.ToString().ToLowerInvariant() }
+        })
+
+        <!-- Create Ward Modal -->
+        <div class="modal fade" id="createWardModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title">Thêm xã/phường</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <form method="post" asp-controller="AdminUnit" asp-action="CreateWard" class="js-post-form">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <div class="mb-3"><label class="form-label">Thành phố</label>
+                                <select class="form-select" name="INT_CITY_ID" required>
+                                    <option value="">-- Chọn thành phố --</option>
+                                    @foreach (var c in vm.Cities)
+                                    {
+                                        <option value="@c.ID">@c.NVCHR_CITY_NAME</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="mb-3"><label class="form-label">Mã xã</label><input class="form-control" name="CHR_WARD_CODE" /></div>
+                            <div class="mb-3"><label class="form-label">Tên xã/phường</label><input class="form-control" name="NVCHR_WARD_NAME" required /></div>
+                            <div class="mb-3"><label class="form-label">Trạng thái</label><select class="form-select" name="BIT_IS_ACTIVE"><option value="true">Đang hoạt động</option><option value="false">Ngưng hoạt động</option></select></div>
+                        </div>
+                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        @foreach (var ward in vm.Wards)
+        {
+            <div class="modal fade" id="editWardModal-@ward.ID" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header"><h5 class="modal-title">Cập nhật xã/phường - @ward.NVCHR_WARD_NAME</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                        <form method="post" asp-controller="AdminUnit" asp-action="UpdateWard" class="js-post-form">
+                            @Html.AntiForgeryToken()
+                            <div class="modal-body">
+                                <input type="hidden" name="ID" value="@ward.ID" />
+                                <div class="mb-3"><label class="form-label">Thành phố</label>
+                                    <select class="form-select" name="INT_CITY_ID" required>
+                                        <option value="">-- Chọn thành phố --</option>
+                                        @foreach (var c in vm.Cities)
+                                        {
+                                            if (vm.CityId.HasValue && vm.CityId.Value == c.ID)
+                                            {
+                                                <option value="@c.ID" selected>@c.NVCHR_CITY_NAME</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@c.ID">@c.NVCHR_CITY_NAME</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="mb-3"><label class="form-label">Mã xã</label><input class="form-control" name="CHR_WARD_CODE" value="@ward.CHR_WARD_CODE" /></div>
+                                <div class="mb-3"><label class="form-label">Tên xã/phường</label><input class="form-control" name="NVCHR_WARD_NAME" value="@ward.NVCHR_WARD_NAME" required /></div>
+                                <div class="mb-3"><label class="form-label">Trạng thái</label><select class="form-select" name="BIT_IS_ACTIVE">
+                                    @if (ward.BIT_IS_ACTIVE == true) { <option value="true" selected>Đang hoạt động</option><option value="false">Ngưng hoạt động</option> }
+                                    else { <option value="true">Đang hoạt động</option><option value="false" selected>Ngưng hoạt động</option> }
+                                </select></div>
+                            </div>
+                            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Import Ward Modal -->
+        <div class="modal fade" id="importWardModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title">Import xã/phường từ Excel/CSV</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <form method="post" asp-controller="AdminUnit" asp-action="ImportWards" enctype="multipart/form-data" class="js-post-form">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <label class="form-label">Chọn file Excel/CSV</label>
+                            <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                            <div class="small text-muted mt-2">Định dạng: <code>CityId-or-"ID - Name"-or-Code-or-Name,WardCode,WardName</code>.</div>
+                        </div>
+                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-success">Import</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            function ensureAntiForgery(form) {
+                if (!form) return;
+                var tokenInForm = form.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenInForm) return;
+                var globalToken = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!globalToken) return;
+                var cloned = document.createElement('input'); cloned.type = 'hidden'; cloned.name = '__RequestVerificationToken'; cloned.value = globalToken.value; form.appendChild(cloned);
+            }
+
+            function showLoading() { if (typeof window.showLoading === 'function') window.showLoading(); }
+            function hideLoading() { if (typeof window.hideLoading === 'function') window.hideLoading(); }
+
+            document.querySelectorAll('form.js-post-form').forEach(function (form) { form.addEventListener('submit', function () { ensureAntiForgery(form); showLoading(); }); });
+            document.querySelectorAll('form.js-search-form').forEach(function (form) { form.addEventListener('submit', function () { showLoading(); }); });
+            document.querySelectorAll('form.js-export-form').forEach(function (form) { form.addEventListener('submit', function () { showLoading(); setTimeout(function () { hideLoading(); }, 2500); }); });
+
+            document.addEventListener('click', async function (e) {
+                var btn = e.target.closest('.js-action-button'); if (!btn) return;
+                var formId = btn.getAttribute('data-form-id'); if (!formId) return; var form = document.getElementById(formId); if (!form) return;
+                if (btn.getAttribute('data-require-selection') === '1') {
+                    var checked = document.querySelectorAll('.js-city-check:checked, .js-ward-check:checked');
+                    if (!checked.length) { if (window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 mục.'); return; }
+                }
+
+                var title = btn.getAttribute('data-confirm-title') || 'Xác nhận'; var message = btn.getAttribute('data-confirm-message') || 'Bạn có chắc chắn?'; var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') { ok = await AppCommon.confirm({ title: title, message: message }); }
+                if (!ok) return;
+                ensureAntiForgery(form); showLoading(); form.requestSubmit();
+            });
+
+            function setupBulk(chkAllId, rowSelector, bulkBtnId) {
+                var chkAll = document.getElementById(chkAllId); var bulkDeleteBtn = document.getElementById(bulkBtnId); var rowChecks = Array.prototype.slice.call(document.querySelectorAll(rowSelector));
+                function updateBulkDeleteState() {
+                    if (!bulkDeleteBtn) return; var checkedCount = document.querySelectorAll(rowSelector + ':checked').length; var hasSelection = checkedCount > 0; bulkDeleteBtn.disabled = !hasSelection; bulkDeleteBtn.classList.toggle('d-none', !hasSelection);
+                    if (chkAll) { var total = rowChecks.length; chkAll.checked = total > 0 && checkedCount === total; chkAll.indeterminate = checkedCount > 0 && checkedCount < total; }
+                }
+                if (chkAll) { chkAll.addEventListener('change', function () { document.querySelectorAll(rowSelector).forEach(function (c) { c.checked = chkAll.checked; }); updateBulkDeleteState(); }); }
+                rowChecks.forEach(function (c) { c.addEventListener('change', updateBulkDeleteState); }); updateBulkDeleteState();
+            }
+
+            setupBulk('chkAllCities', '.js-city-check', 'btnBulkDeleteCities');
+            setupBulk('chkAllWards', '.js-ward-check', 'btnBulkDeleteWards');
+        })();
+    </script>
+
+    @if (TempData["CitySuccess"] is string citySuccess) { <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(citySuccess)) );</script> }
+    @if (TempData["CityError"] is string cityError) { <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(cityError)) );</script> }
+    @if (TempData["WardSuccess"] is string wardSuccess) { <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(wardSuccess)) );</script> }
+    @if (TempData["WardError"] is string wardError) { <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(wardError)) );</script> }
+}

@@ -1,0 +1,911 @@
+﻿@model List<BusManagement.Model.Dtos.TM_VENDORDTO>
+@{
+    ViewData["Title"] = "Quản lý nhà cung cấp";
+
+    string? vendorCode = ViewBag.VendorCode as string;
+    string? vendorName = ViewBag.VendorName as string;
+    string? address = ViewBag.Address as string;
+    string? vendorPhone = ViewBag.VendorPhone as string;
+    string? taxIdentifyNumber = ViewBag.TaxIdentifyNumber as string;
+    string? directorName = ViewBag.DirectorName as string;
+    string? directorPhone = ViewBag.DirectorPhone as string;
+    string? picName = ViewBag.PicName as string;
+    string? picPhone = ViewBag.PicPhone as string;
+
+    var busCount45 = ViewBag.BusCount45 as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var busCount29 = ViewBag.BusCount29 as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var busCount16 = ViewBag.BusCount16 as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var busCount7 = ViewBag.BusCount7 as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var busCountTotal = ViewBag.BusCountTotal as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var busesByVendorId = ViewBag.BusesByVendorId as Dictionary<int, List<BusManagement.Model.Dtos.TM_BUSDTO>> ?? new Dictionary<int, List<BusManagement.Model.Dtos.TM_BUSDTO>>();
+    var driversByVendorId = ViewBag.DriversByVendorId as Dictionary<int, List<BusManagement.Model.Dtos.TM_DRIVERDTO>> ?? new Dictionary<int, List<BusManagement.Model.Dtos.TM_DRIVERDTO>>();
+
+    int pageNumber = ViewBag.PageNumber ?? 1;
+    int pageSize = ViewBag.PageSize ?? 10;
+    int totalCount = ViewBag.TotalCount ?? 0;
+    int totalPages = ViewBag.TotalPages ?? 1;
+
+    var startIndex = totalCount == 0 ? 0 : ((pageNumber - 1) * pageSize + 1);
+    var endIndex = Math.Min(pageNumber * pageSize, totalCount);
+}
+
+<style>
+    .table thead th {
+        text-align: center;
+        vertical-align: middle;
+        white-space: normal;
+        line-height: 1.25;
+        min-width: 90px;
+    }
+
+        .table thead th:first-child,
+        .table tbody td:first-child {
+            width: 36px !important;
+            min-width: 36px !important;
+            padding-left: .25rem;
+            padding-right: .25rem;
+            text-align: center;
+        }
+
+        .table thead th:nth-child(2),
+        .table tbody td:nth-child(2) {
+            min-width: 56px !important;
+            padding-left: .35rem;
+            padding-right: .35rem;
+            text-align: center;
+        }
+
+    @@media (min-width: 992px) {
+        .vendor-search-col {
+            flex: 0 0 20%;
+            max-width: 20%;
+        }
+    }
+</style>
+
+<div class="card border-0 shadow-sm p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Quản lý nhà cung cấp</h5>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createVendorModal">
+                <i class="fa-solid fa-plus me-1"></i>Thêm mới
+            </button>
+            <button type="button" id="btnDeleteSelected" class="btn btn-danger d-none">
+                <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+            </button>
+        </div>
+    </div>
+
+    <form method="get" asp-controller="Vendor" asp-action="Management" class="row g-2 align-items-end mb-3">
+        <div class="col-12 col-md-6 vendor-search-col">
+            <input class="form-control form-control-sm" name="vendorCode" value="@vendorCode" placeholder="Mã nhà cung cấp" />
+        </div>
+        <div class="col-12 col-md-6 vendor-search-col">
+            <input class="form-control form-control-sm" name="vendorName" value="@vendorName" placeholder="Tên nhà cung cấp" />
+        </div>
+        <div class="col-12 col-md-6 vendor-search-col">
+            <input class="form-control form-control-sm" name="address" value="@address" placeholder="Địa chỉ" />
+        </div>
+        <div class="col-12 col-md-6 vendor-search-col">
+            <input class="form-control form-control-sm" name="vendorPhone" value="@vendorPhone" placeholder="Số điện thoại nhà cung cấp" />
+        </div>
+        <div class="col-12 col-md-6 vendor-search-col">
+            <input class="form-control form-control-sm" name="taxIdentifyNumber" value="@taxIdentifyNumber" placeholder="Mã số thuế" />
+        </div>
+        <div class="col-12 col-md-6 vendor-search-col">
+            <input class="form-control form-control-sm" name="directorName" value="@directorName" placeholder="Tên giám đốc" />
+        </div>
+        <div class="col-12 col-md-6 vendor-search-col">
+            <input class="form-control form-control-sm" name="directorPhone" value="@directorPhone" placeholder="Số điện thoại giám đốc" />
+        </div>
+        <div class="col-12 col-md-6 vendor-search-col">
+            <input class="form-control form-control-sm" name="picName" value="@picName" placeholder="Tên người phụ trách" />
+        </div>
+        <div class="col-12 col-md-6 vendor-search-col">
+            <input class="form-control form-control-sm" name="picPhone" value="@picPhone" placeholder="Số điện thoại người phụ trách" />
+        </div>
+        <div class="col-12 col-md-6 vendor-search-col d-grid">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm
+            </button>
+        </div>
+    </form>
+
+    <form id="vendorGridForm" method="post" asp-controller="Vendor" asp-action="SaveGrid">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="vendorCode" value="@vendorCode" />
+        <input type="hidden" name="vendorName" value="@vendorName" />
+        <input type="hidden" name="address" value="@address" />
+        <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+        <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+        <input type="hidden" name="directorName" value="@directorName" />
+        <input type="hidden" name="directorPhone" value="@directorPhone" />
+        <input type="hidden" name="picName" value="@picName" />
+        <input type="hidden" name="picPhone" value="@picPhone" />
+        <input type="hidden" name="page" value="@pageNumber" />
+        <input type="hidden" name="pageSize" value="@pageSize" />
+
+        <div id="deletedIdsContainer"></div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:40px;"><input id="chkAllVendors" type="checkbox" class="form-check-input" /></th>
+                        <th style="width:70px;">STT</th>
+                        <th>Mã nhà cung cấp</th>
+                        <th>Tên nhà cung cấp</th>
+                        <th>Số điện thoại nhà cung cấp</th>
+                        <th>Địa chỉ</th>
+                        <th>Mã số thuế</th>
+                        <th>Tên giám đốc</th>
+                        <th>Số điện thoại giám đốc</th>
+                        <th>Tên người phụ trách</th>
+                        <th>Số điện thoại người phụ trách</th>
+                        <th>Số lượng xe 45 chỗ</th>
+                        <th>Số lượng xe 29 chỗ</th>
+                        <th>Số lượng xe 16 chỗ</th>
+                        <th>Số lượng xe 7 chỗ</th>
+                        <th>Tổng số lượng xe</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="17" class="text-center text-muted py-4">Không có dữ liệu.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        for (var i = 0; i < Model.Count; i++)
+                        {
+                            var row = Model[i];
+                            <tr>
+                                <td><input class="form-check-input js-vendor-check" type="checkbox" value="@row.ID" /></td>
+                                <td>@(startIndex + i)</td>
+                                <td>@row.CHR_VENDOR_CODE</td>
+                                <td>@row.NVCHR_VENDOR_NAME</td>
+                                <td>@row.CHR_VENDOR_PHONE</td>
+                                <td>@row.NVCHR_ADDRESS</td>
+                                <td>@row.CHR_TAX_IDENTIFY_NUMBER</td>
+                                <td>@row.NVCHR_DIRECTOR_NAME</td>
+                                <td>@row.CHR_DIRECTOR_PHONE</td>
+                                <td>@row.NVCHR_PIC_NAME</td>
+                                <td>@row.CHR_PIC_PHONE</td>
+                                <td>
+                                    <button type="button" class="btn btn-link p-0 js-open-vendor-buses" data-vendor-id="@row.ID" data-filter="45">
+                                        @(busCount45.TryGetValue(row.ID, out int c45) ? c45 : 0)
+                                    </button>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-link p-0 js-open-vendor-buses" data-vendor-id="@row.ID" data-filter="29">
+                                        @(busCount29.TryGetValue(row.ID, out int c29) ? c29 : 0)
+                                    </button>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-link p-0 js-open-vendor-buses" data-vendor-id="@row.ID" data-filter="16">
+                                        @(busCount16.TryGetValue(row.ID, out int c16) ? c16 : 0)
+                                    </button>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-link p-0 js-open-vendor-buses" data-vendor-id="@row.ID" data-filter="7">
+                                        @(busCount7.TryGetValue(row.ID, out int c7) ? c7 : 0)
+                                    </button>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-link p-0 fw-bold js-open-vendor-buses" data-vendor-id="@row.ID" data-filter="all">
+                                        @(busCountTotal.TryGetValue(row.ID, out int cAll) ? cAll : 0)
+                                    </button>
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-primary mb-1 js-open-vendor-buses" data-vendor-id="@row.ID" data-filter="all" title="Xem danh sách xe">
+                                        <i class="fa-solid fa-bus"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-primary mb-1 js-open-vendor-drivers" data-vendor-id="@row.ID" title="Xem danh sách tài xế">
+                                        <i class="fa-solid fa-user-large"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-primary ms- mb-1" data-bs-toggle="modal" data-bs-target="#editVendorModal-@row.ID" title="Sửa">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-danger js-delete-one ms-1 mb-1" data-id="@row.ID" title="Xóa">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </form>
+
+    <form id="deleteOneForm" method="post" asp-controller="Vendor" asp-action="DeleteVendor" class="d-none">
+        @Html.AntiForgeryToken()
+        <input type="hidden" id="deleteOneId" name="id" />
+        <input type="hidden" name="vendorCode" value="@vendorCode" />
+        <input type="hidden" name="vendorName" value="@vendorName" />
+        <input type="hidden" name="address" value="@address" />
+        <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+        <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+        <input type="hidden" name="directorName" value="@directorName" />
+        <input type="hidden" name="directorPhone" value="@directorPhone" />
+        <input type="hidden" name="picName" value="@picName" />
+        <input type="hidden" name="picPhone" value="@picPhone" />
+        <input type="hidden" name="page" value="@pageNumber" />
+        <input type="hidden" name="pageSize" value="@pageSize" />
+    </form>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @totalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = pageNumber,
+        TotalPages = totalPages,
+        PageSize = pageSize,
+        Action = "Management",
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["vendorCode"] = vendorCode,
+            ["vendorName"] = vendorName,
+            ["address"] = address,
+            ["vendorPhone"] = vendorPhone,
+            ["taxIdentifyNumber"] = taxIdentifyNumber,
+            ["directorName"] = directorName,
+            ["directorPhone"] = directorPhone,
+            ["picName"] = picName,
+            ["picPhone"] = picPhone
+        }
+        })
+</div>
+
+@foreach (var row in Model)
+{
+    var vendorBuses = busesByVendorId.TryGetValue(row.ID, out List<BusManagement.Model.Dtos.TM_BUSDTO>? mappedBuses)
+        ? mappedBuses
+        : new List<BusManagement.Model.Dtos.TM_BUSDTO>();
+    var vendorDrivers = driversByVendorId.TryGetValue(row.ID, out List<BusManagement.Model.Dtos.TM_DRIVERDTO>? mappedDrivers)
+        ? mappedDrivers
+        : new List<BusManagement.Model.Dtos.TM_DRIVERDTO>();
+
+    <div class="modal fade dragable-modal" id="editVendorModal-@row.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cập nhật nhà xe</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" asp-controller="Vendor" asp-action="UpdateVendor">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="id" value="@row.ID" />
+                        <input type="hidden" name="vendorCode" value="@vendorCode" />
+                        <input type="hidden" name="vendorName" value="@vendorName" />
+                        <input type="hidden" name="address" value="@address" />
+                        <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+                        <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+                        <input type="hidden" name="directorName" value="@directorName" />
+                        <input type="hidden" name="directorPhone" value="@directorPhone" />
+                        <input type="hidden" name="picName" value="@picName" />
+                        <input type="hidden" name="picPhone" value="@picPhone" />
+                        <input type="hidden" name="page" value="@pageNumber" />
+                        <input type="hidden" name="pageSize" value="@pageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6"><label class="form-label">Mã nhà cung cấp</label><input class="form-control" name="updateVendorCode" value="@row.CHR_VENDOR_CODE" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Tên nhà cung cấp</label><input class="form-control" name="updateVendorName" value="@row.NVCHR_VENDOR_NAME" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">SĐT</label><input class="form-control" name="updateVendorPhone" value="@row.CHR_VENDOR_PHONE" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Địa chỉ</label><input class="form-control" name="updateAddress" value="@row.NVCHR_ADDRESS" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">MST</label><input class="form-control" name="updateTaxIdentifyNumber" value="@row.CHR_TAX_IDENTIFY_NUMBER" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Tên giám đốc</label><input class="form-control" name="updateDirectorName" value="@row.NVCHR_DIRECTOR_NAME" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">SĐT giám đốc</label><input class="form-control" name="updateDirectorPhone" value="@row.CHR_DIRECTOR_PHONE" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Người liên hệ</label><input class="form-control" name="updatePicName" value="@row.NVCHR_PIC_NAME" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">SĐT liên hệ</label><input class="form-control" name="updatePicPhone" value="@row.CHR_PIC_PHONE" /></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Hủy</button>
+                        <button class="btn btn-primary" type="submit">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade dragable-modal vendor-bus-modal" id="vendorBusModal-@row.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Danh sách xe - @row.NVCHR_VENDOR_NAME</h5>
+
+                    <button type="button" class="btn btn-sm btn-primary ms-3" data-bs-toggle="modal" data-bs-target="#createVendorBusModal-@row.ID">
+                        <i class="fa-solid fa-plus me-1"></i>Thêm xe
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-primary js-bus-filter-btn" data-filter="all">Tất cả</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary js-bus-filter-btn" data-filter="45">45 chỗ</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary js-bus-filter-btn" data-filter="29">29 chỗ</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary js-bus-filter-btn" data-filter="16">16 chỗ</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary js-bus-filter-btn" data-filter="7">7 chỗ</button>
+                    </div>
+
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm table-hover align-middle vendor-bus-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>STT</th>
+                                    <th class="bus-col-code">Mã xe</th>
+                                    <th>Tên xe</th>
+                                    <th>Biển số</th>
+                                    <th>Loại xe</th>
+                                    <th>Hãng</th>
+                                    <th>Model</th>
+                                    <th>Năm SX</th>
+                                    <th>Sức chứa</th>
+                                    <th>Trạng thái</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!vendorBuses.Any())
+                                {
+                                    <tr class="js-bus-empty">
+                                        <td colspan="11" class="text-center text-muted py-3">Nhà cung cấp chưa có xe.</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    for (var busIndex = 0; busIndex < vendorBuses.Count; busIndex++)
+                                    {
+                                        var bus = vendorBuses[busIndex];
+                                        var busCapacity = bus.INT_CAPACITY?.ToString() ?? string.Empty;
+                                        <tr class="js-vendor-bus-row" data-capacity="@busCapacity">
+                                            <td>@(busIndex + 1)</td>
+                                            <td class="bus-col-code">@bus.CHR_BUS_CODE</td>
+                                            <td>@bus.NVCHR_BUS_NAME</td>
+                                            <td>@bus.CHR_LICENSE_PLATE</td>
+                                            <td>@bus.NVCHR_CATEGORY</td>
+                                            <td>@bus.NVCHR_BRAND</td>
+                                            <td>@bus.NVCHR_MODEL</td>
+                                            <td>@bus.NVCHR_MODEL_YEAR</td>
+                                            <td>@(bus.INT_CAPACITY?.ToString() ?? "-")</td>
+                                            <td>
+                                                @if (bus.BIT_IS_ACTIVE == true)
+                                                {
+                                                    <span class="badge bg-success">Đang hoạt động</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">Ngưng hoạt động</span>
+                                                }
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editVendorBusModal-@bus.ID" title="Sửa xe">
+                                                    <i class="fa-solid fa-pen"></i>
+                                                </button>
+                                                <form id="deleteVendorBusForm-@bus.ID" method="post" asp-controller="Vendor" asp-action="QuickDeleteBus" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@bus.ID" />
+                                                    <input type="hidden" name="vendorName" value="@vendorName" />
+                                                    <input type="hidden" name="address" value="@address" />
+                                                    <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+                                                    <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+                                                    <input type="hidden" name="directorName" value="@directorName" />
+                                                    <input type="hidden" name="directorPhone" value="@directorPhone" />
+                                                    <input type="hidden" name="picName" value="@picName" />
+                                                    <input type="hidden" name="picPhone" value="@picPhone" />
+                                                    <input type="hidden" name="page" value="@pageNumber" />
+                                                    <input type="hidden" name="pageSize" value="@pageSize" />
+                                                    <button type="button" class="btn btn-sm btn-danger js-delete-bus" data-form-id="deleteVendorBusForm-@bus.ID" title="Xóa xe">
+                                                        <i class="fa-solid fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                    <tr class="js-bus-empty d-none">
+                                        <td colspan="11" class="text-center text-muted py-3">Không có xe theo bộ lọc đã chọn.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade dragable-modal" id="createVendorBusModal-@row.ID" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Thêm xe - @row.NVCHR_VENDOR_NAME</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" asp-controller="Vendor" asp-action="QuickCreateBus">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <input type="hidden" name="vendorId" value="@row.ID" />
+                            <input type="hidden" name="vendorName" value="@vendorName" />
+                            <input type="hidden" name="address" value="@address" />
+                            <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+                            <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+                            <input type="hidden" name="directorName" value="@directorName" />
+                            <input type="hidden" name="directorPhone" value="@directorPhone" />
+                            <input type="hidden" name="picName" value="@picName" />
+                            <input type="hidden" name="picPhone" value="@picPhone" />
+                            <input type="hidden" name="page" value="@pageNumber" />
+                            <input type="hidden" name="pageSize" value="@pageSize" />
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6"><label class="form-label">Mã xe</label><input class="form-control" name="createBusCode" required /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Tên xe</label><input class="form-control" name="createBusName" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Biển số</label><input class="form-control" name="createLicensePlate" required /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Loại xe</label><input class="form-control" name="createCategory" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Hãng xe</label><input class="form-control" name="createBrand" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Model</label><input class="form-control" name="createModel" /></div>
+                                <div class="col-12 col-md-4"><label class="form-label">Năm sản xuất</label><input class="form-control" name="createModelYear" /></div>
+                                <div class="col-12 col-md-4"><label class="form-label">Sức chứa</label><input type="number" min="1" class="form-control" name="createCapacity" /></div>
+                                <div class="col-12 col-md-4"><label class="form-label">Trạng thái</label>
+                                    <select class="form-select" name="createIsActive">
+                                        <option value="true">Đang hoạt động</option>
+                                        <option value="false">Ngưng hoạt động</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+    </div>
+
+    @foreach (var bus in vendorBuses)
+    {
+        <div class="modal fade dragable-modal" id="editVendorBusModal-@bus.ID" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cập nhật xe - @bus.CHR_BUS_CODE</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" asp-controller="Vendor" asp-action="QuickUpdateBus">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <input type="hidden" name="id" value="@bus.ID" />
+                            <input type="hidden" name="vendorName" value="@vendorName" />
+                            <input type="hidden" name="address" value="@address" />
+                            <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+                            <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+                            <input type="hidden" name="directorName" value="@directorName" />
+                            <input type="hidden" name="directorPhone" value="@directorPhone" />
+                            <input type="hidden" name="picName" value="@picName" />
+                            <input type="hidden" name="picPhone" value="@picPhone" />
+                            <input type="hidden" name="page" value="@pageNumber" />
+                            <input type="hidden" name="pageSize" value="@pageSize" />
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6"><label class="form-label">Mã xe</label><input class="form-control" name="updateBusCode" value="@bus.CHR_BUS_CODE" required /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Tên xe</label><input class="form-control" name="updateBusName" value="@bus.NVCHR_BUS_NAME" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Biển số</label><input class="form-control" name="updateLicensePlate" value="@bus.CHR_LICENSE_PLATE" required /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Loại xe</label><input class="form-control" name="updateCategory" value="@bus.NVCHR_CATEGORY" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Hãng xe</label><input class="form-control" name="updateBrand" value="@bus.NVCHR_BRAND" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Model</label><input class="form-control" name="updateModel" value="@bus.NVCHR_MODEL" /></div>
+                                <div class="col-12 col-md-4"><label class="form-label">Năm sản xuất</label><input class="form-control" name="updateModelYear" value="@bus.NVCHR_MODEL_YEAR" /></div>
+                                <div class="col-12 col-md-4"><label class="form-label">Sức chứa</label><input type="number" min="1" class="form-control" name="updateCapacity" value="@bus.INT_CAPACITY" /></div>
+                                <div class="col-12 col-md-4"><label class="form-label">Trạng thái</label>
+                                    <select class="form-select" name="updateIsActive">
+                                        @if (bus.BIT_IS_ACTIVE == true)
+                                        {
+                                            <option value="true" selected>Đang hoạt động</option>
+                                            <option value="false">Ngưng hoạt động</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="true">Đang hoạt động</option>
+                                            <option value="false" selected>Ngưng hoạt động</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="modal fade dragable-modal" id="vendorDriverModal-@row.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Danh sách tài xế - @row.NVCHR_VENDOR_NAME</h5>
+                    <button type="button" class="btn btn-sm btn-primary ms-3" data-bs-toggle="modal" data-bs-target="#createVendorDriverModal-@row.ID">
+                        <i class="fa-solid fa-plus me-1"></i>Thêm tài xế
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle vendor-driver-table">
+                            <thead class="table-light text-nowrap">
+                                <tr>
+                                    <th>STT</th>
+                                    <th class="driver-col-name">Tên tài xế</th>
+                                    <th>SĐT</th>
+                                    <th>Ngày sinh</th>
+                                    <th>Hạng GPLX</th>
+                                    <th>Mã thẻ</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!vendorDrivers.Any())
+                                {
+                                    <tr><td colspan="7" class="text-center text-muted py-3">Nhà cung cấp chưa có tài xế.</td></tr>
+                                }
+                                else
+                                {
+                                    for (var driverIndex = 0; driverIndex < vendorDrivers.Count; driverIndex++)
+                                    {
+                                        var driver = vendorDrivers[driverIndex];
+                                        <tr>
+                                            <td>@(driverIndex + 1)</td>
+                                            <td class="driver-col-name">@driver.NVCHR_DRIVER_NAME</td>
+                                            <td>@driver.CHR_DRIVER_PHONE</td>
+                                            <td>@driver.CHR_DATE_OF_BIRTH</td>
+                                            <td>@driver.CHR_LICENSE_CATEGORY</td>
+                                            <td>@driver.CHR_ACCESS_CARD_CODE</td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editVendorDriverModal-@driver.ID" title="Sửa tài xế">
+                                                    <i class="fa-solid fa-pen"></i>
+                                                </button>
+                                                <form id="deleteVendorDriverForm-@driver.ID" method="post" asp-controller="Vendor" asp-action="QuickDeleteDriver" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@driver.ID" />
+                                                    <input type="hidden" name="vendorName" value="@vendorName" />
+                                                    <input type="hidden" name="address" value="@address" />
+                                                    <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+                                                    <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+                                                    <input type="hidden" name="directorName" value="@directorName" />
+                                                    <input type="hidden" name="directorPhone" value="@directorPhone" />
+                                                    <input type="hidden" name="picName" value="@picName" />
+                                                    <input type="hidden" name="picPhone" value="@picPhone" />
+                                                    <input type="hidden" name="page" value="@pageNumber" />
+                                                    <input type="hidden" name="pageSize" value="@pageSize" />
+                                                    <button type="button" class="btn btn-sm btn-danger js-delete-driver" data-form-id="deleteVendorDriverForm-@driver.ID" title="Xóa tài xế">
+                                                        <i class="fa-solid fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade dragable-modal" id="createVendorDriverModal-@row.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm tài xế - @row.NVCHR_VENDOR_NAME</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" asp-controller="Vendor" asp-action="QuickCreateDriver">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="vendorId" value="@row.ID" />
+                        <input type="hidden" name="vendorName" value="@vendorName" />
+                        <input type="hidden" name="address" value="@address" />
+                        <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+                        <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+                        <input type="hidden" name="directorName" value="@directorName" />
+                        <input type="hidden" name="directorPhone" value="@directorPhone" />
+                        <input type="hidden" name="picName" value="@picName" />
+                        <input type="hidden" name="picPhone" value="@picPhone" />
+                        <input type="hidden" name="page" value="@pageNumber" />
+                        <input type="hidden" name="pageSize" value="@pageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6"><label class="form-label">Tên tài xế</label><input class="form-control" name="createDriverName" required /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Số điện thoại</label><input class="form-control" name="createDriverPhone" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Ngày tháng năm sinh</label><input class="form-control" name="createDateOfBirth" type="date" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Hạng giấy phép</label><input class="form-control" name="createLicenseCategory" /></div>
+                            <div class="col-12 col-md-6"><label class="form-label">Mã thẻ ra vào</label><input class="form-control" name="createAccessCardCode" /></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @foreach (var driver in vendorDrivers)
+    {
+        <div class="modal fade dragable-modal" id="editVendorDriverModal-@driver.ID" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cập nhật tài xế - @driver.NVCHR_DRIVER_NAME</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" asp-controller="Vendor" asp-action="QuickUpdateDriver">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <input type="hidden" name="id" value="@driver.ID" />
+                            <input type="hidden" name="vendorName" value="@vendorName" />
+                            <input type="hidden" name="address" value="@address" />
+                            <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+                            <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+                            <input type="hidden" name="directorName" value="@directorName" />
+                            <input type="hidden" name="directorPhone" value="@directorPhone" />
+                            <input type="hidden" name="picName" value="@picName" />
+                            <input type="hidden" name="picPhone" value="@picPhone" />
+                            <input type="hidden" name="page" value="@pageNumber" />
+                            <input type="hidden" name="pageSize" value="@pageSize" />
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6"><label class="form-label">Tên tài xế</label><input class="form-control" name="updateDriverName" value="@driver.NVCHR_DRIVER_NAME" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Số điện thoại</label><input class="form-control" name="updateDriverPhone" value="@driver.CHR_DRIVER_PHONE" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Ngày tháng năm sinh</label><input class="form-control" name="updateDateOfBirth" type="date" value="@driver.CHR_DATE_OF_BIRTH" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Hạng giấy phép</label><input class="form-control" name="updateLicenseCategory" value="@driver.CHR_LICENSE_CATEGORY" /></div>
+                                <div class="col-12 col-md-6"><label class="form-label">Mã thẻ ra vào</label><input class="form-control" name="updateAccessCardCode" value="@driver.CHR_ACCESS_CARD_CODE" /></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<div class="modal fade dragable-modal" id="createVendorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm nhà xe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" asp-controller="Vendor" asp-action="CreateVendor">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="vendorCode" value="@vendorCode" />
+                    <input type="hidden" name="vendorName" value="@vendorName" />
+                    <input type="hidden" name="address" value="@address" />
+                    <input type="hidden" name="vendorPhone" value="@vendorPhone" />
+                    <input type="hidden" name="taxIdentifyNumber" value="@taxIdentifyNumber" />
+                    <input type="hidden" name="directorName" value="@directorName" />
+                    <input type="hidden" name="directorPhone" value="@directorPhone" />
+                    <input type="hidden" name="picName" value="@picName" />
+                    <input type="hidden" name="picPhone" value="@picPhone" />
+                    <input type="hidden" name="page" value="@pageNumber" />
+                    <input type="hidden" name="pageSize" value="@pageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6"><label class="form-label">Mã nhà cung cấp</label><input class="form-control" name="createVendorCode" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Tên nhà cung cấp</label><input class="form-control" name="createVendorName" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">SĐT</label><input class="form-control" name="createVendorPhone" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Địa chỉ</label><input class="form-control" name="createAddress" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">MST</label><input class="form-control" name="createTaxIdentifyNumber" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Tên giám đốc</label><input class="form-control" name="createDirectorName" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">SĐT giám đốc</label><input class="form-control" name="createDirectorPhone" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Người liên hệ</label><input class="form-control" name="createPicName" /></div>
+                        <div class="col-12 col-md-6"><label class="form-label">SĐT liên hệ</label><input class="form-control" name="createPicPhone" /></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Đóng</button>
+                    <button class="btn btn-primary" type="submit">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @if (TempData["VendorSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.success(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["VendorError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            var $chkAll = $('#chkAllVendors');
+            var $rowChecks = $('.js-vendor-check');
+            var $btnDelete = $('#btnDeleteSelected');
+            var $deletedIdsContainer = $('#deletedIdsContainer');
+            var $gridForm = $('#vendorGridForm');
+            var $deleteOneForm = $('#deleteOneForm');
+            var $deleteOneId = $('#deleteOneId');
+
+            function refreshDeleteButtonState() {
+                var selected = $('.js-vendor-check:checked').length;
+                $btnDelete.toggleClass('d-none', selected === 0);
+
+                var total = $rowChecks.length;
+                $chkAll.prop('checked', total > 0 && selected === total);
+                $chkAll.prop('indeterminate', selected > 0 && selected < total);
+            }
+
+            $chkAll.on('change', function () {
+                var checked = $(this).is(':checked');
+                $rowChecks.prop('checked', checked);
+                refreshDeleteButtonState();
+            });
+
+            $(document).on('change', '.js-vendor-check', refreshDeleteButtonState);
+
+            $btnDelete.on('click', async function () {
+                var selected = $('.js-vendor-check:checked');
+                if (!selected.length) {
+                    window.AppCommon && AppCommon.warning('Vui lòng chọn ít nhất 1 nhà xe.');
+                    return;
+                }
+
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({
+                        title: 'Xóa nhiều nhà xe',
+                        message: 'Bạn có chắc chắn muốn xóa các nhà xe đã chọn?',
+                        okText: 'Đồng ý',
+                        cancelText: 'Hủy',
+                        okVariant: 'danger'
+                    });
+                } else {
+                    ok = confirm('Bạn có chắc chắn muốn xóa các nhà xe đã chọn?');
+                }
+
+                if (!ok) return;
+
+                $deletedIdsContainer.empty();
+                selected.each(function () {
+                    $deletedIdsContainer.append('<input type="hidden" name="deletedIds" value="' + $(this).val() + '" />');
+                });
+
+                $gridForm.trigger('submit');
+            });
+
+            $(document).on('click', '.js-delete-one', async function () {
+                var id = $(this).data('id');
+                if (!id) return;
+
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({
+                        title: 'Xóa nhà xe',
+                        message: 'Bạn có chắc chắn muốn xóa nhà xe này?',
+                        okText: 'Đồng ý',
+                        cancelText: 'Hủy',
+                        okVariant: 'danger'
+                    });
+                } else {
+                    ok = confirm('Bạn có chắc chắn muốn xóa nhà xe này?');
+                }
+
+                if (!ok) return;
+
+                $deleteOneId.val(id);
+                $deleteOneForm.trigger('submit');
+            });
+
+            function applyVendorBusFilter($modal, filterValue) {
+                var normalized = (filterValue || 'all').toString();
+                var visibleCount = 0;
+
+                $modal.find('.js-bus-filter-btn').removeClass('active btn-primary').addClass('btn-outline-primary');
+                $modal.find('.js-bus-filter-btn[data-filter="' + normalized + '"]')
+                    .removeClass('btn-outline-primary')
+                    .addClass('active btn-primary');
+
+                $modal.find('.js-vendor-bus-row').each(function () {
+                    var rowCapacity = ($(this).data('capacity') || '').toString();
+                    var isVisible = normalized === 'all' || rowCapacity === normalized;
+                    $(this).toggle(isVisible);
+                    if (isVisible) visibleCount++;
+                });
+
+                $modal.find('.js-bus-empty').toggleClass('d-none', visibleCount > 0);
+            }
+
+            $(document).on('click', '.js-open-vendor-buses', function () {
+                var vendorId = $(this).data('vendor-id');
+                if (!vendorId) return;
+
+                var filter = ($(this).data('filter') || 'all').toString();
+                var $modal = $('#vendorBusModal-' + vendorId);
+                if (!$modal.length) return;
+
+                $modal.data('open-filter', filter);
+                $modal.modal('show');
+            });
+
+            $(document).on('click', '.js-open-vendor-drivers', function () {
+                var vendorId = $(this).data('vendor-id');
+                if (!vendorId) return;
+
+                var $modal = $('#vendorDriverModal-' + vendorId);
+                if (!$modal.length) return;
+                $modal.modal('show');
+            });
+
+            $(document).on('shown.bs.modal', '.vendor-bus-modal', function () {
+                var $modal = $(this);
+                var filter = ($modal.data('open-filter') || 'all').toString();
+                applyVendorBusFilter($modal, filter);
+            });
+
+            $(document).on('click', '.vendor-bus-modal .js-bus-filter-btn', function () {
+                var $modal = $(this).closest('.vendor-bus-modal');
+                var filter = ($(this).data('filter') || 'all').toString();
+                applyVendorBusFilter($modal, filter);
+            });
+
+            async function confirmDelete(message) {
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({
+                        title: 'Xác nhận xóa',
+                        message: message,
+                        okText: 'Đồng ý',
+                        cancelText: 'Hủy',
+                        okVariant: 'danger'
+                    });
+                } else {
+                    ok = confirm(message);
+                }
+                return ok;
+            }
+
+            $(document).on('click', '.js-delete-bus', async function () {
+                var formId = $(this).data('form-id');
+                if (!formId) return;
+                var ok = await confirmDelete('Bạn có chắc chắn muốn xóa xe này?');
+                if (!ok) return;
+                $('#' + formId).trigger('submit');
+            });
+
+            $(document).on('click', '.js-delete-driver', async function () {
+                var formId = $(this).data('form-id');
+                if (!formId) return;
+                var ok = await confirmDelete('Bạn có chắc chắn muốn xóa tài xế này?');
+                if (!ok) return;
+                $('#' + formId).trigger('submit');
+            });
+
+            refreshDeleteButtonState();
+        })();
+    </script>
+}

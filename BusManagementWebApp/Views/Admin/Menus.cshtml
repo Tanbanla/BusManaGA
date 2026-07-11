@@ -1,0 +1,866 @@
+﻿@model BusManagement.ViewModels.Admin.MenusPageViewModel
+@{
+    ViewData["Title"] = "Quản lý menu";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+    var collapseToRootOnly = string.IsNullOrWhiteSpace(Model.Keyword)
+        && !Model.ParentId.HasValue
+        && !Model.RoleId.HasValue
+        && !Model.IsActive.HasValue;
+    var treeMenus = Model.BuildOrderedTree();
+
+    var allMap = Model.AllMenus.ToDictionary(x => x.ID, x => x);
+    int ResolveRootId(int id)
+    {
+        if (!allMap.TryGetValue(id, out var current)) return id;
+
+        var visited = new HashSet<int>();
+        while (current.INT_PARENT_ID.HasValue && current.INT_PARENT_ID.Value > 0)
+        {
+            if (!visited.Add(current.ID)) break;
+            if (!allMap.TryGetValue(current.INT_PARENT_ID.Value, out var parent)) break;
+            current = parent;
+        }
+
+        return current.ID;
+    }
+
+    var rootIds = Model.AllMenus
+        .Where(x => !x.INT_PARENT_ID.HasValue || x.INT_PARENT_ID.Value <= 0)
+        .OrderBy(x => x.INT_SORT_ORDER ?? int.MaxValue)
+        .ThenBy(x => x.ID)
+        .Select(x => x.ID)
+        .ToList();
+
+    var rootColorMap = new Dictionary<int, int>();
+    for (var i = 0; i < rootIds.Count; i++)
+    {
+        rootColorMap[rootIds[i]] = i % 6;
+    }
+}
+
+<style>
+    .admin-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    .table thead th {
+        white-space: nowrap;
+    }
+
+    .menu-indent {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+    }
+
+    .menu-toggle {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #334155;
+    }
+
+        .menu-toggle i {
+            transition: transform .2s ease;
+        }
+
+        .menu-toggle.collapsed i {
+            transform: rotate(-90deg);
+        }
+
+    .menu-root-0 {
+        background: rgba(59, 130, 246, .08);
+    }
+
+    .menu-root-1 {
+        background: rgba(16, 185, 129, .08);
+    }
+
+    .menu-root-2 {
+        background: rgba(245, 158, 11, .08);
+    }
+
+    .menu-root-3 {
+        background: rgba(139, 92, 246, .08);
+    }
+
+    .menu-root-4 {
+        background: rgba(236, 72, 153, .08);
+    }
+
+    .menu-root-5 {
+        background: rgba(20, 184, 166, .08);
+    }
+
+    .menu-root-label {
+        display: inline-block;
+        border-radius: 999px;
+        font-size: 11px;
+        padding: .12rem .45rem;
+        color: #334155;
+        background: rgba(255, 255, 255, .8);
+        border: 1px solid rgba(148, 163, 184, .35);
+        margin-right: .4rem;
+    }
+
+    .role-check-grid {
+        max-height: 260px;
+        overflow: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 8px;
+        background: #f8fafc;
+    }
+</style>
+
+<div class="admin-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Danh sách menu</h5>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createMenuModal" data-parent-id="" data-parent-name="">
+                <i class="fa-solid fa-plus me-1"></i>Thêm menu
+            </button>
+            <form method="get" asp-controller="Admin" asp-action="ExportMenus" class="d-inline js-export-form" data-no-loader>
+                <input type="hidden" name="keyword" value="@Model.Keyword" />
+                <input type="hidden" name="parentId" value="@Model.ParentId" />
+                <input type="hidden" name="roleId" value="@Model.RoleId" />
+                <input type="hidden" name="isActive" value="@Model.IsActive" />
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                </button>
+            </form>
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importMenuModal">
+                <i class="fa-solid fa-file-import me-1"></i>Import Excel
+            </button>
+            <button id="btnBulkDeleteMenus" type="button" class="btn btn-danger js-action-button d-none"
+                    data-form-id="bulkDeleteMenuForm"
+                    data-confirm-title="Xóa nhiều menu"
+                    data-confirm-message="Bạn có chắc chắn muốn xóa các menu đã chọn?"
+                    data-require-selection="1"
+                    disabled>
+                <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+            </button>
+        </div>
+    </div>
+
+    <form method="get" asp-controller="Admin" asp-action="Menus" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="keyword" value="@Model.Keyword" placeholder="Mã menu / Tên menu / Controller / Action" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select class="form-select" name="parentId">
+                @if (!Model.ParentId.HasValue)
+                {
+                    <option value="" selected>Tất cả menu cha</option>
+                }
+                else
+                {
+                    <option value="">Tất cả menu cha</option>
+                }
+                @if (Model.ParentId == 0)
+                {
+                    <option value="0" selected style="font-weight:700;">Chỉ menu gốc</option>
+                }
+                else
+                {
+                    <option value="0" style="font-weight:700;">Chỉ menu gốc</option>
+                }
+                @foreach (var m in treeMenus)
+                {
+                    var level = Model.GetLevel(m);
+                    var label = string.Concat(Enumerable.Repeat("— ", level)) + (m.NVCHR_MENU_NAME ?? m.CHR_MENU_CODE ?? $"Menu #{m.ID}");
+                    var isRootMenuOption = !m.INT_PARENT_ID.HasValue || m.INT_PARENT_ID.Value <= 0;
+                    if (Model.ParentId == m.ID)
+                    {
+                        <option value="@m.ID" selected style="@(isRootMenuOption ? "font-weight:700;" : null)">@label</option>
+                    }
+                    else
+                    {
+                        <option value="@m.ID" style="@(isRootMenuOption ? "font-weight:700;" : null)">@label</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select class="form-select" name="roleId">
+                <option value="">Tất cả quyền</option>
+                @foreach (var role in Model.Roles)
+                {
+                    if (Model.RoleId == role.ID)
+                    {
+                        <option value="@role.ID" selected>@role.NVCHR_ROLE_NAME</option>
+                    }
+                    else
+                    {
+                        <option value="@role.ID">@role.NVCHR_ROLE_NAME</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-2">
+            <select class="form-select" name="isActive">
+                @if (!Model.IsActive.HasValue)
+                {
+                    <option value="" selected>Tất cả trạng thái</option>
+                }
+                else
+                {
+                    <option value="">Tất cả trạng thái</option>
+                }
+                @if (Model.IsActive == true)
+                {
+                    <option value="true" selected>Đang hoạt động</option>
+                }
+                else
+                {
+                    <option value="true">Đang hoạt động</option>
+                }
+                @if (Model.IsActive == false)
+                {
+                    <option value="false" selected>Ngưng hoạt động</option>
+                }
+                else
+                {
+                    <option value="false">Ngưng hoạt động</option>
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3 d-grid d-md-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm</button>
+        </div>
+    </form>
+
+    <form id="bulkDeleteMenuForm" method="post" asp-controller="Admin" asp-action="DeleteMenus" class="js-confirm js-require-selection"
+          data-confirm-title="Xóa nhiều menu"
+          data-confirm-message="Bạn có chắc chắn muốn xóa các menu đã chọn?">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="keyword" value="@Model.Keyword" />
+        <input type="hidden" name="searchParentId" value="@Model.ParentId" />
+        <input type="hidden" name="searchRoleId" value="@Model.RoleId" />
+        <input type="hidden" name="searchIsActive" value="@Model.IsActive" />
+        <input type="hidden" name="page" value="@Model.PageNumber" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 40px;"><input id="chkAllMenus" type="checkbox" class="form-check-input" /></th>
+                    <th>Mã menu</th>
+                    <th>Tên menu</th>
+                    <th>Menu cha</th>
+                    <th>Controller/Action</th>
+                    <th>Sort</th>
+                    <th>Nhóm quyền</th>
+                    <th>Trạng thái</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Menus.Any())
+                {
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">Không có dữ liệu menu.</td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var menu in Model.Menus)
+                    {
+                        var level = Model.GetLevel(menu);
+                        var isRootMenu = !menu.INT_PARENT_ID.HasValue || menu.INT_PARENT_ID.Value <= 0;
+                        var leftPadding = level * 18;
+                        var hasChild = Model.Menus.Any(x => x.INT_PARENT_ID == menu.ID);
+                        var assignedRoleIds = Model.GetAssignedRoleIds(menu.ID);
+                        var rootId = ResolveRootId(menu.ID);
+                        var rootColorIndex = rootColorMap.TryGetValue(rootId, out var colorIndex) ? colorIndex : 0;
+                        <tr class="menu-row menu-root-@rootColorIndex" data-id="@menu.ID" data-parent-id="@(menu.INT_PARENT_ID ?? 0)" style="@(collapseToRootOnly && !isRootMenu ? "display:none;" : null)">
+                            <td>
+                                <input type="checkbox" class="form-check-input js-menu-check" name="ids" value="@menu.ID" form="bulkDeleteMenuForm" />
+                            </td>
+                            <td>@menu.CHR_MENU_CODE</td>
+                            <td>
+                                <span class="menu-indent" style="@($"margin-left:{leftPadding}px;")">
+                                    @if (hasChild)
+                                    {
+                                        <button type="button" class="menu-toggle @(collapseToRootOnly ? "collapsed" : string.Empty)" data-menu-id="@menu.ID" title="Thu gọn/Mở rộng">
+                                            <i class="fa-solid fa-chevron-down"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span style="display:inline-block;width:22px;"></span>
+                                    }
+                                    @if (level == 0)
+                                    {
+                                        <span class="menu-root-label">Menu gốc</span>
+                                    }
+                                    <span>@(menu.NVCHR_MENU_NAME ?? "-")</span>
+                                </span>
+                                @if (!string.IsNullOrWhiteSpace(menu.CHR_ICON))
+                                {
+                                    <span class="text-muted small ms-1">(@menu.CHR_ICON)</span>
+                                }
+                            </td>
+                            <td>@Model.GetParentName(menu.INT_PARENT_ID)</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(menu.CHR_CONTROLLER) || !string.IsNullOrWhiteSpace(menu.CHR_ACTION))
+                                {
+                                    <span class="badge bg-info-subtle text-info">@menu.CHR_CONTROLLER/@menu.CHR_ACTION</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td>@(menu.INT_SORT_ORDER ?? 0)</td>
+                            <td>
+                                <div class="d-flex flex-wrap gap-1 mb-1">
+                                    @if (!assignedRoleIds.Any())
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary">Tất cả</span>
+                                    }
+                                    else
+                                    {
+                                        foreach (var rid in assignedRoleIds)
+                                        {
+                                            <span class="badge bg-primary-subtle text-primary">@Model.GetRoleName(rid)</span>
+                                        }
+                                    }
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignRoleModal-@menu.ID">
+                                    Chỉnh sửa quyền
+                                </button>
+                            </td>
+                            <td>
+                                @if (menu.BIT_IS_ACTIVE == true)
+                                {
+                                    <span class="badge bg-success-subtle text-success">Đang hoạt động</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary">Ngưng hoạt động</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-success ms-1 mb-1"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#createMenuModal"
+                                        data-parent-id="@menu.ID"
+                                        data-parent-name="@(menu.NVCHR_MENU_NAME ?? menu.CHR_MENU_CODE ?? $"Menu #{menu.ID}")"
+                                        title="Thêm menu con">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-primary ms-1 mb-1" data-bs-toggle="modal" data-bs-target="#editMenuModal-@menu.ID">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <form id="deleteMenuForm-@menu.ID" method="post" asp-controller="Admin" asp-action="DeleteMenu" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@menu.ID" />
+                                    <input type="hidden" name="keyword" value="@Model.Keyword" />
+                                    <input type="hidden" name="searchParentId" value="@Model.ParentId" />
+                                    <input type="hidden" name="searchRoleId" value="@Model.RoleId" />
+                                    <input type="hidden" name="searchIsActive" value="@Model.IsActive" />
+                                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                    <button class="btn btn-sm btn-danger js-action-button ms-1 mb-1" type="button"
+                                            data-form-id="deleteMenuForm-@menu.ID"
+                                            data-confirm-title="Xóa menu"
+                                            data-confirm-message="Bạn có chắc chắn muốn xóa menu này?">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Menus",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["keyword"] = Model.Keyword,
+            ["parentId"] = Model.ParentId?.ToString(),
+            ["roleId"] = Model.RoleId?.ToString(),
+            ["isActive"] = Model.IsActive?.ToString().ToLowerInvariant()
+        }
+        })
+</div>
+
+<div class="modal fade dragable-modal" id="createMenuModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title js-create-menu-title">Thêm menu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-controller="Admin" asp-action="CreateMenu" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="Keyword" value="@Model.Keyword" />
+                    <input type="hidden" name="SearchParentId" value="@Model.ParentId" />
+                    <input type="hidden" name="SearchRoleId" value="@Model.RoleId" />
+                    <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                    <input type="hidden" name="Page" value="@Model.PageNumber" />
+                    <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Mã menu</label>
+                            <input class="form-control" name="MenuCode" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Tên menu</label>
+                            <input class="form-control" name="MenuName" required />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Menu cha</label>
+                            <select id="createMenuParentSelect" class="form-select" name="ParentId">
+                                <option value="" style="font-weight:700;">Menu gốc</option>
+                                @foreach (var m in treeMenus)
+                                {
+                                    var level = Model.GetLevel(m);
+                                    var label = string.Concat(Enumerable.Repeat("— ", level)) + (m.NVCHR_MENU_NAME ?? m.CHR_MENU_CODE ?? $"Menu #{m.ID}");
+                                    var isRootMenuOption = !m.INT_PARENT_ID.HasValue || m.INT_PARENT_ID.Value <= 0;
+                                    <option value="@m.ID" style="@(isRootMenuOption ? "font-weight:700;" : null)">@label</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Controller</label>
+                            <input class="form-control" name="Controller" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Action</label>
+                            <input class="form-control" name="Action" />
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Icon (fa class)</label>
+                            <input class="form-control" name="Icon" placeholder="fa fa-home" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Sort</label>
+                            <input type="number" class="form-control" name="SortOrder" value="0" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Nhóm quyền</label>
+                            <div class="role-check-grid">
+                                @foreach (var role in Model.Roles)
+                                {
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="create-role-@role.ID" name="RoleIds" value="@role.ID" />
+                                        <label class="form-check-label" for="create-role-@role.ID">@role.NVCHR_ROLE_NAME</label>
+                                    </div>
+                                }
+                            </div>
+                            <div class="small text-muted">Bỏ chọn tất cả = cho phép mọi quyền truy cập.</div>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Trạng thái</label>
+                            <select class="form-select" name="IsActive">
+                                <option value="true">Đang hoạt động</option>
+                                <option value="false">Ngưng hoạt động</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@foreach (var menu in Model.Menus)
+{
+    <div class="modal fade dragable-modal" id="editMenuModal-@menu.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chỉnh sửa menu - @menu.NVCHR_MENU_NAME</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="Admin" asp-action="UpdateMenu" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="ID" value="@menu.ID" />
+                        <input type="hidden" name="Keyword" value="@Model.Keyword" />
+                        <input type="hidden" name="SearchParentId" value="@Model.ParentId" />
+                        <input type="hidden" name="SearchRoleId" value="@Model.RoleId" />
+                        <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
+                        <input type="hidden" name="Page" value="@Model.PageNumber" />
+                        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mã menu</label>
+                                <input class="form-control" name="MenuCode" value="@menu.CHR_MENU_CODE" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tên menu</label>
+                                <input class="form-control" name="MenuName" value="@menu.NVCHR_MENU_NAME" required />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Menu cha</label>
+                                <select class="form-select" name="ParentId">
+                                    @if (!menu.INT_PARENT_ID.HasValue || menu.INT_PARENT_ID <= 0)
+                                    {
+                                        <option value="" selected style="font-weight:700;">Menu gốc</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="" style="font-weight:700;">Menu gốc</option>
+                                    }
+                                    @foreach (var m in treeMenus.Where(x => x.ID != menu.ID))
+                                    {
+                                        var level = Model.GetLevel(m);
+                                        var label = string.Concat(Enumerable.Repeat("— ", level)) + (m.NVCHR_MENU_NAME ?? m.CHR_MENU_CODE ?? $"Menu #{m.ID}");
+                                        var isRootMenuOption = !m.INT_PARENT_ID.HasValue || m.INT_PARENT_ID.Value <= 0;
+                                        if (menu.INT_PARENT_ID == m.ID)
+                                        {
+                                            <option value="@m.ID" selected style="@(isRootMenuOption ? "font-weight:700;" : null)">@label</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@m.ID" style="@(isRootMenuOption ? "font-weight:700;" : null)">@label</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Controller</label>
+                                <input class="form-control" name="Controller" value="@menu.CHR_CONTROLLER" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Action</label>
+                                <input class="form-control" name="Action" value="@menu.CHR_ACTION" />
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Icon (fa class)</label>
+                                <input class="form-control" name="Icon" value="@menu.CHR_ICON" />
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <label class="form-label">Sort</label>
+                                <input type="number" class="form-control" name="SortOrder" value="@(menu.INT_SORT_ORDER ?? 0)" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Nhóm quyền</label>
+                                <div class="role-check-grid">
+                                    @{
+                                        var roleIds = Model.GetAssignedRoleIds(menu.ID);
+                                    }
+                                    @foreach (var role in Model.Roles)
+                                    {
+                                        var roleInputId = $"edit-{menu.ID}-role-{role.ID}";
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="@roleInputId" name="RoleIds" value="@role.ID" @(roleIds.Contains(role.ID) ? "checked" : null) />
+                                            <label class="form-check-label" for="@roleInputId">@role.NVCHR_ROLE_NAME</label>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="small text-muted">Bỏ chọn tất cả = cho phép mọi quyền truy cập.</div>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Trạng thái</label>
+                                <select class="form-select" name="IsActive">
+                                    @if (menu.BIT_IS_ACTIVE == true)
+                                    {
+                                        <option value="true" selected>Đang hoạt động</option>
+                                        <option value="false">Ngưng hoạt động</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="true">Đang hoạt động</option>
+                                        <option value="false" selected>Ngưng hoạt động</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade dragable-modal" id="assignRoleModal-@menu.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chỉnh sửa quyền truy cập - @menu.NVCHR_MENU_NAME</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="assignRoleForm-@menu.ID" method="post" asp-controller="Admin" asp-action="AssignMenuRole" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="id" value="@menu.ID" />
+                        <input type="hidden" name="keyword" value="@Model.Keyword" />
+                        <input type="hidden" name="searchParentId" value="@Model.ParentId" />
+                        <input type="hidden" name="searchRoleId" value="@Model.RoleId" />
+                        <input type="hidden" name="searchIsActive" value="@Model.IsActive" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                        <label class="form-label">Nhóm quyền được truy cập</label>
+                        <div class="role-check-grid">
+                            @{
+                                var assignedRoleIds = Model.GetAssignedRoleIds(menu.ID);
+                            }
+                            @foreach (var role in Model.Roles)
+                            {
+                                var assignRoleInputId = $"assign-{menu.ID}-role-{role.ID}";
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="@assignRoleInputId" name="assignedRoleIds" value="@role.ID" @(assignedRoleIds.Contains(role.ID) ? "checked" : null) />
+                                    <label class="form-check-label" for="@assignRoleInputId">@role.NVCHR_ROLE_NAME</label>
+                                </div>
+                            }
+                        </div>
+                        <div class="small text-muted mt-2">Bỏ chọn tất cả = cho phép mọi quyền truy cập màn hình này.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu phân quyền</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="modal fade dragable-modal" id="importMenuModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import menu từ Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-controller="Admin" asp-action="ImportMenus" enctype="multipart/form-data" class="js-post-form">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="keyword" value="@Model.Keyword" />
+                    <input type="hidden" name="searchParentId" value="@Model.ParentId" />
+                    <input type="hidden" name="searchRoleId" value="@Model.RoleId" />
+                    <input type="hidden" name="searchIsActive" value="@Model.IsActive" />
+                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                    <label class="form-label">Chọn file Excel/CSV</label>
+                    <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
+                    <div class="small text-muted mt-2">
+                        Định dạng: <code>MenuCode,MenuName,ParentMenuCode,Controller,Action,Icon,SortOrder,RoleIds,IsActive</code>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-success">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @if (TempData["AdminMenuSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["AdminMenuError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            function ensureAntiForgery(form) {
+                if (!form) return;
+                var tokenInForm = form.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenInForm) return;
+
+                var globalToken = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!globalToken) return;
+
+                var cloned = document.createElement('input');
+                cloned.type = 'hidden';
+                cloned.name = '__RequestVerificationToken';
+                cloned.value = globalToken.value;
+                form.appendChild(cloned);
+            }
+
+            function showLoading() {
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
+            }
+
+            function hideLoading() {
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+            }
+
+            document.querySelectorAll('form.js-post-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    ensureAntiForgery(form);
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-search-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-export-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                    setTimeout(function () {
+                        hideLoading();
+                    }, 2500);
+                });
+            });
+
+            document.addEventListener('click', async function (e) {
+                var btn = e.target.closest('.js-action-button');
+                if (!btn) return;
+
+                var formId = btn.getAttribute('data-form-id');
+                if (!formId) return;
+                var form = document.getElementById(formId);
+                if (!form) return;
+
+                if (btn.getAttribute('data-require-selection') === '1') {
+                    var checked = document.querySelectorAll('.js-menu-check:checked');
+                    if (!checked.length) {
+                        if (window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 menu.');
+                        return;
+                    }
+                }
+
+                var title = btn.getAttribute('data-confirm-title') || 'Xác nhận';
+                var message = btn.getAttribute('data-confirm-message') || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+                var ok = true;
+                if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+                    ok = await AppCommon.confirm({ title: title, message: message });
+                }
+
+                if (!ok) return;
+                ensureAntiForgery(form);
+                showLoading();
+                form.requestSubmit();
+            });
+
+            var chkAll = document.getElementById('chkAllMenus');
+            var bulkDeleteBtn = document.getElementById('btnBulkDeleteMenus');
+            var menuChecks = Array.prototype.slice.call(document.querySelectorAll('.js-menu-check'));
+
+            function updateBulkDeleteState() {
+                if (!bulkDeleteBtn) return;
+
+                var checkedCount = document.querySelectorAll('.js-menu-check:checked').length;
+                var hasSelection = checkedCount > 0;
+
+                bulkDeleteBtn.disabled = !hasSelection;
+                bulkDeleteBtn.classList.toggle('d-none', !hasSelection);
+
+                if (chkAll) {
+                    var total = menuChecks.length;
+                    chkAll.checked = total > 0 && checkedCount === total;
+                    chkAll.indeterminate = checkedCount > 0 && checkedCount < total;
+                }
+            }
+
+            if (chkAll) {
+                chkAll.addEventListener('change', function () {
+                    document.querySelectorAll('.js-menu-check').forEach(function (c) {
+                        c.checked = chkAll.checked;
+                    });
+                    updateBulkDeleteState();
+                });
+            }
+
+            menuChecks.forEach(function (c) {
+                c.addEventListener('change', updateBulkDeleteState);
+            });
+
+            updateBulkDeleteState();
+
+            var createMenuModal = document.getElementById('createMenuModal');
+            if (createMenuModal) {
+                createMenuModal.addEventListener('show.bs.modal', function (event) {
+                    var trigger = event.relatedTarget;
+                    var parentId = trigger && trigger.getAttribute('data-parent-id') ? trigger.getAttribute('data-parent-id') : '';
+                    var parentName = trigger && trigger.getAttribute('data-parent-name') ? trigger.getAttribute('data-parent-name') : '';
+
+                    var parentSelect = document.getElementById('createMenuParentSelect');
+                    if (parentSelect) {
+                        parentSelect.value = parentId || '';
+                    }
+
+                    var title = createMenuModal.querySelector('.js-create-menu-title');
+                    if (title) {
+                        title.textContent = parentName
+                            ? ('Thêm menu con - ' + parentName)
+                            : 'Thêm menu';
+                    }
+                });
+
+                createMenuModal.addEventListener('hidden.bs.modal', function () {
+                    var title = createMenuModal.querySelector('.js-create-menu-title');
+                    if (title) {
+                        title.textContent = 'Thêm menu';
+                    }
+                });
+            }
+
+            function hideDescendants(parentId) {
+                document.querySelectorAll('.menu-row[data-parent-id="' + parentId + '"]').forEach(function (row) {
+                    row.style.display = 'none';
+                    hideDescendants(row.getAttribute('data-id'));
+                });
+            }
+
+            function showDirectChildren(parentId) {
+                document.querySelectorAll('.menu-row[data-parent-id="' + parentId + '"]').forEach(function (row) {
+                    row.style.display = '';
+                });
+            }
+
+            document.querySelectorAll('.menu-toggle').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var id = btn.getAttribute('data-menu-id');
+                    var isCollapsed = btn.classList.toggle('collapsed');
+
+                    if (isCollapsed) {
+                        hideDescendants(id);
+                    } else {
+                        showDirectChildren(id);
+                    }
+                });
+            });
+        })();
+    </script>
+}

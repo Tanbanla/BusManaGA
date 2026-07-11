@@ -1,0 +1,949 @@
+@model List<BusManagement.Model.Dtos.TM_DRIVERDTO>
+@{
+    ViewData["Title"] = "Quản lý tài xế";
+
+    int? vendorId = ViewBag.VendorId as int?;
+    string? driverName = ViewBag.DriverName as string;
+    string? driverPhone = ViewBag.DriverPhone as string;
+    string? licenseCategory = ViewBag.LicenseCategory as string;
+    string? dateOfBirth = ViewBag.DateOfBirth as string;
+    string? accessCardCode = ViewBag.AccessCardCode as string;
+
+    var vendors = ViewBag.Vendors as List<BusManagement.Model.Dtos.TM_VENDORDTO> ?? new
+List<BusManagement.Model.Dtos.TM_VENDORDTO>();
+    var vendorDict = ViewBag.VendorDict as Dictionary<int, string> ?? new Dictionary<int, string>();
+    var violationsByDriverId = ViewBag.ViolationsByDriverId as Dictionary<int, List<BusManagement.Model.Dtos.TM_DRIVER_VIOLATIONDTO>> ?? new Dictionary<int, List<BusManagement.Model.Dtos.TM_DRIVER_VIOLATIONDTO>>();
+    var buses = ViewBag.Buses as List<BusManagement.Model.Dtos.TM_BUSDTO> ?? new List<BusManagement.Model.Dtos.TM_BUSDTO>();
+    var busDisplayByCode = ViewBag.BusDisplayByCode as Dictionary<string, string> ?? new Dictionary<string, string>();
+
+    int pageNumber = ViewBag.PageNumber ?? 1;
+    int pageSize = ViewBag.PageSize ?? 10;
+    int totalCount = ViewBag.TotalCount ?? 0;
+    int totalPages = ViewBag.TotalPages ?? 1;
+
+    var startIndex = totalCount == 0 ? 0 : ((pageNumber - 1) * pageSize + 1);
+    var endIndex = Math.Min(pageNumber * pageSize, totalCount);
+}
+
+<style>
+    .table thead th {
+        text-align: center;
+        vertical-align: middle;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.25;
+        min-width: 90px;
+    }
+
+        .table thead th:first-child,
+        .table tbody td:first-child {
+            padding-left: .25rem;
+            padding-right: .25rem;
+            text-align: center;
+        }
+
+        .table thead th:nth-child(2),
+        .table tbody td:nth-child(2) {
+            padding-left: .35rem;
+            padding-right: .35rem;
+            text-align: center;
+        }
+
+    @@media (min-width: 992px) {
+        .driver-search-col {
+            flex: 0 0 20%;
+            max-width: 20%;
+        }
+    }
+
+    .avatar-preview {
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 2px solid #dee2e6;
+        display: block;
+    }
+
+    .avatar-preview-sm {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+    .avatar-placeholder {
+        width: 120px;
+        height: 120px;
+        border-radius: 8px;
+        border: 2px dashed #dee2e6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6c757d;
+        font-size: .85rem;
+        background: #f8f9fa;
+    }
+</style>
+
+<div class="card border-0 shadow-sm p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Quản lý tài xế</h5>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createDriverModal">
+                <i class="fa-solid fa-plus me-1"></i>Thêm mới
+            </button>
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importViolationModal">
+                <i class="fa-solid fa-file-import me-1"></i>Import DS vi phạm
+            </button>
+            <button type="button" id="btnDeleteSelected" class="btn btn-danger d-none">
+                <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+            </button>
+        </div>
+    </div>
+
+    <form method="get" asp-controller="Driver" asp-action="Management" class="row g-2 align-items-end mb-3">
+        <div class="col-12 col-md-6 driver-search-col">
+            <select class="form-select form-select-sm" name="vendorId">
+                <option value="">-- Nhà cung cấp --</option>
+                @foreach (var v in vendors)
+                {
+                    <option value="@v.ID" selected="@(vendorId.HasValue && vendorId.Value == v.ID)">
+                        @v.NVCHR_VENDOR_NAME
+                    </option>
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 driver-search-col">
+            <input class="form-control form-control-sm" name="driverName" value="@driverName"
+                   placeholder="Họ và tên tài xế" />
+        </div>
+        <div class="col-12 col-md-6 driver-search-col">
+            <input class="form-control form-control-sm" name="dateOfBirth" value="@dateOfBirth" type="date"
+                   placeholder="Ngày tháng năm sinh" />
+        </div>
+        <div class="col-12 col-md-6 driver-search-col">
+            <input class="form-control form-control-sm" name="driverPhone" value="@driverPhone"
+                   placeholder="Số điện thoại" />
+        </div>
+        <div class="col-12 col-md-6 driver-search-col">
+            <input class="form-control form-control-sm" name="licenseCategory" value="@licenseCategory"
+                   placeholder="Hạng giấy phép" />
+        </div>
+        <div class="col-12 col-md-6 driver-search-col">
+            <input class="form-control form-control-sm" name="accessCardCode" value="@accessCardCode"
+                   placeholder="Mã thẻ ra vào" />
+        </div>
+        <div class="col-12 col-md-6 driver-search-col d-grid">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm
+            </button>
+        </div>
+    </form>
+
+    <form id="driverGridForm" method="post" asp-controller="Driver" asp-action="SaveGrid">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="vendorId" value="@vendorId" />
+        <input type="hidden" name="driverName" value="@driverName" />
+        <input type="hidden" name="driverPhone" value="@driverPhone" />
+        <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+        <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+        <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+        <input type="hidden" name="page" value="@pageNumber" />
+        <input type="hidden" name="pageSize" value="@pageSize" />
+
+        <div id="deletedIdsContainer"></div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:40px;">
+                            <input id="chkAllDrivers" type="checkbox" class="form-check-input" />
+                        </th>
+                        <th style="width:70px;">STT</th>
+                        <th style="width:60px;">Ảnh</th>
+                        <th>Nhà cung cấp</th>
+                        <th>Họ và tên tài xế</th>
+                        <th>Ngày tháng năm sinh</th>
+                        <th>Số điện thoại</th>
+                        <th>Hạng giấy phép lái xe</th>
+                        <th>Mã thẻ ra vào thường xuyên</th>
+                        <th>Vi phạm</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="11" class="text-center text-muted py-4">Không có dữ liệu.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        for (var i = 0; i < Model.Count; i++)
+                        {
+                            var row = Model[i];
+                            var vendorName = row.INT_VENDOR_ID.HasValue && vendorDict.TryGetValue(row.INT_VENDOR_ID.Value, out
+                            var vn) ? vn : "";
+                            var violationRows = violationsByDriverId.TryGetValue(row.ID, out var mapViolationRows)
+                                ? mapViolationRows
+                                : new List<BusManagement.Model.Dtos.TM_DRIVER_VIOLATIONDTO>();
+                            <tr>
+                                <td><input class="form-check-input js-driver-check" type="checkbox" value="@row.ID" /></td>
+                                <td>@(startIndex + i)</td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(row.CHR_AVARTAR_PATH))
+                                    {
+                                        <img src="@row.CHR_AVARTAR_PATH" class="avatar-preview-sm" alt="avatar"
+                                             onerror="this.style.display='none'" />
+                                    }
+                                </td>
+                                <td>@vendorName</td>
+                                <td>@row.NVCHR_DRIVER_NAME</td>
+                                <td>@row.CHR_DATE_OF_BIRTH</td>
+                                <td>@row.CHR_DRIVER_PHONE</td>
+                                <td>@row.CHR_LICENSE_CATEGORY</td>
+                                <td>@row.CHR_ACCESS_CARD_CODE</td>
+                                <td>
+                                    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#driverViolationModal-@row.ID">
+                                        <i class="fas fa-triangle-exclamation"></i> Xem (@violationRows.Count)
+                                    </button>
+                                </td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                            data-bs-target="#editDriverModal-@row.ID" title="Sửa">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-danger js-delete-one" data-id="@row.ID"
+                                            title="Xóa">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </form>
+
+    <form id="deleteOneForm" method="post" asp-controller="Driver" asp-action="DeleteDriver" class="d-none">
+        @Html.AntiForgeryToken()
+        <input type="hidden" id="deleteOneId" name="id" />
+        <input type="hidden" name="vendorId" value="@vendorId" />
+        <input type="hidden" name="driverName" value="@driverName" />
+        <input type="hidden" name="driverPhone" value="@driverPhone" />
+        <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+        <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+        <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+        <input type="hidden" name="page" value="@pageNumber" />
+        <input type="hidden" name="pageSize" value="@pageSize" />
+    </form>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @totalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = pageNumber,
+        TotalPages = totalPages,
+        PageSize = pageSize,
+        Action = "Management",
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["vendorId"] = vendorId?.ToString(),
+            ["driverName"] = driverName,
+            ["driverPhone"] = driverPhone,
+            ["licenseCategory"] = licenseCategory,
+            ["dateOfBirth"] = dateOfBirth,
+            ["accessCardCode"] = accessCardCode
+        }
+        })
+</div>
+
+@foreach (var row in Model)
+{
+    var driverViolations = violationsByDriverId.TryGetValue(row.ID, out var mappedViolations)
+        ? mappedViolations
+        : new List<BusManagement.Model.Dtos.TM_DRIVER_VIOLATIONDTO>();
+
+    <div class="modal fade dragable-modal" id="editDriverModal-@row.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cập nhật tài xế</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" asp-controller="Driver" asp-action="UpdateDriver" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="id" value="@row.ID" />
+                        <input type="hidden" name="vendorId" value="@vendorId" />
+                        <input type="hidden" name="driverName" value="@driverName" />
+                        <input type="hidden" name="driverPhone" value="@driverPhone" />
+                        <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+                        <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+                        <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+                        <input type="hidden" name="page" value="@pageNumber" />
+                        <input type="hidden" name="pageSize" value="@pageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div>
+                                        @if (!string.IsNullOrWhiteSpace(row.CHR_AVARTAR_PATH))
+                                        {
+                                            <img id="editAvatarPreview-@row.ID" src="@row.CHR_AVARTAR_PATH"
+                                                 class="avatar-preview" alt="avatar"
+                                                 onerror="this.parentNode.innerHTML='<div class=\'avatar-placeholder\'>Chưa có ảnh</div>'" />
+                                        }
+                                        else
+                                        {
+                                            <div id="editAvatarPlaceholder-@row.ID" class="avatar-placeholder">Chưa có ảnh</div>
+                                            <img id="editAvatarPreview-@row.ID" src="" class="avatar-preview" alt="avatar"
+                                                 style="display:none;" />
+                                        }
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <label class="form-label">Chọn ảnh tài xế</label>
+                                        <input class="form-control form-control-sm" type="file" name="updateAvartarFile"
+                                               accept="image/png,image/jpg,image/jpeg,image/gif,image/webp"
+                                               onchange="previewAvatar(this, 'editAvatarPreview-@row.ID', 'editAvatarPlaceholder-@row.ID')" />
+                                        <div class="form-text">Định dạng: PNG, JPG, JPEG, GIF, WEBP</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Nhà cung cấp</label>
+                                <select class="form-select" name="updateVendorId">
+                                    <option value="">-- Chọn nhà cung cấp --</option>
+                                    @foreach (var v in vendors)
+                                    {
+                                        <option value="@v.ID"
+                                                selected="@(row.INT_VENDOR_ID.HasValue && row.INT_VENDOR_ID.Value == v.ID)">
+                                            @v.NVCHR_VENDOR_NAME
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Họ và tên tài xế</label>
+                                <input class="form-control" name="updateDriverName" value="@row.NVCHR_DRIVER_NAME" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Ngày tháng năm sinh</label>
+                                <input class="form-control" name="updateDateOfBirth" value="@row.CHR_DATE_OF_BIRTH"
+                                       type="date" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Số điện thoại</label>
+                                <input class="form-control" name="updateDriverPhone" value="@row.CHR_DRIVER_PHONE" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Hạng giấy phép lái xe</label>
+                                <input class="form-control" name="updateLicenseCategory"
+                                       value="@row.CHR_LICENSE_CATEGORY" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mã thẻ ra vào thường xuyên</label>
+                                <input class="form-control" name="updateAccessCardCode" value="@row.CHR_ACCESS_CARD_CODE" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Hủy</button>
+                        <button class="btn btn-primary" type="submit">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade dragable-modal" id="driverViolationModal-@row.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Lịch sử vi phạm - @row.NVCHR_DRIVER_NAME</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 border rounded bg-light">
+
+                        <!-- Nhóm 1: Xuất dữ liệu -->
+                        <form method="get" asp-controller="Driver" asp-action="ExportDriverViolations" class="d-inline-flex">
+                            <input type="hidden" name="driverId" value="@row.ID" />
+                            <button type="submit" class="btn btn-sm btn-success">
+                                <i class="fa-solid fa-file-excel me-1"></i>Xuất dữ liệu vi phạm
+                            </button>
+                        </form>
+
+                        <!-- Nhóm 2: Thêm vi phạm -->
+                        <button type="button" class="btn btn-sm btn-primary"
+                                data-bs-toggle="modal" data-bs-target="#createViolationModal-@row.ID">
+                            <i class="fa-solid fa-plus me-1"></i>Thêm vi phạm
+                        </button>
+
+                        <button type="button" class="btn btn-sm btn-danger d-none js-bulk-delete-violation-btn"
+                                data-driver-id="@row.ID"
+                                data-form-id="bulkDeleteViolationForm-@row.ID">
+                            <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+                        </button>
+
+                        <!-- vạch phân cách cho gọn -->
+                        <div class="vr d-none d-md-block mx-1"></div>
+
+                        <!-- Nhóm 3: Import vi phạm -->
+                        <form method="post" asp-controller="Driver" asp-action="ImportDriverViolations"
+                              enctype="multipart/form-data"
+                              class="d-flex align-items-center gap-2 flex-grow-1" style="min-width:280px;">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="driverId" value="@row.ID" />
+                            <input type="hidden" name="vendorId" value="@vendorId" />
+                            <input type="hidden" name="driverName" value="@driverName" />
+                            <input type="hidden" name="driverPhone" value="@driverPhone" />
+                            <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+                            <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+                            <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+                            <input type="hidden" name="page" value="@pageNumber" />
+                            <input type="hidden" name="pageSize" value="@pageSize" />
+
+                            <input type="file" name="importFile" class="form-control form-control-sm"
+                                   accept=".xlsx,.csv" required style="max-width: 220px;" />
+                            <button type="submit" class="btn btn-sm btn-primary text-nowrap">
+                                <i class="fa-solid fa-file-import me-1"></i>Import vi phạm
+                            </button>
+                        </form>
+
+                    </div>
+
+                    <form id="bulkDeleteViolationForm-@row.ID" method="post" asp-controller="Driver" asp-action="DeleteManyDriverViolations" class="d-none">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="driverId" value="@row.ID" />
+                        <input type="hidden" name="vendorId" value="@vendorId" />
+                        <input type="hidden" name="driverName" value="@driverName" />
+                        <input type="hidden" name="driverPhone" value="@driverPhone" />
+                        <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+                        <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+                        <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+                        <input type="hidden" name="page" value="@pageNumber" />
+                        <input type="hidden" name="pageSize" value="@pageSize" />
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:36px;"><input type="checkbox" class="form-check-input js-violation-check-all" data-driver-id="@row.ID" /></th>
+                                    <th>STT</th>
+                                    <th>Loại vi phạm</th>
+                                    <th>Mô tả</th>
+                                    <th>Xe bus</th>
+                                    <th>Ngày vi phạm</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!driverViolations.Any())
+                                {
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-3">Chưa có dữ liệu vi phạm.</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    for (var violationIndex = 0; violationIndex < driverViolations.Count; violationIndex++)
+                                    {
+                                        var violation = driverViolations[violationIndex];
+                                        <tr>
+                                            <td>
+                                                <input type="checkbox" class="form-check-input js-violation-check" data-driver-id="@row.ID" name="ids" value="@violation.ID" form="bulkDeleteViolationForm-@row.ID" />
+                                            </td>
+                                            <td>@(violationIndex + 1)</td>
+                                            <td>@violation.CHR_VIOLATION_TYPE</td>
+                                            <td>@violation.NVCHR_DESCRIPTION</td>
+                                            <td>
+                                                @if (!string.IsNullOrWhiteSpace(violation.CHR_BUS_CODE) && busDisplayByCode.TryGetValue(violation.CHR_BUS_CODE.Trim(), out var busText))
+                                                {
+                                                    @busText
+                                                }
+                                                else
+                                                {
+                                                    @(violation.CHR_BUS_CODE ?? "-")
+                                                }
+                                            </td>
+                                            <td>@(violation.DTM_VIOLATION_DATE?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                                            <td class="text-end">
+                                                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editViolationModal-@violation.ID" title="Sửa vi phạm">
+                                                    <i class="fa-solid fa-pen"></i>
+                                                </button>
+                                                <form id="deleteViolationForm-@violation.ID" method="post" asp-controller="Driver" asp-action="DeleteDriverViolation" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@violation.ID" />
+                                                    <input type="hidden" name="vendorId" value="@vendorId" />
+                                                    <input type="hidden" name="driverName" value="@driverName" />
+                                                    <input type="hidden" name="driverPhone" value="@driverPhone" />
+                                                    <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+                                                    <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+                                                    <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+                                                    <input type="hidden" name="page" value="@pageNumber" />
+                                                    <input type="hidden" name="pageSize" value="@pageSize" />
+                                                    <button type="button" class="btn btn-sm btn-danger js-delete-violation-one" data-form-id="deleteViolationForm-@violation.ID" title="Xóa vi phạm">
+                                                        <i class="fa-solid fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="createViolationModal-@row.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm vi phạm - @row.NVCHR_DRIVER_NAME</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" asp-controller="Driver" asp-action="CreateDriverViolation">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="driverId" value="@row.ID" />
+                        <input type="hidden" name="vendorId" value="@vendorId" />
+                        <input type="hidden" name="driverName" value="@driverName" />
+                        <input type="hidden" name="driverPhone" value="@driverPhone" />
+                        <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+                        <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+                        <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+                        <input type="hidden" name="page" value="@pageNumber" />
+                        <input type="hidden" name="pageSize" value="@pageSize" />
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Xe bus</label>
+                                <select class="form-select" name="busCode">
+                                    <option value="">Chọn xe bus</option>
+                                    @foreach (var bus in buses)
+                                    {
+                                        if (string.IsNullOrWhiteSpace(bus.CHR_BUS_CODE))
+                                        {
+                                            continue;
+                                        }
+
+                                        if (busDisplayByCode.TryGetValue(bus.CHR_BUS_CODE.Trim(), out var text))
+                                        {
+                                            <option value="@bus.CHR_BUS_CODE">@text</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@bus.CHR_BUS_CODE">@bus.CHR_BUS_CODE</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Ngày vi phạm</label>
+                                <input class="form-control" type="datetime-local" name="violationDate" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Loại vi phạm</label>
+                                <input class="form-control" name="violationType" required />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Mô tả</label>
+                                <textarea class="form-control" name="description" rows="4"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @foreach (var violation in driverViolations)
+    {
+        <div class="modal fade" id="editViolationModal-@violation.ID" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cập nhật vi phạm - @row.NVCHR_DRIVER_NAME</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" asp-controller="Driver" asp-action="UpdateDriverViolation">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <input type="hidden" name="id" value="@violation.ID" />
+                            <input type="hidden" name="driverId" value="@row.ID" />
+                            <input type="hidden" name="vendorId" value="@vendorId" />
+                            <input type="hidden" name="driverName" value="@driverName" />
+                            <input type="hidden" name="driverPhone" value="@driverPhone" />
+                            <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+                            <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+                            <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+                            <input type="hidden" name="page" value="@pageNumber" />
+                            <input type="hidden" name="pageSize" value="@pageSize" />
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Xe bus</label>
+                                    <select class="form-select" name="busCode">
+                                        <option value="">Chọn xe bus</option>
+                                        @foreach (var bus in buses)
+                                        {
+                                            if (string.IsNullOrWhiteSpace(bus.CHR_BUS_CODE))
+                                            {
+                                                continue;
+                                            }
+
+                                            var selected = string.Equals(violation.CHR_BUS_CODE?.Trim(), bus.CHR_BUS_CODE?.Trim(), StringComparison.OrdinalIgnoreCase);
+                                            var text = busDisplayByCode.TryGetValue(bus.CHR_BUS_CODE.Trim(), out var mappedBus) ? mappedBus : bus.CHR_BUS_CODE;
+                                            if (selected)
+                                            {
+                                                <option value="@bus.CHR_BUS_CODE" selected>@text</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@bus.CHR_BUS_CODE">@text</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Ngày vi phạm</label>
+                                    <input class="form-control" type="datetime-local" name="violationDate" value="@(violation.DTM_VIOLATION_DATE?.ToString("yyyy-MM-ddTHH:mm"))" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Loại vi phạm</label>
+                                    <input class="form-control" name="violationType" value="@violation.CHR_VIOLATION_TYPE" required />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Mô tả</label>
+                                    <textarea class="form-control" name="description" rows="4">@violation.NVCHR_DESCRIPTION</textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<div class="modal fade dragable-modal" id="importViolationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import vi phạm nhiều tài xế</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" asp-controller="Driver" asp-action="ImportViolations" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="vendorId" value="@vendorId" />
+                    <input type="hidden" name="driverName" value="@driverName" />
+                    <input type="hidden" name="driverPhone" value="@driverPhone" />
+                    <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+                    <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+                    <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+                    <input type="hidden" name="page" value="@pageNumber" />
+                    <input type="hidden" name="pageSize" value="@pageSize" />
+
+                    <label class="form-label">Chọn file Excel/CSV</label>
+                    <input type="file" name="importViolationFile" class="form-control" accept=".xlsx,.csv" required />
+                    <div class="small text-muted mt-2">
+                        Định dạng gợi ý: <code>DriverId(or AccessCardCode),ViolationType,Description,ViolationDate,BusCode</code>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-success">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade dragable-modal" id="createDriverModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm tài xế</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" asp-controller="Driver" asp-action="CreateDriver" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <input type="hidden" name="vendorId" value="@vendorId" />
+                    <input type="hidden" name="driverName" value="@driverName" />
+                    <input type="hidden" name="driverPhone" value="@driverPhone" />
+                    <input type="hidden" name="licenseCategory" value="@licenseCategory" />
+                    <input type="hidden" name="dateOfBirth" value="@dateOfBirth" />
+                    <input type="hidden" name="accessCardCode" value="@accessCardCode" />
+                    <input type="hidden" name="page" value="@pageNumber" />
+                    <input type="hidden" name="pageSize" value="@pageSize" />
+
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="d-flex align-items-start gap-3">
+                                <div>
+                                    <div id="createAvatarPlaceholder" class="avatar-placeholder">Chưa chọn ảnh</div>
+                                    <img id="createAvatarPreview" src="" class="avatar-preview" alt="avatar"
+                                         style="display:none;" />
+                                </div>
+                                <div class="flex-grow-1">
+                                    <label class="form-label">Chọn ảnh tài xế</label>
+                                    <input class="form-control form-control-sm" type="file" name="createAvartarFile"
+                                           accept="image/png,image/jpg,image/jpeg,image/gif,image/webp"
+                                           onchange="previewAvatar(this, 'createAvatarPreview', 'createAvatarPlaceholder')" />
+                                    <div class="form-text">Định dạng: PNG, JPG, JPEG, GIF, WEBP</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Nhà cung cấp</label>
+                            <select class="form-select" name="createVendorId">
+                                <option value="">-- Chọn nhà cung cấp --</option>
+                                @foreach (var v in vendors)
+                                {
+                                    <option value="@v.ID">@v.NVCHR_VENDOR_NAME</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Họ và tên tài xế</label>
+                            <input class="form-control" name="createDriverName" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Ngày tháng năm sinh</label>
+                            <input class="form-control" name="createDateOfBirth" type="date" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Số điện thoại</label>
+                            <input class="form-control" name="createDriverPhone" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Hạng giấy phép lái xe</label>
+                            <input class="form-control" name="createLicenseCategory" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Mã thẻ ra vào thường xuyên</label>
+                            <input class="form-control" name="createAccessCardCode" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Đóng</button>
+                    <button class="btn btn-primary" type="submit">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @if (TempData["DriverSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.success(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["DriverError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        function previewAvatar(input, previewId, placeholderId) {
+        var preview = document.getElementById(previewId);
+        var placeholder = document.getElementById(placeholderId);
+        if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function (e) {
+        preview.src = e.target.result;
+        preview.style.display = 'block';
+        if (placeholder) placeholder.style.display = 'none';
+        };
+        reader.readAsDataURL(input.files[0]);
+        }
+        }
+
+        (function () {
+        var $chkAll = $('#chkAllDrivers');
+        var $rowChecks = $('.js-driver-check');
+        var $btnDelete = $('#btnDeleteSelected');
+        var $deletedIdsContainer = $('#deletedIdsContainer');
+        var $gridForm = $('#driverGridForm');
+        var $deleteOneForm = $('#deleteOneForm');
+        var $deleteOneId = $('#deleteOneId');
+
+        function refreshDeleteButtonState() {
+        var selected = $('.js-driver-check:checked').length;
+        $btnDelete.toggleClass('d-none', selected === 0);
+
+        var total = $rowChecks.length;
+        $chkAll.prop('checked', total > 0 && selected === total);
+        $chkAll.prop('indeterminate', selected > 0 && selected < total);
+        }
+
+        $chkAll.on('change', function () {
+        var checked = $(this).is(':checked');
+        $rowChecks.prop('checked', checked);
+        refreshDeleteButtonState();
+        });
+
+        $(document).on('change', '.js-driver-check', refreshDeleteButtonState);
+
+        $btnDelete.on('click', async function () {
+        var selected = $('.js-driver-check:checked');
+        if (!selected.length) {
+        window.AppCommon && AppCommon.warning('Vui lòng chọn ít nhất 1 tài xế.');
+        return;
+        }
+
+        var ok = true;
+        if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+        ok = await AppCommon.confirm({
+        title: 'Xóa nhiều tài xế',
+        message: 'Bạn có chắc chắn muốn xóa các tài xế đã chọn?',
+        okText: 'Đồng ý',
+        cancelText: 'Hủy',
+        okVariant: 'danger'
+        });
+        } else {
+        ok = confirm('Bạn có chắc chắn muốn xóa các tài xế đã chọn?');
+        }
+
+        if (!ok) return;
+
+        $deletedIdsContainer.empty();
+        selected.each(function () {
+        $deletedIdsContainer.append('<input type="hidden" name="deletedIds" value="' + $(this).val() + '" />');
+        });
+
+        $gridForm.trigger('submit');
+        });
+
+        $(document).on('click', '.js-delete-one', async function () {
+        var id = $(this).data('id');
+        if (!id) return;
+
+        var ok = true;
+        if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+        ok = await AppCommon.confirm({
+        title: 'Xóa tài xế',
+        message: 'Bạn có chắc chắn muốn xóa tài xế này?',
+        okText: 'Đồng ý',
+        cancelText: 'Hủy',
+        okVariant: 'danger'
+        });
+        } else {
+        ok = confirm('Bạn có chắc chắn muốn xóa tài xế này?');
+        }
+
+        if (!ok) return;
+
+        $deleteOneId.val(id);
+        $deleteOneForm.trigger('submit');
+        });
+
+        function updateViolationBulkState(driverId) {
+        var selector = '.js-violation-check[data-driver-id="' + driverId + '"]';
+        var allSelector = '.js-violation-check-all[data-driver-id="' + driverId + '"]';
+        var btnSelector = '.js-bulk-delete-violation-btn[data-driver-id="' + driverId + '"]';
+
+        var $checks = $(selector);
+        var $checked = $(selector + ':checked');
+        var $chkAll = $(allSelector);
+        var $btn = $(btnSelector);
+
+        $btn.toggleClass('d-none', $checked.length === 0);
+        $chkAll.prop('checked', $checks.length > 0 && $checked.length === $checks.length);
+        $chkAll.prop('indeterminate', $checked.length > 0 && $checked.length < $checks.length);
+        }
+
+        $(document).on('change', '.js-violation-check-all', function () {
+        var driverId = $(this).data('driver-id');
+        var checked = $(this).is(':checked');
+        $('.js-violation-check[data-driver-id="' + driverId + '"]').prop('checked', checked);
+        updateViolationBulkState(driverId);
+        });
+
+        $(document).on('change', '.js-violation-check', function () {
+        var driverId = $(this).data('driver-id');
+        updateViolationBulkState(driverId);
+        });
+
+        $(document).on('click', '.js-delete-violation-one', async function () {
+        var formId = $(this).data('form-id');
+        if (!formId) return;
+        var $form = $('#' + formId);
+        if (!$form.length) return;
+
+        var ok = true;
+        if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+        ok = await AppCommon.confirm({
+        title: 'Xóa vi phạm',
+        message: 'Bạn có chắc chắn muốn xóa vi phạm này?',
+        okText: 'Đồng ý',
+        cancelText: 'Hủy',
+        okVariant: 'danger'
+        });
+        } else {
+        ok = confirm('Bạn có chắc chắn muốn xóa vi phạm này?');
+        }
+
+        if (!ok) return;
+        $form.trigger('submit');
+        });
+
+        $(document).on('click', '.js-bulk-delete-violation-btn', async function () {
+        var formId = $(this).data('form-id');
+        var driverId = $(this).data('driver-id');
+        if (!formId || !driverId) return;
+
+        var $form = $('#' + formId);
+        if (!$form.length) return;
+
+        var selected = $('.js-violation-check[data-driver-id="' + driverId + '"]:checked').length;
+        if (!selected) return;
+
+        var ok = true;
+        if (window.AppCommon && typeof AppCommon.confirm === 'function') {
+        ok = await AppCommon.confirm({
+        title: 'Xóa nhiều vi phạm',
+        message: 'Bạn có chắc chắn muốn xóa các vi phạm đã chọn?',
+        okText: 'Đồng ý',
+        cancelText: 'Hủy',
+        okVariant: 'danger'
+        });
+        } else {
+        ok = confirm('Bạn có chắc chắn muốn xóa các vi phạm đã chọn?');
+        }
+
+        if (!ok) return;
+        $form.trigger('submit');
+        });
+
+        $('.js-bulk-delete-violation-btn').each(function () {
+        var driverId = $(this).data('driver-id');
+        if (driverId) updateViolationBulkState(driverId);
+        });
+
+        refreshDeleteButtonState();
+        })();
+    </script>
+}

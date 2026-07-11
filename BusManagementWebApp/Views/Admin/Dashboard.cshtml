@@ -1,0 +1,46 @@
+﻿@{
+    ViewData["Title"] = "Trang quản trị";
+}
+
+<style>
+    .admin-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+</style>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+        <div class="admin-card p-3 h-100">
+            <div class="small text-muted">Total users</div>
+            <div class="fs-3 fw-bold text-primary">128</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="admin-card p-3 h-100">
+            <div class="small text-muted">Active users</div>
+            <div class="fs-3 fw-bold text-success">119</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="admin-card p-3 h-100">
+            <div class="small text-muted">Roles</div>
+            <div class="fs-3 fw-bold text-warning">6</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="admin-card p-3 h-100">
+            <div class="small text-muted">Locked accounts</div>
+            <div class="fs-3 fw-bold text-danger">3</div>
+        </div>
+    </div>
+</div>
+
+<div class="admin-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-controller="Admin" asp-action="Users" class="btn btn-primary"><i class="fa-solid fa-users me-1"></i>Quản lý người dùng</a>
+        <a asp-controller="Admin" asp-action="Roles" class="btn btn-outline-primary"><i class="fa-solid fa-user-shield me-1"></i>Phân quyền</a>
+    </div>
+</div>
