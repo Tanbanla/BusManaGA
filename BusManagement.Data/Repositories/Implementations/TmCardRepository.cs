@@ -21,21 +21,38 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
     // Search for cards by card taxi
     public async Task<List<dynamic>> GetCardByTaxiAsync(SearchCard serach)
     {
-        var sql = @"SELECT cu.*, [DTM_BORROW_TIME]
-            ,[DTM_RETURN_TIME], c.[INT_CARD_TYPE]
-            ,c.[NVCHR_CARD_TYPE]
-	        , c.CHR_CARD_CODE
-            ,c.[INT_CARD_SCOPE]
-	        ,t.[NVCHR_CATEGORY]
-            ,t.[NVCHR_BRAND]
-            ,e.[NVCHR_EMPLOYEE_NAME]
-            , e.CHR_CODE_SEC
-        FROM TM_CARD_USAGE as cu 
-        left join TM_CARD as c on cu.INT_CARD_ID = c.ID
-        left join TM_CARD_BORROW as cb on cu.INT_CARD_ID = cb.INT_CARD_ID
-        left join TM_TAXI as t on c.INT_TAXI_ID = t.ID
-        left join TM_EMPLOYEE as e on cu.CHR_EMPLOYEE_ID = e.CHR_EMPLOYEE_ID
-        Where 1=1 AND (cu.BIT_DELETE IS NULL OR cu.BIT_DELETE = 0)
+        var sql = @"SELECT
+                cu.*,
+
+                c.INT_CARD_TYPE,
+                c.NVCHR_CARD_TYPE,
+                c.INT_CARD_SCOPE,
+                c.CHR_CARD_CODE,
+
+                t.NVCHR_CATEGORY,
+                t.NVCHR_BRAND,
+
+                e.NVCHR_EMPLOYEE_NAME,
+                e.CHR_CODE_SEC,
+
+                cb.DTM_BORROW_TIME,
+                cb.DTM_RETURN_TIME
+
+            FROM TM_CARD_USAGE cu
+            INNER JOIN TM_CARD c
+                ON cu.INT_CARD_ID = c.ID
+
+            LEFT JOIN TM_TAXI t
+                ON c.INT_TAXI_ID = t.ID
+
+            LEFT JOIN TM_EMPLOYEE e
+                ON cu.CHR_EMPLOYEE_ID = e.CHR_EMPLOYEE_ID
+
+            LEFT JOIN TM_CARD_BORROW cb
+                ON cb.INT_CARD_ID = cu.INT_CARD_ID
+                AND cb.CHR_EMPLOYEE_ID = cu.CHR_EMPLOYEE_ID
+
+            WHERE ISNULL(cu.BIT_DELETE, 0) = 0
         ";
 
         var parameters = new DynamicParameters();
@@ -44,7 +61,7 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
         // Thêm cấc điều kiện tìm kiếm vào câu truy vấn SQL
         if (!string.IsNullOrEmpty(serach.EmployeeCode))
         {
-            sql += " cu.NVCHR_EMPLOYEE_CODE = @EmployeeCode";
+            sql += " AND cu.CHR_EMPLOYEE_ID = @EmployeeCode";
             parameters.Add("@EmployeeCode", serach.EmployeeCode);
         }
 

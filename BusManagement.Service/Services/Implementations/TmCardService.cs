@@ -105,14 +105,15 @@ public class TmCardService : BaseService<TM_CARD, int, TM_CARDDTO>, ITmCardServi
                 ws.Cell(rowStart, i++).Value = rowStart - 1;
                 ws.Cell(rowStart, i++).Value = item.NVCHR_BRAND ?? "";
                 ws.Cell(rowStart, i++).Value = item.CHR_CARD_CODE ?? "";
+                ws.Cell(rowStart, i++).Value = item.CHR_EMPLOYEE_ID ?? "";
                 ws.Cell(rowStart, i++).Value = item.NVCHR_EMPLOYEE_NAME ?? "";
                 ws.Cell(rowStart, i++).Value = item.CHR_CODE_SEC ?? "";
                 ws.Cell(rowStart, i++).Value = item.DTM_BORROW_TIME ?? "";
                 ws.Cell(rowStart, i++).Value = item.NVCHR_NOTE ?? "";
                 ws.Cell(rowStart, i++).Value = item.DTM_RETURN_TIME ?? "";
                 ws.Cell(rowStart, i++).Value = item.DTM_USE_DATE ?? "";
-                ws.Cell(rowStart, i++).Value = item.NVCHR_ADDRESS_FROM ?? "";
-                ws.Cell(rowStart, i++).Value = item.NVCHR_ADDRESS_TO ?? "";
+                ws.Cell(rowStart, i++).Value = item.NVCHR_FROM_ADDRESS ?? "";
+                ws.Cell(rowStart, i++).Value = item.NVCHR_TO_ADDRESS ?? "";
                 ws.Cell(rowStart, i++).Value = item.CHR_TRAN_CODE ?? "";
                 ws.Cell(rowStart, i++).Value = item.INT_NUMBER_MOVE ?? "";
                 ws.Cell(rowStart, i++).Value = item.INT_AMOUNT ?? "";
