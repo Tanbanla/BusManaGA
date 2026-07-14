@@ -586,6 +586,9 @@ namespace BusManagement.Model.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ID"));
 
+                    b.Property<bool?>("BIT_END")
+                        .HasColumnType("bit");
+
                     b.Property<string>("CHR_CARD_CODE")
                         .HasColumnType("nvarchar(max)");
 

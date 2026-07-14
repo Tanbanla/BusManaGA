@@ -12,6 +12,7 @@ public class EmployeeBusUpsertInputModel
     public string? Ward { get; set; }
     public string? AddressDetail { get; set; }
     public int? BusStopId { get; set; }
+    public int? RouteAssignId { get; set; }
     public bool? IsActive { get; set; } = true;
 
     public string? SearchEmployeeCode { get; set; }

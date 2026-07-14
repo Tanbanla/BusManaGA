@@ -1,4 +1,5 @@
 ﻿using BusManagement.Model;
+using BusManagement.Model.Entity;
 using BusManagement.Service.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,14 +11,19 @@ namespace BusManagementWebApp.Controllers
         private readonly ILogger<CardCarController> _logger;
         private readonly ITmCardService _tmCardService;
         private readonly ISectionService _sectionService;
+        private readonly ITmEmployeeService _tmEmployeeService;
+        private readonly ITmCardBorrowService _tmCardBorrowService;
         private readonly IWebHostEnvironment _env;
 
-        public CardCarController(ILogger<CardCarController> logger, ITmCardService tmCardService, ISectionService sectionService, IWebHostEnvironment env)
+        public CardCarController(ILogger<CardCarController> logger, ITmCardService tmCardService, ISectionService sectionService,
+            IWebHostEnvironment env, ITmEmployeeService tmEmployeeService, ITmCardBorrowService tmCardBorrowService )
         {
             _logger = logger;
             _tmCardService = tmCardService;
             _sectionService = sectionService;
+            _tmEmployeeService = tmEmployeeService;
             _env = env;
+            _tmCardBorrowService = tmCardBorrowService;
         }
 
         // MARK: Screen: Card Taxi
@@ -48,7 +54,7 @@ namespace BusManagementWebApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An error occurred while searching for card taxi.");
-                return StatusCode(500, "An error: "+ex.Message);
+                return StatusCode(500, "An error: " + ex.Message);
 
             }
         }
@@ -75,7 +81,7 @@ namespace BusManagementWebApp.Controllers
                 var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
                 return File(result.Data, contentType, fileName);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "An error occurred while downloading excel taxi file.");
                 return StatusCode(500, "An error: " + ex.Message);
@@ -92,6 +98,22 @@ namespace BusManagementWebApp.Controllers
         public async Task<IActionResult> AddCardTaxi()
         {
             return Ok();
+        }
+        // Add card borrow taxi
+        [HttpPost]
+        public async Task<IActionResult> AddCardBorrowTaxi([FromBody] TM_CARD_BORROW request)
+        {
+            if(request == null)
+            {
+                return BadRequest("Request cannot be null.");
+            }
+            var result = await _tmCardBorrowService.AddAsync(request);
+            if (!result.Success)
+            {
+                return BadRequest("Lỗi khi thêm dữ liệu: " + result.Message);
+            }
+
+            return Ok(result.Success);
         }
         // Delete card taxi
         [HttpPost]
@@ -118,6 +140,49 @@ namespace BusManagementWebApp.Controllers
         public IActionResult NotCard()
         {
             return View();
+        }
+
+        // Hàm lấy dữ liệu chung 
+        [HttpGet]
+        public async Task<IActionResult> GetListCardTaxiUsable() // Lấy thông tin thẻ xe taxi
+        {
+            try
+            {
+                var result = await _tmCardService.GetListCardTaxiUsableAsync();
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving usable taxi cards.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+        [HttpPost]
+        public async Task<IActionResult> GetInforEmployeeByCode([FromBody] string employeeCode)
+        {
+            if (string.IsNullOrEmpty(employeeCode))
+            {
+                return StatusCode(500, "Employee code cannot be null or empty.");
+            }
+            try
+            {
+                // Assuming you have a service method to get employee info by code
+                var result = await _tmEmployeeService.GetEmployeeByCodeAsync(employeeCode);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"An error occurred while retrieving employee info for code: {employeeCode}");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
         }
     }
 }

@@ -141,4 +141,22 @@ public class TmCardService : BaseService<TM_CARD, int, TM_CARDDTO>, ITmCardServi
         }
         return result;
     }
+
+    //List card taxi need usable
+    public async Task<GenericResponse<List<TM_CARD>>> GetListCardTaxiUsableAsync()
+    {
+        var result = new GenericResponse<List<TM_CARD>>();
+        try
+        {
+            result.Data = await _repo.GetListCardTaxiUsableAsync();
+            result.Success = true;
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.Status = 500;
+            result.Message = ex.Message;
+        }
+        return result;
+    }
 }

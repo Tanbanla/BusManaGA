@@ -1,4 +1,5 @@
 using BusManagement.Model.Dtos;
+using BusManagement.Model.Dtos;
 
 namespace BusManagement.ViewModels.EmployeeBus;
 
@@ -21,9 +22,28 @@ public class EmployeeBusPageViewModel
 
     public List<TM_EMPLOYEEDTO> Employees { get; set; } = new();
     public List<TM_BUS_STOPDTO> BusStops { get; set; } = new();
+    public List<EmployeeRouteAssignLookupItem> RouteAssignOptions { get; set; } = new();
+    public Dictionary<int, string> PickupRouteMap { get; set; } = new();
+    public Dictionary<int, string> ReturnRouteMap { get; set; } = new();
     public List<TM_SECTIONDTO> Sections { get; set; } = new();
     public List<TM_CITYDTO> Cities { get; set; } = new();
     public List<TM_WARDDTO> Wards { get; set; } = new();
+
+    public string GetPickupRouteDisplay(int? routeAssignId)
+    {
+        if (!routeAssignId.HasValue || routeAssignId.Value <= 0) return "-";
+        return PickupRouteMap.TryGetValue(routeAssignId.Value, out var text) && !string.IsNullOrWhiteSpace(text)
+            ? text
+            : "-";
+    }
+
+    public string GetReturnRouteDisplay(int? routeAssignId)
+    {
+        if (!routeAssignId.HasValue || routeAssignId.Value <= 0) return "-";
+        return ReturnRouteMap.TryGetValue(routeAssignId.Value, out var text) && !string.IsNullOrWhiteSpace(text)
+            ? text
+            : "-";
+    }
 
     public string GetDepartmentName(string? sectionCode)
     {
@@ -63,4 +83,10 @@ public class EmployeeBusPageViewModel
             ?? busStop.NVCHR_STOP_NAME
             ?? string.Empty;
     }
+}
+
+public class EmployeeRouteAssignLookupItem
+{
+    public int Id { get; set; }
+    public string? DisplayName { get; set; }
 }

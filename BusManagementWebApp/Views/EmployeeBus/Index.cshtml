@@ -44,6 +44,10 @@
                 </button>
             </form>
 
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#employeeRouteCapacityModal">
+                <i class="fa-solid fa-bus me-1"></i>Xem dung lượng tuyến
+            </button>
+
             @if (Model.CanManage)
             {
                 <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importEmployeeBusModal">
@@ -219,8 +223,8 @@
                             <td>@employee.NVCHR_CITY</td>
                             <td>@employee.NVCHR_WARD</td>
                             <td>@employee.NVCHR_ADDRESS_DETAIL</td>
-                            <td>-</td>
-                            <td>-</td>
+                            <td>@Model.GetPickupRouteDisplay(employee.INT_BUS_ROUTE_ASSIGN_ID)</td>
+                            <td>@Model.GetReturnRouteDisplay(employee.INT_BUS_ROUTE_ASSIGN_ID)</td>
                             <td>@Model.GetBusStopDisplayName(employee.INT_BUS_STOP_ID)</td>
                             @if (Model.CanManage)
                             {
@@ -275,6 +279,32 @@
             ["busStopId"] = Model.BusStopId?.ToString()
         }
         })
+</div>
+
+<div class="modal fade dragable-modal" id="employeeRouteCapacityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-bus me-2 text-primary"></i>Dung lượng tuyến xe đang hoạt động</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="employeeRouteCapacityContainer" class="row g-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade dragable-modal" id="employeeRouteCapacityDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-route me-2 text-primary"></i>Chi tiết điểm đón trả</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="employeeRouteCapacityDetailBody"></div>
+        </div>
+    </div>
 </div>
 
 @if (Model.CanManage)
@@ -355,7 +385,9 @@
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Điểm đón trả</label>
-                                <select class="selectpicker js-busstop-select-autofill" data-live-search="true" data-size="8" name="BusStopId" title="-- Chọn điểm --">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <select class="selectpicker js-busstop-select-autofill" data-live-search="true" data-size="8" data-container="body" name="BusStopId" title="-- Chọn điểm --">
                                     <option value="">-- Chọn điểm --</option>
                                     @foreach (var cityGroup in Model.BusStops.GroupBy(x => string.IsNullOrWhiteSpace(x.NVCHR_STOP_CITY) ? "Khác" : x.NVCHR_STOP_CITY).OrderBy(x => x.Key))
                                     {
@@ -368,6 +400,12 @@
                                             }
                                         </optgroup>
                                     }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-12">
+                                <label class="form-label">Tuyến xe đang hoạt động</label>
+                                <select class="form-select js-route-assign-select" name="RouteAssignId" data-selected="">
+                                    <option value="">-- Chọn tuyến xe --</option>
                                 </select>
                             </div>
                         </div>
@@ -474,6 +512,8 @@
                                 </div>
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Điểm đón trả</label>
+                                </div>
+                                <div class="col-12 col-md-6 w-auto">
                                     <select class="selectpicker js-busstop-select-autofill" data-live-search="true" data-size="8" name="BusStopId" title="-- Chọn điểm --">
                                         <option value="">-- Chọn điểm --</option>
                                         @foreach (var cityGroup in Model.BusStops.GroupBy(x => string.IsNullOrWhiteSpace(x.NVCHR_STOP_CITY) ? "Khác" : x.NVCHR_STOP_CITY).OrderBy(x => x.Key))
@@ -497,6 +537,12 @@
                                                 }
                                             </optgroup>
                                         }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-12">
+                                    <label class="form-label">Tuyến xe đang hoạt động</label>
+                                    <select class="form-select js-route-assign-select" name="RouteAssignId" data-selected="@employee.INT_BUS_ROUTE_ASSIGN_ID">
+                                        <option value="">-- Chọn tuyến xe --</option>
                                     </select>
                                 </div>
                             </div>
@@ -750,6 +796,153 @@
                         hideLoading();
                     }, 2500);
                 });
+            });
+
+            async function fillRouteAssignOptions(form) {
+                if (!form) return;
+                var routeSelect = form.querySelector('.js-route-assign-select');
+                if (!routeSelect) return;
+
+                var busStopSelect = form.querySelector('select[name="BusStopId"]');
+                var busStopId = busStopSelect ? (busStopSelect.value || '') : '';
+                var selected = routeSelect.getAttribute('data-selected') || routeSelect.value || '';
+
+                routeSelect.innerHTML = '<option value="">-- Chọn tuyến xe --</option>';
+                try {
+                    var response = await fetch('@Url.Action("GetActiveRouteAssignOptions", "EmployeeBus")?busStopId=' + encodeURIComponent(busStopId));
+                    if (!response.ok) return;
+                    var items = await response.json();
+                    (items || []).forEach(function (item) {
+                        var opt = document.createElement('option');
+                        opt.value = item.id;
+                        opt.textContent = item.displayName;
+                        if (selected && String(item.id) === String(selected)) {
+                            opt.selected = true;
+                        }
+                        routeSelect.appendChild(opt);
+                    });
+                } catch (err) {
+                    console.warn('Cannot load route assign options', err);
+                }
+            }
+
+            function wireRouteAssignByStop(form) {
+                if (!form) return;
+                var busStopSelect = form.querySelector('select[name="BusStopId"]');
+                var routeSelect = form.querySelector('.js-route-assign-select');
+                if (!routeSelect) return;
+
+                fillRouteAssignOptions(form);
+
+                if (busStopSelect) {
+                    busStopSelect.addEventListener('change', function () {
+                        routeSelect.setAttribute('data-selected', '');
+                        fillRouteAssignOptions(form);
+                    });
+
+                    if (window.jQuery) {
+                        window.jQuery(busStopSelect).on('changed.bs.select', function () {
+                            routeSelect.setAttribute('data-selected', '');
+                            fillRouteAssignOptions(form);
+                        });
+                    }
+                }
+            }
+
+            document.querySelectorAll('#createEmployeeBusModal form, [id^="editEmployeeBusModal-"] form').forEach(function (form) {
+                wireRouteAssignByStop(form);
+            });
+
+            async function loadRouteCapacities() {
+                var container = document.getElementById('employeeRouteCapacityContainer');
+                if (!container) return;
+
+                container.innerHTML = '<div class="col-12 text-center text-muted py-4">Đang tải dữ liệu...</div>';
+                try {
+                    var response = await fetch('@Url.Action("GetActiveRouteCapacities", "EmployeeBus")');
+                    if (!response.ok) throw new Error('load fail');
+                    var rows = await response.json();
+                    if (!Array.isArray(rows) || !rows.length) {
+                        container.innerHTML = '<div class="col-12 text-center text-muted py-4">Không có tuyến xe đang hoạt động.</div>';
+                        return;
+                    }
+
+                    container.innerHTML = rows.map(function (item) {
+                        var level = item.level || 'secondary';
+                        var percentRaw = Math.max(0, Number(item.percentRaw || 0));
+                        var percentBar = Math.max(0, Math.min(100, Number(item.percentBar || 0)));
+                        return '<div class="col-12 col-md-6">'
+                            + '<div class="border rounded-3 p-3 h-100">'
+                            + '<div class="d-flex justify-content-between align-items-start mb-2">'
+                            + '<div class="fw-semibold"><i class="fa-solid fa-bus text-' + level + ' me-2"></i>' + (item.routeDisplay || '') + '</div>'
+                            + '<span class="badge bg-' + level + '">' + (item.currentUser || 0) + '/' + (item.capacity || 0) + '</span>'
+                            + '</div>'
+                            + '<div class="progress" style="height: 12px;"><div class="progress-bar bg-' + level + '" style="width:' + percentBar.toFixed(1) + '%"></div></div>'
+                            + '<div class="small text-muted mt-2">Mức sử dụng: <strong>' + percentRaw.toFixed(1) + '%</strong></div>'
+                            + '<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary js-employee-route-detail" data-assign-id="' + item.id + '"><i class="fa-solid fa-list me-1"></i>Chi tiết tuyến</button></div>'
+                            + '</div>'
+                            + '</div>';
+                    }).join('');
+                } catch {
+                    container.innerHTML = '<div class="col-12"><div class="alert alert-danger mb-0">Không thể tải dữ liệu dung lượng tuyến.</div></div>';
+                }
+            }
+
+            var capacityModal = document.getElementById('employeeRouteCapacityModal');
+            if (capacityModal) {
+                capacityModal.addEventListener('show.bs.modal', function () {
+                    loadRouteCapacities();
+                });
+            }
+
+            async function loadRouteCapacityDetail(assignId) {
+                var body = document.getElementById('employeeRouteCapacityDetailBody');
+                if (!body) return;
+                body.innerHTML = '<div class="text-center text-muted py-4">Đang tải chi tiết...</div>';
+
+                try {
+                    var response = await fetch('@Url.Action("GetRouteCapacityDetail", "EmployeeBus")?assignId=' + encodeURIComponent(assignId));
+                    if (!response.ok) throw new Error('load detail fail');
+                    var result = await response.json();
+                    if (!result || !result.success || !result.data) throw new Error('invalid');
+
+                    var data = result.data;
+                    function renderStops(stops) {
+                        if (!Array.isArray(stops) || !stops.length) {
+                            return '<div class="text-muted fst-italic">Không có điểm dừng</div>';
+                        }
+                        return '<ul class="list-group list-group-flush">' + stops.map(function (s) {
+                            return '<li class="list-group-item px-0">'
+                                + '<div class="small text-primary fw-semibold">' + (s.pickupTime || '') + '</div>'
+                                + '<div>' + (s.stopName || '') + '</div>'
+                                + '<div class="small text-muted">' + (s.stopAddress || '') + '</div>'
+                                + '</li>';
+                        }).join('') + '</ul>';
+                    }
+
+                    body.innerHTML = '<div class="mb-3">'
+                        + '<div class="fw-semibold text-primary">' + (data.busCode || '') + ' - ' + (data.busName || '') + '</div>'
+                        + '<div class="small text-muted">Biển số: ' + (data.licensePlate || '') + '</div>'
+                        + '<div class="small">Dung lượng: <strong>' + (data.currentUser || 0) + '/' + (data.busCapacity || 0) + '</strong></div>'
+                        + '</div>'
+                        + '<div class="row g-3">'
+                        + '<div class="col-12 col-md-6"><div class="border rounded p-3"><div class="fw-semibold mb-2">Chiều đi - ' + (data.pickupRouteName || '') + '</div>' + renderStops(data.pickupStops) + '</div></div>'
+                        + '<div class="col-12 col-md-6"><div class="border rounded p-3"><div class="fw-semibold mb-2">Chiều về - ' + (data.returnRouteName || '') + '</div>' + renderStops(data.returnStops) + '</div></div>'
+                        + '</div>';
+                } catch {
+                    body.innerHTML = '<div class="alert alert-danger mb-0">Không thể tải chi tiết tuyến.</div>';
+                }
+            }
+
+            var detailModalEl = document.getElementById('employeeRouteCapacityDetailModal');
+            var detailModal = detailModalEl ? bootstrap.Modal.getOrCreateInstance(detailModalEl) : null;
+            document.addEventListener('click', function (e) {
+                var btn = e.target.closest('.js-employee-route-detail');
+                if (!btn || !detailModal) return;
+                var assignId = btn.getAttribute('data-assign-id');
+                if (!assignId) return;
+                detailModal.show();
+                loadRouteCapacityDetail(assignId);
             });
 
             // function fillAddressByBusStop(selectElement) {

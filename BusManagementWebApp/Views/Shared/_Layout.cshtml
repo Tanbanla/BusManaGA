@@ -910,6 +910,70 @@
     </script>
 
     <script>
+        // chuỗi modal nhiều cấp
+        (function () {
+            var isSwitchingModal = false;
+            var modalParentMap = new Map();
+
+            function ensureModalId(modalEl) {
+                if (!modalEl) return '';
+                if (!modalEl.id) {
+                    modalEl.id = 'autoModal_' + Math.random().toString(36).slice(2, 10);
+                }
+                return modalEl.id;
+            }
+
+            document.addEventListener('show.bs.modal', function (e) {
+                var targetModal = e.target;
+                if (!targetModal || isSwitchingModal) return;
+
+                var currentModal = document.querySelector('.modal.show');
+                if (!currentModal || currentModal === targetModal) return;
+
+                e.preventDefault();
+                var currentId = ensureModalId(currentModal);
+                var targetId = ensureModalId(targetModal);
+                if (currentId && targetId) {
+                    modalParentMap.set(targetId, currentId);
+                }
+
+                isSwitchingModal = true;
+                currentModal.addEventListener('hidden.bs.modal', function onHiddenCurrent() {
+                    currentModal.removeEventListener('hidden.bs.modal', onHiddenCurrent);
+
+                    var targetInstance = bootstrap.Modal.getOrCreateInstance(targetModal);
+                    targetInstance.show();
+                    isSwitchingModal = false;
+                }, { once: true });
+
+                bootstrap.Modal.getOrCreateInstance(currentModal).hide();
+            });
+
+            document.addEventListener('hidden.bs.modal', function (e) {
+                if (isSwitchingModal) return;
+
+                var closedModal = e.target;
+                if (!closedModal) return;
+
+                var closedId = ensureModalId(closedModal);
+                if (!closedId) return;
+
+                var parentModalId = modalParentMap.get(closedId);
+                if (!parentModalId) return;
+
+                modalParentMap.delete(closedId);
+
+                if (document.querySelector('.modal.show')) return;
+
+                var parentModal = document.getElementById(parentModalId);
+                if (!parentModal) return;
+
+                bootstrap.Modal.getOrCreateInstance(parentModal).show();
+            });
+        })();
+    </script>
+
+    <script>
         (function () {
             window.initSharedSelectPicker = function (scope) {
                 if (!window.jQuery || typeof window.jQuery.fn.selectpicker !== 'function') return;

@@ -105,6 +105,7 @@ public class BusRouteAssignController : Controller
             TempData["BusRouteAssignError"] = "Vui lòng chọn ít nhất một lộ trình (chiều đi hoặc chiều về).";
             return RedirectToIndex(input);
         }
+
         var busResp = await _tmBusService.GetByIdAsync(input.BusId ?? 0);
         var bus = busResp.Data;
 
@@ -158,6 +159,9 @@ public class BusRouteAssignController : Controller
             return RedirectToIndex(input);
         }
 
+        var busResp = await _tmBusService.GetByIdAsync(input.BusId ?? 0);
+        var bus = busResp.Data;
+
         var currentResp = await _tmBusRouteAssignService.GetByIdAsync(input.ID.Value);
         var current = currentResp.Data;
         if (!currentResp.Success || current == null)
@@ -179,7 +183,11 @@ public class BusRouteAssignController : Controller
             INT_ROUTE_RETURN_ID = input.RouteReturnId,
             INT_DRIVER_ID = input.DriverId,
             CHR_BRA_TYPE = current.CHR_BRA_TYPE,
-            DTM_EFFECTIVE_FROM = input.EffectiveDate
+            DTM_EFFECTIVE_FROM = input.EffectiveDate,
+            DTM_EFFECTIVE_TO = current.DTM_EFFECTIVE_TO,
+            BIT_IS_ACTIVE = current.BIT_IS_ACTIVE,
+            INT_CAPACITY = bus?.INT_CAPACITY ?? current.INT_CAPACITY,
+            INT_CURRENT_USER = current.INT_CURRENT_USER
         };
 
         var resp = await _tmBusRouteAssignService.UpdateAsync(entity);
@@ -674,6 +682,9 @@ public class BusRouteAssignController : Controller
             return RedirectToIndexWorker(input);
         }
 
+        var busResp = await _tmBusService.GetByIdAsync(input.BusId ?? 0);
+        var bus = busResp.Data;
+
         var actor = GetCurrentActor();
         var entity = new TM_BUS_ROUTE_ASSIGN
         {
@@ -684,6 +695,7 @@ public class BusRouteAssignController : Controller
             CHR_BRA_TYPE = BusRouteAssignTypeEnum.Worker.ToString(),
             DTM_EFFECTIVE_FROM = input.EffectiveDate ?? DateTime.Now,
             CHR_USER_CREATE = actor,
+            INT_CAPACITY = bus?.INT_CAPACITY ?? 0,
             DTM_CREATE = DateTime.Now
         };
 
@@ -722,6 +734,9 @@ public class BusRouteAssignController : Controller
             return RedirectToIndexWorker(input);
         }
 
+        var busResp = await _tmBusService.GetByIdAsync(input.BusId ?? 0);
+        var bus = busResp.Data;
+
         var currentResp = await _tmBusRouteAssignService.GetByIdAsync(input.ID.Value);
         var current = currentResp.Data;
         if (!currentResp.Success || current == null)
@@ -743,7 +758,8 @@ public class BusRouteAssignController : Controller
             INT_ROUTE_RETURN_ID = null,
             INT_DRIVER_ID = input.DriverId,
             CHR_BRA_TYPE = current.CHR_BRA_TYPE,
-            DTM_EFFECTIVE_FROM = input.EffectiveDate
+            DTM_EFFECTIVE_FROM = input.EffectiveDate,
+            INT_CAPACITY = bus?.INT_CAPACITY ?? current.INT_CAPACITY
         };
 
         var resp = await _tmBusRouteAssignService.UpdateAsync(entity);

@@ -11,4 +11,5 @@ public partial class TM_CARD_BORROW
     public string? CHR_EMPLOYEE_ID { get; set; }
     public DateTime? DTM_BORROW_TIME { get; set; }
     public DateTime? DTM_RETURN_TIME { get; set; }
+    public bool? BIT_END { get; set; }
 }

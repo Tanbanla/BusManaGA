@@ -1,0 +1,319 @@
+﻿@using BusManagement.Model.Common.Enum
+@model BusManagement.ViewModels.BusCapacityReport.BusCapacityReportPageViewModel
+@{
+    ViewData["Title"] = "Báo cáo dung lượng xe";
+    var startIndex = Model.Reports.Count == 0 ? 0 : 1;
+    var endIndex = Model.Reports.Count;
+}
+
+<style>
+    .capacity-report-card { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .05); }
+    .table thead th { white-space: nowrap; vertical-align: middle; }
+    .form-group-shell { border: 1px solid #e2e8f0; border-radius: 10px; padding: .9rem; }
+    .form-group-title { font-size: .8rem; font-weight: 700; color: #2563eb; margin-bottom: .6rem; text-transform: uppercase; letter-spacing: .4px; }
+
+    .bg-success { background-color: #dcfce7 !important; color: #166534; }
+    .bg-info { background-color: #cffafe !important; color: #164e63; }
+    .bg-warning { background-color: #fef3c7 !important; color: #92400e; }
+    .bg-danger { background-color: #dc3545 !important; color: #fee2e2; }
+
+    .capacity-badge { padding: 0.5rem 0.75rem; border-radius: 6px; font-weight: 600; font-size: 0.875rem; }
+    .status-stop { background-color: #dc3545; color: #fee2e2; font-weight: bold; text-align: center; }
+
+    .modal-lg { max-width: 900px; }
+</style>
+
+<div class="capacity-report-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <h5 class="m-0">Báo cáo dung lượng xe</h5>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            <form method="get" asp-controller="BusCapacityReport" asp-action="Export" class="d-inline js-export-form" data-no-loader>
+                <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                <input type="hidden" name="departmentCode" value="@Model.DepartmentCode" />
+                <input type="hidden" name="vehicleType" value="@Model.VehicleType" />
+                <input type="hidden" name="minCapacity" value="@Model.MinCapacity" />
+                <input type="hidden" name="maxCapacity" value="@Model.MaxCapacity" />
+                <input type="hidden" name="minUsed" value="@Model.MinUsed" />
+                <input type="hidden" name="maxUsed" value="@Model.MaxUsed" />
+                <input type="hidden" name="minAvailable" value="@Model.MinAvailable" />
+                <input type="hidden" name="maxAvailable" value="@Model.MaxAvailable" />
+                <input type="hidden" name="note" value="@Model.Note" />
+                <input type="hidden" name="showFullCapacity" value="@Model.ShowFullCapacity" />
+                <input type="hidden" name="showAvailableOnly" value="@Model.ShowAvailableOnly" />
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Filter Section -->
+    <form method="get" show-loading asp-controller="BusCapacityReport" asp-action="Index" class="row g-2 mb-3 js-search-form">
+        <div class="col-12">
+            <div class="form-group-shell">
+                <div class="form-group-title">Lọc dữ liệu</div>
+                <div class="row g-3">
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">Mã nhân viên</label>
+                        <input class="form-control" name="employeeCode" value="@Model.EmployeeCode" placeholder="Mã NV" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">Phòng ban</label>
+                        <select class="form-select" name="departmentCode">
+                            <option value="">-- Tất cả phòng ban --</option>
+                            @foreach (var dept in Model.Departments)
+                            {
+                                var deptCode = dept.CHR_CODE?.Trim();
+                                var deptName = dept.CHR_NAME ?? dept.CHR_SECTION_NAME ?? deptCode;
+                                if (string.IsNullOrWhiteSpace(deptCode)) continue;
+
+                                if (string.Equals(Model.DepartmentCode, deptCode, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <option value="@deptCode" selected>@deptName</option>
+                                }
+                                else
+                                {
+                                    <option value="@deptCode">@deptName</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">Loại xe</label>
+                        <select class="form-select" name="vehicleType">
+                            <option value="">-- Tất cả loại xe --</option>
+                            <option value="Nhân viên" selected="@(Model.VehicleType == "Nhân viên")">Nhân viên</option>
+                            <option value="Công nhân" selected="@(Model.VehicleType == "Công nhân")">Công nhân</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fa-solid fa-magnifying-glass"></i> Tìm kiếm
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="form-group-shell">
+                <div class="form-group-title">Khoảng giá trị</div>
+                <div class="row g-3">
+                    <div class="col-12 col-md-2">
+                        <label class="form-label">Số ghế từ</label>
+                        <input type="number" class="form-control" name="minCapacity" value="@Model.MinCapacity" placeholder="Min" min="0" />
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label class="form-label">Số ghế đến</label>
+                        <input type="number" class="form-control" name="maxCapacity" value="@Model.MaxCapacity" placeholder="Max" min="0" />
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label class="form-label">Sử dụng từ</label>
+                        <input type="number" class="form-control" name="minUsed" value="@Model.MinUsed" placeholder="Min" min="0" />
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label class="form-label">Sử dụng đến</label>
+                        <input type="number" class="form-control" name="maxUsed" value="@Model.MaxUsed" placeholder="Max" min="0" />
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label class="form-label">Còn trống từ</label>
+                        <input type="number" class="form-control" name="minAvailable" value="@Model.MinAvailable" placeholder="Min" min="0" />
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label class="form-label">Còn trống đến</label>
+                        <input type="number" class="form-control" name="maxAvailable" value="@Model.MaxAvailable" placeholder="Max" min="0" />
+                    </div>
+                </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-12 col-md-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="showFullCapacity" value="true" id="showFullCapacity" checked="@(Model.ShowFullCapacity == true)" />
+                            <label class="form-check-label" for="showFullCapacity">
+                                Các tuyến đã sử dụng 100%
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="showAvailableOnly" value="true" id="showAvailableOnly" checked="@(Model.ShowAvailableOnly == true)" />
+                            <label class="form-check-label" for="showAvailableOnly">
+                                Các tuyến còn ghế trống
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Data Table -->
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>STT</th>
+                    <th>Tuyến xe</th>
+                    <th>Phòng ban</th>
+                    <th>Loại xe</th>
+                    <th class="text-center">Số ghế</th>
+                    <th class="text-center">Số lượng sử dụng</th>
+                    <th class="text-center">Số ghế còn trống</th>
+                    <th class="text-center">Tỉ lệ sử dụng (%)</th>
+                    <th class="text-center">Ghi chú</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Reports.Any())
+                {
+                    <tr><td colspan="10" class="text-center text-muted py-4">Không có dữ liệu báo cáo.</td></tr>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.Reports.Count; i++)
+                    {
+                        var item = Model.Reports[i];
+                        <tr>
+                            <td>@(startIndex + i)</td>
+                            <td><strong>@item.RouteDisplay</strong></td>
+                            <td>@item.DepartmentName</td>
+                            <td>@item.VehicleType</td>
+                            <td class="text-center">@item.Capacity</td>
+                            <td class="text-center">@item.CurrentUsed</td>
+                            <td class="text-center">@item.AvailableSeats</td>
+                            <td class="text-center">
+                                <span class="capacity-badge @item.CapacityStatusClass">
+                                    @item.UsagePercent.ToString("F1")%
+                                </span>
+                            </td>
+                            <td class="@item.NoteStatusClass text-center">
+                                @if (item.IsFullCapacity)
+                                {
+                                    <span class="fw-bold">STOP</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <button type="button" 
+                                        class="btn btn-primary btn-sm js-capacity-detail-btn"
+                                        data-detail-url="@Url.Action("GetCapacityDetail", "BusCapacityReport", new { assignId = item.Id })"
+                                        title="Xem danh sách nhân viên sử dụng tuyến này">
+                                    <i class="fa-solid fa-users"></i> Chi tiết
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.Reports.Count</div>
+</div>
+
+<!-- Capacity Detail Modal -->
+<div class="modal fade dragable-modal" id="capacityDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-users me-2 text-primary"></i>Danh sách nhân viên sử dụng tuyến xe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="capacityDetailBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            function showLoading() { if (typeof window.showLoading === 'function') window.showLoading(); }
+            function hideLoading() { if (typeof window.hideLoading === 'function') window.hideLoading(); }
+
+            document.querySelectorAll('form.js-search-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                });
+            });
+
+            document.querySelectorAll('form.js-export-form').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    showLoading();
+                    setTimeout(function () { hideLoading(); }, 2500);
+                });
+            });
+
+            var detailModalEl = document.getElementById('capacityDetailModal');
+            var detailBody = document.getElementById('capacityDetailBody');
+            var detailModal = detailModalEl ? bootstrap.Modal.getOrCreateInstance(detailModalEl) : null;
+
+            document.addEventListener('click', async function (e) {
+                var btn = e.target.closest('.js-capacity-detail-btn');
+                if (!btn || !detailModal) return;
+
+                var url = btn.getAttribute('data-detail-url');
+                if (!url) return;
+
+                detailBody.innerHTML = '<div class="text-center text-muted py-4">Đang tải...</div>';
+                detailModal.show();
+
+                try {
+                    var response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    if (!response.ok) throw new Error('Load detail failed');
+                    var result = await response.json();
+
+                    if (!result.success || !result.data) {
+                        detailBody.innerHTML = '<div class="alert alert-danger mb-0">Không thể tải danh sách nhân viên.</div>';
+                        return;
+                    }
+
+                    var data = result.data;
+                    var employees = data.employees || [];
+
+                    var html = '<div class="mb-3"><strong>Tổng số người sử dụng: ' + data.totalUsers + '</strong></div>';
+
+                    if (employees.length === 0) {
+                        html += '<div class="alert alert-info mb-0">Không có nhân viên nào sử dụng tuyến xe này.</div>';
+                    } else {
+                        html += '<div class="table-responsive">';
+                        html += '<table class="table table-sm table-hover align-middle">';
+                        html += '<thead class="table-light"><tr>';
+                        html += '<th>Mã NV</th><th>Họ tên</th><th>Phòng ban</th><th>Chức vụ</th><th>Địa chỉ</th>';
+                        html += '</tr></thead><tbody>';
+
+                        employees.forEach(function (emp) {
+                            html += '<tr>';
+                            html += '<td>' + escapeHtml(emp.EmployeeCode || '') + '</td>';
+                            html += '<td>' + escapeHtml(emp.EmployeeName || '') + '</td>';
+                            html += '<td>' + escapeHtml(emp.DepartmentName || '') + '</td>';
+                            html += '<td>' + escapeHtml(emp.Position || '') + '</td>';
+                            html += '<td>' + escapeHtml(emp.Address || '') + '</td>';
+                            html += '</tr>';
+                        });
+
+                        html += '</tbody></table></div>';
+                    }
+
+                    detailBody.innerHTML = html;
+                } catch {
+                    detailBody.innerHTML = '<div class="alert alert-danger mb-0">Không thể tải danh sách nhân viên.</div>';
+                }
+            });
+
+            function escapeHtml(value) {
+                return (value || '').toString()
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+        })();
+    </script>
+}

@@ -746,7 +746,7 @@ public class BusRequestApprovalController : Controller
             INT_NEW_RETURN_STOP_ID = newReturnStopId,
             DTM_NEW_EFFECTIVE_FROM = effectiveFrom,
             NVCHR_ACTION_TYPE = actionType,
-            CHR_USER_CREATE = actor,
+            CHR_USER_CREATE = "systemAutoFill",
             DTM_CREATE = DateTime.Now
         });
 
@@ -759,7 +759,7 @@ public class BusRequestApprovalController : Controller
                     ID = activeRoute.ID,
                     CHR_USER_CREATE = activeRoute.CHR_USER_CREATE,
                     DTM_CREATE = activeRoute.DTM_CREATE,
-                    CHR_USER_UPDATE = actor,
+                    CHR_USER_UPDATE = "systemAutoUpdate",
                     DTM_UPDATE = DateTime.Now,
                     INT_EMPLOYEE_ID = activeRoute.INT_EMPLOYEE_ID,
                     CHR_EMPLOYEE_ID = activeRoute.CHR_EMPLOYEE_ID,
@@ -790,7 +790,7 @@ public class BusRequestApprovalController : Controller
                 DTM_EFFECTIVE_FROM = effectiveFrom,
                 DTM_EFFECTIVE_TO = null,
                 BIT_IS_ACTIVE = true,
-                CHR_USER_CREATE = actor,
+                CHR_USER_CREATE = "systemAutoFill",
                 DTM_CREATE = DateTime.Now
             });
 
@@ -808,7 +808,7 @@ public class BusRequestApprovalController : Controller
                 ID = activeRoute.ID,
                 CHR_USER_CREATE = activeRoute.CHR_USER_CREATE,
                 DTM_CREATE = activeRoute.DTM_CREATE,
-                CHR_USER_UPDATE = actor,
+                CHR_USER_UPDATE = "systemAutoUpdate",
                 DTM_UPDATE = DateTime.Now,
                 INT_EMPLOYEE_ID = activeRoute.INT_EMPLOYEE_ID,
                 CHR_EMPLOYEE_ID = activeRoute.CHR_EMPLOYEE_ID,
@@ -929,7 +929,7 @@ public class BusRequestApprovalController : Controller
             ID = routeAssign.ID,
             CHR_USER_CREATE = routeAssign.CHR_USER_CREATE,
             DTM_CREATE = routeAssign.DTM_CREATE,
-            CHR_USER_UPDATE = actor,
+            CHR_USER_UPDATE = "systemAutoFill",
             DTM_UPDATE = DateTime.Now,
             INT_ROUTE_PICKUP_ID = routeAssign.INT_ROUTE_PICKUP_ID,
             INT_ROUTE_RETURN_ID = routeAssign.INT_ROUTE_RETURN_ID,

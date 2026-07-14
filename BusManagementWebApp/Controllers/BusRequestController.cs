@@ -21,6 +21,7 @@ public class BusRequestController : Controller
     private readonly ITmBusRouteAssignService _tmBusRouteAssignService;
     private readonly ITmBusService _tmBusService;
     private readonly ITmBusRouteService _tmBusRouteService;
+    private readonly ITmBusRouteStopService _tmBusRouteStopService;
     private readonly ITmBusStopService _tmBusStopService;
     private readonly ITmUserService _tmUserService;
     private readonly ITmEmployeeService _tmEmployeeService;
@@ -42,6 +43,7 @@ public class BusRequestController : Controller
         ITmBusRouteAssignService tmBusRouteAssignService,
         ITmBusService tmBusService,
         ITmBusRouteService tmBusRouteService,
+        ITmBusRouteStopService tmBusRouteStopService,
         ITmBusStopService tmBusStopService,
         ITmUserService tmUserService,
         ITmEmployeeService tmEmployeeService,
@@ -56,6 +58,7 @@ public class BusRequestController : Controller
         _tmBusRouteAssignService = tmBusRouteAssignService;
         _tmBusService = tmBusService;
         _tmBusRouteService = tmBusRouteService;
+        _tmBusRouteStopService = tmBusRouteStopService;
         _tmBusStopService = tmBusStopService;
         _tmUserService = tmUserService;
         _tmEmployeeService = tmEmployeeService;
@@ -987,10 +990,43 @@ public class BusRequestController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetRouteAssignOptions(string? vehicleType, string? area)
+    public async Task<IActionResult> GetRouteAssignOptions(string? vehicleType, string? area, int? busStopId)
     {
-        var assignResp = await _tmBusRouteAssignService.SearchByConditionAsync(new SearchOptions { PageNumber = -1, PageSize = 100000 });
+        var assignResp = await _tmBusRouteAssignService.SearchByConditionAsync(new SearchOptions
+        {
+            PageNumber = -1,
+            PageSize = 100000,
+            Filters = new List<FilterOption>
+            {
+                new() { Field = nameof(TM_BUS_ROUTE_ASSIGN.BIT_IS_ACTIVE), Operator = "=", Value = true }
+            }
+        });
         var assigns = assignResp?.Data?.Data?.ToList() ?? new List<TM_BUS_ROUTE_ASSIGNDTO>();
+
+        if (busStopId.HasValue && busStopId.Value > 0)
+        {
+            var routeStopResp = await _tmBusRouteStopService.SearchByConditionAsync(new SearchOptions
+            {
+                PageNumber = -1,
+                PageSize = 100000,
+                Filters = new List<FilterOption>
+                {
+                    new() { Field = nameof(TM_BUS_ROUTE_STOP.INT_BUS_STOP_ID), Operator = "=", Value = busStopId.Value }
+                }
+            });
+
+            var routeIds = (routeStopResp?.Data?.Data ?? Enumerable.Empty<TM_BUS_ROUTE_STOPDTO>())
+                .Where(x => x.INT_ROUTE_ID.HasValue)
+                .Select(x => x.INT_ROUTE_ID!.Value)
+                .Distinct()
+                .ToHashSet();
+
+            assigns = assigns
+                .Where(x => (x.INT_ROUTE_PICKUP_ID.HasValue && routeIds.Contains(x.INT_ROUTE_PICKUP_ID.Value))
+                         || (x.INT_ROUTE_RETURN_ID.HasValue && routeIds.Contains(x.INT_ROUTE_RETURN_ID.Value)))
+                .ToList();
+        }
+
         var routeOptions = await BuildRouteDisplayMap(assigns);
 
         if (!string.IsNullOrWhiteSpace(vehicleType))
@@ -1084,6 +1120,102 @@ public class BusRequestController : Controller
             .ToList();
 
         return Json(result);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetRouteCapacityDetail(int assignId)
+    {
+        if (assignId <= 0)
+        {
+            return Json(new { success = false, message = "Dữ liệu không hợp lệ." });
+        }
+
+        var assignResp = await _tmBusRouteAssignService.GetByIdAsync(assignId);
+        var assign = assignResp?.Data;
+        if (assign == null)
+        {
+            return Json(new { success = false, message = "Không tìm thấy tuyến xe." });
+        }
+
+        var bus = (await _tmBusService.GetByIdAsync(assign.INT_BUS_ID ?? 0))?.Data;
+        var driver = (await _tmUserService.GetByIdAsync(assign.INT_DRIVER_ID ?? 0))?.Data;
+
+        var pickupRoute = assign.INT_ROUTE_PICKUP_ID.HasValue
+            ? (await _tmBusRouteService.GetByIdAsync(assign.INT_ROUTE_PICKUP_ID.Value))?.Data
+            : null;
+        var returnRoute = assign.INT_ROUTE_RETURN_ID.HasValue
+            ? (await _tmBusRouteService.GetByIdAsync(assign.INT_ROUTE_RETURN_ID.Value))?.Data
+            : null;
+
+        var pickupStops = await GetRouteStopsForDetailAsync(assign.INT_ROUTE_PICKUP_ID);
+        var returnStops = await GetRouteStopsForDetailAsync(assign.INT_ROUTE_RETURN_ID);
+
+        return Json(new
+        {
+            success = true,
+            data = new
+            {
+                assignId = assign.ID,
+                busCode = bus?.CHR_BUS_CODE,
+                busName = bus?.NVCHR_BUS_NAME,
+                licensePlate = bus?.CHR_LICENSE_PLATE,
+                busCapacity = assign.INT_CAPACITY ?? bus?.INT_CAPACITY ?? 0,
+                currentUser = assign.INT_CURRENT_USER ?? 0,
+                driverName = driver?.NVCHR_NAME,
+                pickupRouteName = pickupRoute?.NVCHR_ROUTE_NAME,
+                returnRouteName = returnRoute?.NVCHR_ROUTE_NAME,
+                pickupStops,
+                returnStops
+            }
+        });
+    }
+
+    private async Task<List<object>> GetRouteStopsForDetailAsync(int? routeId)
+    {
+        if (!routeId.HasValue || routeId.Value <= 0)
+        {
+            return new List<object>();
+        }
+
+        var routeStopResp = await _tmBusRouteStopService.SearchByConditionAsync(new SearchOptions
+        {
+            PageNumber = -1,
+            PageSize = 100000,
+            Filters = new List<FilterOption>
+            {
+                new() { Field = nameof(TM_BUS_ROUTE_STOP.INT_ROUTE_ID), Operator = "=", Value = routeId.Value }
+            },
+            SortOptions = new()
+            {
+                new SortOption { Field = nameof(TM_BUS_ROUTE_STOP.INT_ORDER), SortDirection = "ASC" }
+            }
+        });
+
+        var routeStops = routeStopResp?.Data?.Data?.ToList() ?? new List<TM_BUS_ROUTE_STOPDTO>();
+        var stopIds = routeStops
+            .Where(x => x.INT_BUS_STOP_ID.HasValue)
+            .Select(x => x.INT_BUS_STOP_ID!.Value)
+            .Distinct()
+            .ToList();
+
+        var stops = stopIds.Any()
+            ? ((await _tmBusStopService.GetByIdsAsync(stopIds))?.Data ?? Enumerable.Empty<TM_BUS_STOPDTO>())
+                .ToDictionary(x => x.ID, x => x)
+            : new Dictionary<int, TM_BUS_STOPDTO>();
+
+        return routeStops
+            .Select(x =>
+            {
+                stops.TryGetValue(x.INT_BUS_STOP_ID ?? 0, out var stop);
+                return (object)new
+                {
+                    order = x.INT_ORDER ?? 0,
+                    stopName = stop?.NVCHR_STOP_NAME ?? string.Empty,
+                    stopAddress = stop?.NVCHR_STOP_ADDRESS ?? string.Empty,
+                    pickupTime = x.DTM_PICKUP_TIME?.ToString("HH:mm") ?? string.Empty
+                };
+            })
+            .ToList();
     }
 
     private async Task<List<BusRouteAssignLookupItem>> BuildRouteDisplayMap(List<TM_BUS_ROUTE_ASSIGNDTO> assigns)

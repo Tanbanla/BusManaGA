@@ -4,11 +4,15 @@
     if (!table || !cardRoot) {
         return;
     }
-
+    //url
     const searchUrl = cardRoot.dataset.searchUrl;
     const exportUrl = cardRoot.dataset.exportUrl;
     const deleteUrl = cardRoot.dataset.deleteUrl;
+    const getEmployeeUrl = cardRoot.dataset.getemployeeUrl;
+    const getListCardUrl = cardRoot.dataset.listcardUrl;
+    const addCardUrl = cardRoot.dataset.saveborrowUrl;
 
+    //
     const tbody = table.querySelector('.js-taxi-tbody');
     const filters = Array.from(table.querySelectorAll('.js-column-filter'));
     const pageInfo = document.querySelector('.js-taxi-page-info');
@@ -19,6 +23,9 @@
     const deleteModal = deleteModalEl
         ? new bootstrap.Modal(deleteModalEl)
         : null;
+
+    const taxiCardModalEl = document.getElementById('taxiCardModal');
+    const taxiCardModal = taxiCardModalEl ? new bootstrap.Modal(taxiCardModalEl) : null;
 
     const pageSize = 8;
     let currentPage = 1;
@@ -218,9 +225,34 @@
 
     };
 
-    const handleDeleteClick = function (e) {
+    const handleDeleteClick = async function (e) {
 
-        
+        const id = this.dataset.id;
+        if (!id) {
+            AppCommon.error('Không tìm thấy ID để xóa.');
+            return;
+        }
+        const modal = document.getElementById('deleteConfirmModal');
+
+        if (!modal) {
+            AppCommon.error('Không tìm thấy popup xác nhận xóa.');
+            return;
+        }
+
+        const confirmBtn = modal.querySelector('.js-confirm-delete');
+        if (confirmBtn) {
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+            newConfirmBtn.addEventListener('click', function () {
+                performDelete([id]);
+
+                const instance = bootstrap.Modal.getInstance(modal);
+                instance?.hide();
+            });
+        }
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
     };
 
     const renderPagination = (totalPages) => {
@@ -382,7 +414,7 @@
     };
 
     document.querySelector('.js-btn-add')?.addEventListener('click', function () {
-        window.AppCommon && AppCommon.info ? AppCommon.info('Chức năng thêm đang được cập nhật.') : alert('Chức năng thêm đang được cập nhật.');
+        taxiCardModal?.show();
     });
 
     document.querySelector('.js-btn-update')?.addEventListener('click', function () {
@@ -399,6 +431,31 @@
 
         deleteModal?.show();
 
+    });
+    document.querySelector('.js-confirm-delete')?.addEventListener('click', function () {
+        deleteDataAsync();
+    });
+
+    searchButton?.addEventListener('click', function () {
+        performSearch();
+    });
+
+    document.getElementById('DownloadExcel')?.addEventListener('click', function () {
+        exportCurrentData();
+    });
+
+    document.getElementById('borrowEmployeeId')?.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            loadEmployeeInfo();
+        }
+    });
+
+    document.getElementById('borrowCardId')?.addEventListener('mousedown', function () {
+        loadListCard();
+    });
+
+    document.getElementById('saveBorrow')?.addEventListener('click', function () {
+        addCardTaxiBorrow();
     });
 
     const deleteDataAsync = async () => {
@@ -441,18 +498,43 @@
         }
     };
 
-    document.querySelector('.js-confirm-delete')?.addEventListener('click', function () {
-        deleteDataAsync();
-    });
+    const performDelete = async (ids) => {
+        if (!ids.length) {
+            AppCommon.error('Vui lòng chọn ít nhất một bản ghi để xóa.');
+
+            return;
+        }
+        if (!deleteUrl) {
+            AppCommon.error('Không nhận được API');
+            return;
+        }
+
+        try {
+            const response = await fetch(deleteUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(ids)
+            });
+
+            if (!response.ok) {
+                AppCommon.error('Bug: ' + response.message);
+                console.log('Bug: ' + response.message);
+                return;
+            }
+
+            deleteModal?.hide();
+            AppCommon.success('Xóa dữ liệu thành công.');
+            performSearch();
 
 
-    searchButton?.addEventListener('click', function () {
-        performSearch();
-    });
-
-    document.getElementById('DownloadExcel')?.addEventListener('click', function () {
-        exportCurrentData();
-    });
+        } catch (err) {
+            AppCommon.error('Bug: ' + err.message);
+            console.log('Bug: ' + err.message);
+            return;
+        }
+    };
 
     const chkAll = document.getElementById('chkAllRows') || document.querySelector('.js-chk-all');
 
@@ -490,6 +572,132 @@
             render();
         });
     });
+    // POST Add Card Taxi Borrow
+    const addCardTaxiBorrow = async () => {
+        if (!addCardUrl) {  
+            AppCommon.error('Không nhận được API');
+            return;
+        }
+        var borrowEmployeeId = document.getElementById('borrowEmployeeId')?.value?.trim();
+        var borrowCardId = document.getElementById('borrowCardId')?.value?.trim();
+        var borrowCardCode = document.getElementById('borrowCardId')?.selectedOptions?.[0]?.text;
+        var borrowTime = document.getElementById('borrowTime')?.value?.trim();
+        var borrowReturnPlan = document.getElementById('returnTime')?.value;
+
+        // Validate required fields
+        if (!borrowEmployeeId || !borrowCardId || !borrowTime || !borrowReturnPlan) {
+            AppCommon.error('Vui lòng điền đầy đủ thông tin.');
+            return;
+        }
+
+        var payload = {
+            ID: 0,
+            INT_CARD_ID: borrowCardId,
+            CHR_CARD_CODE: borrowCardCode,
+            CHR_EMPLOYEE_ID: borrowEmployeeId,
+            DTM_BORROW_TIME: borrowTime,
+            DTM_RETURN_TIME: borrowReturnPlan,
+            BIT_END: false,
+        }
+
+        try {
+            const rep = await fetch(addCardUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!rep.ok) {
+                AppCommon.error('Bug: ' + rep.statusText);
+                return;
+            }
+
+            const data = await rep.json();
+            AppCommon.success('Thêm thẻ taxi thành công.');
+
+            taxiCardModal?.hide();
+            performSearch();
+
+        } catch (err) {
+            AppCommon.error('Bug: ' + err.message);
+            return;
+        }
+
+    };
+    // Get infor Employee 
+    const loadEmployeeInfo = async () => {
+        if (!getEmployeeUrl) {
+            AppCommon.error('Không nhận được API');
+            return;
+        }
+
+        const employeeCode = document.getElementById('borrowEmployeeId')?.value?.trim();
+        if (!employeeCode) {
+            AppCommon.error('Vui lòng nhập mã nhân viên.');
+            return;
+        }
+
+        try {
+            const rep = await fetch(getEmployeeUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(employeeCode)
+            });
+            if (!rep.ok) {
+                AppCommon.error('Bug: ' + rep.statusText);
+                return;
+            }
+            const data = await rep.json();
+
+            document.getElementById('borrowEmployeeName').value = data?.NVCHR_EMPLOYEE_NAME || '';
+            document.getElementById('borrowSection').value = data?.CHR_CODE_SEC || '';
+
+        } catch (err) {
+            AppCommon.error('Bug: ' + err.message);
+            return;
+        }
+    };
+    // Lấy dữ liệu thể taxi
+    const loadListCard = async () => {
+        if (!getListCardUrl) {
+            AppCommon.error('Không nhận được API');
+            return;
+        }
+        const borrowCardSelect = document.getElementById('borrowCardId');
+
+        try {
+            const rep = await fetch(getListCardUrl, {
+                method: 'GET'
+            });
+            if (!rep.ok) {
+                AppCommon.error('Bug: ' + rep.statusText);
+                return;
+            }
+            const data = await rep.json();
+
+            borrowCardSelect.innerHTML =
+            '<option value="">-- Chọn thẻ --</option>';
+            data.forEach(item => {
+                borrowCardSelect.insertAdjacentHTML(
+                    'beforeend',
+                    `<option value="${item.ID}">
+                    ${item.CHR_CARD_CODE}
+                    </option>`
+                );
+            });
+            cardLoaded = true;
+            
+
+        } catch (err) {
+            AppCommon.error('Bug: ' + err.message);
+            return;
+        }
+    };
+
 
     performSearch();
 });

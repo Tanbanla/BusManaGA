@@ -35,6 +35,32 @@
     .lottie-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.25); display: none; align-items: center; justify-content: center; z-index: 2000; }
     .lottie-overlay.show { display: flex; }
     #approvalSuccessLottie { width: 280px; height: 280px; }
+
+    .assign-routes-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+    .assign-route-col { padding: .85rem 1rem; }
+    .assign-route-col:first-child { border-right: 1px solid #e2e8f0; }
+    .assign-route-label { display: flex; align-items: center; gap: 6px; font-size: .72rem; text-transform: uppercase; letter-spacing: .4px; margin-bottom: .65rem; }
+    .assign-route-label.go { color: #0F6E56; }
+    .assign-route-label.ret { color: #A32D2D; }
+    .assign-route-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .go .assign-route-dot { background: #0F6E56; }
+    .ret .assign-route-dot { background: #A32D2D; }
+    .assign-route-subname { margin-left: auto; font-size: .72rem; color: #64748b; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .assign-stop-item { display: flex; gap: 10px; padding-bottom: 12px; }
+    .assign-stop-item:last-child { padding-bottom: 0; }
+    .assign-stop-left { display: flex; flex-direction: column; align-items: center; width: 20px; flex-shrink: 0; }
+    .assign-stop-num { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .65rem; font-weight: 600; }
+    .assign-stop-num.go { background: #E1F5EE; color: #0F6E56; }
+    .assign-stop-num.ret { background: #FCEBEB; color: #A32D2D; }
+    .assign-stop-line { width: 1px; flex: 1; background: #cbd5e1; margin-top: 3px; }
+    .assign-stop-time { font-size: .72rem; font-weight: 600; color: #185FA5; line-height: 1.1; }
+    .assign-stop-name { font-size: .85rem; color: #1e293b; line-height: 1.3; }
+    .assign-stop-addr { font-size: .72rem; color: #64748b; }
+
+    @@media (max-width: 768px) {
+        .assign-routes-grid { grid-template-columns: 1fr; }
+        .assign-route-col:first-child { border-right: none; border-bottom: 1px solid #e2e8f0; }
+    }
 </style>
 
 <div class="busrequest-card p-3 p-md-4">
@@ -45,6 +71,7 @@
                 <i class="fa-solid fa-plus me-1"></i>Đăng ký đơn mới
             </button>
         </div>
+
         <div class="d-flex flex-wrap gap-2">
             <form method="get" asp-controller="BusRequest" asp-action="Export" class="d-inline js-export-form" data-no-loader>
                 <input type="hidden" name="department" value="@Model.Department" />
@@ -261,6 +288,18 @@
             <div class="modal-body">
                 <div id="routeCapacityContainer" class="row g-3"></div>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade dragable-modal" id="routeCapacityDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-route me-2 text-primary"></i>Chi tiết tuyến xe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="routeCapacityDetailBody"></div>
         </div>
     </div>
 </div>
@@ -894,13 +933,17 @@
                 var areaInput = form.querySelector('.js-vehicle-area-input');
                 var typeSelect = form.querySelector('.js-vehicle-type');
                 var areaSelect = form.querySelector('.js-vehicle-area');
+                var stopSelect = form.querySelector('.js-bus-stop');
 
                 var vehicleType = typeInput ? (typeInput.value || '') : (typeSelect ? (typeSelect.value || '') : '');
                 var area = areaInput ? (areaInput.value || '') : (areaSelect ? (areaSelect.value || '') : '');
+                var busStopId = stopSelect ? (stopSelect.value || '') : '';
                 routeSelect.innerHTML = '<option value="">-- Chọn tuyến xe --</option>';
-                if (!vehicleType || !area) return;
 
-                var url = '@Url.Action("GetRouteAssignOptions", "BusRequest")' + '?vehicleType=' + encodeURIComponent(vehicleType) + '&area=' + encodeURIComponent(area);
+                var url = '@Url.Action("GetRouteAssignOptions", "BusRequest")'
+                    + '?vehicleType=' + encodeURIComponent(vehicleType)
+                    + '&area=' + encodeURIComponent(area)
+                    + '&busStopId=' + encodeURIComponent(busStopId);
                 var res = await fetch(url);
                 if (!res.ok) return;
                 var data = await res.json();
@@ -960,6 +1003,13 @@
                 areaSelect.addEventListener('change', function () {
                     fillRouteAssignSelect(form);
                 });
+
+                var stopSelect = form.querySelector('.js-bus-stop');
+                if (stopSelect) {
+                    stopSelect.addEventListener('change', function () {
+                        fillRouteAssignSelect(form);
+                    });
+                }
             }
 
             document.querySelectorAll('.js-busrequest-form').forEach(function (form) {
@@ -1052,6 +1102,7 @@
                             + '<div class="progress-bar bg-' + level + '" role="progressbar" style="width:' + percentBar.toFixed(1) + '%" aria-valuenow="' + percentRaw.toFixed(1) + '" aria-valuemin="0" aria-valuemax="100"></div>'
                             + '</div>'
                             + '<div class="small text-muted mt-2">Mức sử dụng: <strong>' + percentText + '</strong></div>'
+                            + '<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary js-route-capacity-detail" data-assign-id="' + item.id + '"><i class="fa-solid fa-list me-1"></i>Xem chi tiết lộ trình tuyến</button></div>'
                             + '</div>'
                             + '</div>';
                     }).join('');
@@ -1066,6 +1117,80 @@
                     loadRouteCapacities();
                 });
             }
+
+            function renderStopTimeline(stops, typeClass) {
+                if (!Array.isArray(stops) || !stops.length) {
+                    return '<div class="text-muted small fst-italic">Không có điểm dừng</div>';
+                }
+
+                return '<div class="assign-stop-list">' + stops.map(function (stop, idx) {
+                    var stopName = escapeHtml(stop.stopName || '');
+                    var stopAddress = escapeHtml(stop.stopAddress || '');
+                    var pickupTime = escapeHtml(stop.pickupTime || '');
+                    var line = idx < stops.length - 1 ? '<div class="assign-stop-line"></div>' : '';
+                    return '<div class="assign-stop-item">'
+                        + '<div class="assign-stop-left">'
+                        + '<div class="assign-stop-num ' + typeClass + '">' + (idx + 1) + '</div>'
+                        + line
+                        + '</div>'
+                        + '<div class="assign-stop-right">'
+                        + '<div class="assign-stop-time">' + pickupTime + '</div>'
+                        + '<div class="assign-stop-name">' + stopName + '</div>'
+                        + '<div class="assign-stop-addr">' + stopAddress + '</div>'
+                        + '</div>'
+                        + '</div>';
+                }).join('') + '</div>';
+            }
+
+            async function loadRouteCapacityDetail(assignId) {
+                var detailBody = document.getElementById('routeCapacityDetailBody');
+                if (!detailBody) return;
+
+                detailBody.innerHTML = '<div class="text-center text-muted py-4">Đang tải chi tiết tuyến...</div>';
+
+                try {
+                    var response = await fetch('@Url.Action("GetRouteCapacityDetail", "BusRequest")?assignId=' + encodeURIComponent(assignId), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    if (!response.ok) throw new Error('Load detail failed');
+
+                    var result = await response.json();
+                    if (!result || !result.success || !result.data) {
+                        throw new Error('Invalid detail');
+                    }
+
+                    var data = result.data;
+                    var header = '<div class="mb-3">'
+                        + '<div class="fw-semibold text-primary">' + escapeHtml(data.busCode || '') + ' - ' + escapeHtml(data.busName || '') + '</div>'
+                        + '<div class="small text-muted">Biển số: ' + escapeHtml(data.licensePlate || '') + ' | Lái xe: ' + escapeHtml(data.driverName || '-') + '</div>'
+                        + '<div class="small">Dung lượng: <strong>' + (data.currentUser || 0) + '/' + (data.busCapacity || 0) + '</strong></div>'
+                        + '</div>';
+
+                    var routes = '<div class="assign-routes-grid">'
+                        + '<div class="assign-route-col">'
+                        + '<div class="assign-route-label go"><span class="assign-route-dot"></span>Chiều đi <span class="assign-route-subname">' + escapeHtml(data.pickupRouteName || '') + '</span></div>'
+                        + renderStopTimeline(data.pickupStops, 'go')
+                        + '</div>'
+                        + '<div class="assign-route-col">'
+                        + '<div class="assign-route-label ret"><span class="assign-route-dot"></span>Chiều về <span class="assign-route-subname">' + escapeHtml(data.returnRouteName || '') + '</span></div>'
+                        + renderStopTimeline(data.returnStops, 'ret')
+                        + '</div>'
+                        + '</div>';
+
+                    detailBody.innerHTML = header + routes;
+                } catch {
+                    detailBody.innerHTML = '<div class="alert alert-danger mb-0">Không thể tải chi tiết tuyến xe.</div>';
+                }
+            }
+
+            var routeCapacityDetailModalEl = document.getElementById('routeCapacityDetailModal');
+            var routeCapacityDetailModal = routeCapacityDetailModalEl ? bootstrap.Modal.getOrCreateInstance(routeCapacityDetailModalEl) : null;
+            document.addEventListener('click', function (e) {
+                var btn = e.target.closest('.js-route-capacity-detail');
+                if (!btn || !routeCapacityDetailModal) return;
+                var assignId = btn.getAttribute('data-assign-id');
+                if (!assignId) return;
+                routeCapacityDetailModal.show();
+                loadRouteCapacityDetail(assignId);
+            });
         })();
     </script>
 }

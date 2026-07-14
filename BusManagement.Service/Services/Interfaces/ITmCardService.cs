@@ -14,5 +14,6 @@ public interface ITmCardService : IBaseService<TM_CARD, int, TM_CARDDTO>
     Task<GenericResponse<bool>> DeleteCardByTaxiAsync(List<int> ids);
     // Tải Excel dữ liệu thẻ taxi
     Task<GenericResponse<byte[]>> DownloadExcelTaxiAsync(SearchCard serach);
-
+    //List card taxi need usable
+    Task<GenericResponse<List<TM_CARD>>> GetListCardTaxiUsableAsync();
 }

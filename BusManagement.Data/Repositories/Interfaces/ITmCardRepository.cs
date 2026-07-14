@@ -11,4 +11,6 @@ public interface ITmCardRepository : IBaseRepository<TM_CARD, int>
     Task<List<dynamic>> GetCardByTaxiAsync(SearchCard serach);
     // Delete soft card Taxi by IDs
     Task<bool> DeleteCardByTaxiAsync(List<int> ids);
+    //List card taxi need usable
+    Task<List<TM_CARD>> GetListCardTaxiUsableAsync();
 }

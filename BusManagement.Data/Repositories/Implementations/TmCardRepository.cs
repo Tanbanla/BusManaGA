@@ -103,13 +103,13 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
 
         if (serach.DateBorow.HasValue)
         {
-            sql += " AND cb.DTM_BORROW_TIME >= @DateBorow";
+            sql += " AND CONVERT(DATE, cb.DTM_RETURN_TIME) >=  CONVERT(DATE, @DateBorow)";
             parameters.Add("@DateBorow", serach.DateBorow.Value);
         }
 
         if (serach.DateReturn.HasValue)
         {
-            sql += " AND cb.DTM_RETURN_TIME <= @DateReturn";
+            sql += " AND CONVERT(DATE, cb.DTM_RETURN_TIME) <= CONVERT(DATE, @DateReturn)";
             parameters.Add("@DateReturn", serach.DateReturn.Value);
         }
 
@@ -158,5 +158,16 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
 
         var result = await _conn.ExecuteAsync(sql, parameters);
         return result > 0;
+    }
+    //List card taxi need usable
+    public async Task<List<TM_CARD>> GetListCardTaxiUsableAsync()
+    {
+        var sql = @"SELECT distinct c.*
+                    FROM TM_CARD as c
+                    WHERE BIT_IS_ACTIVE = 1
+					and id not in (SELECT INT_CARD_ID FROM TM_CARD_BORROW where BIT_END = 0)
+                    ";
+        var result = (await _conn.QueryAsync<TM_CARD>(sql)).ToList();
+        return result;
     }
 }
