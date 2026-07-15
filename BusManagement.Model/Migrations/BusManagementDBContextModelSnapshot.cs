@@ -689,9 +689,6 @@ namespace BusManagement.Model.Migrations
                     b.Property<bool?>("BIT_DELETE")
                         .HasColumnType("bit");
 
-                    b.Property<string>("CHR_CARD_CODE")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("CHR_EMPLOYEE_ID")
                         .HasColumnType("nvarchar(max)");
 
@@ -722,16 +719,22 @@ namespace BusManagement.Model.Migrations
                     b.Property<int?>("INT_AMOUNT")
                         .HasColumnType("int");
 
-                    b.Property<int?>("INT_CARD_ID")
+                    b.Property<int?>("INT_BORROW_ID")
                         .HasColumnType("int");
 
                     b.Property<int?>("INT_NUMBER_MOVE")
                         .HasColumnType("int");
 
+                    b.Property<string>("NVCHR_EMPLOYEE_NAME")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("NVCHR_FROM_ADDRESS")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NVCHR_NOTE")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NVCHR_REASON")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NVCHR_TO_ADDRESS")

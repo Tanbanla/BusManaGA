@@ -5,9 +5,9 @@ namespace BusManagement.Model.Entity;
 [Table("TM_CARD_USAGE")]
 public partial class TM_CARD_USAGE : AuditableEntity
 {
-    public int? INT_CARD_ID { get; set; }
-    public string? CHR_CARD_CODE { get; set; }
+    public int? INT_BORROW_ID { get; set; }
     public string? CHR_EMPLOYEE_ID { get; set; }
+    public string? NVCHR_EMPLOYEE_NAME { get; set; }
     public DateTime? DTM_USE_DATE { get; set; }
     public string? NVCHR_FROM_ADDRESS { get; set; }
     public string? NVCHR_TO_ADDRESS { get; set; }
@@ -17,5 +17,6 @@ public partial class TM_CARD_USAGE : AuditableEntity
     public string? CHR_TRAN_CODE { get; set; }
     public int? INT_NUMBER_MOVE { get; set; }
     public bool? BIT_DELETE { get; set; }
+    public string? NVCHR_REASON { get; set; }
 
 }
