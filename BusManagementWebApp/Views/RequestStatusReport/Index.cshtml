@@ -1,0 +1,270 @@
+﻿@using BusManagement.Model.Common.Enum
+@model BusManagement.ViewModels.RequestStatusReport.RequestStatusReportPageViewModel
+@{
+    ViewData["Title"] = "Báo cáo tình trạng đơn phê duyệt";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+}
+
+<style>
+    .report-card { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .05); }
+    .table thead th { white-space: nowrap; vertical-align: middle; }
+    /* .status-pending { background-color: #f3f4f6; }
+    .status-processing { background-color: #dbeafe; } */
+    .status-approved { background-color: #dcfce7; }
+    .status-rejected { background-color: #fee2e2; }
+    .delayed-badge { background-color: #fca5a5; color: white; }
+</style>
+
+<div class="report-card p-3 p-md-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="m-0">Báo cáo tình trạng đơn phê duyệt</h5>
+    </div>
+
+    <form method="get" show-loading asp-controller="RequestStatusReport" asp-action="Index" class="row g-2 mb-3">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+        <div class="col-12 col-md-4">
+            <select class="form-select" name="requestTypeIds" id="requestTypeIds" data-live-search="true" data-size="8" title="Chọn loại đơn">
+                <option value="">Tất cả loại đơn</option>
+                @foreach (var rt in Model.RequestTypes)
+                {
+                    if (Model.SelectedRequestTypeIdList.Contains(rt.ID))
+                    {
+                        <option value="@rt.ID" selected>@rt.NVCHR_REQUEST_TYPE</option>
+                    }
+                    else
+                    {
+                        <option value="@rt.ID">@rt.NVCHR_REQUEST_TYPE</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <div class="col-12 col-md-3">
+            <input type="text" class="form-control" name="employeeCode" value="@Model.EmployeeCode" placeholder="Mã nhân viên" />
+        </div>
+
+        <div class="col-12 col-md-2">
+            <input type="date" class="form-control" name="dateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" title="Ngày tạo từ" />
+        </div>
+
+        <div class="col-12 col-md-2">
+            <input type="date" class="form-control" name="dateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" title="Ngày tạo đến" />
+        </div>
+
+        <div class="col-12 col-md-1 d-grid">
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+            <form method="get" asp-controller="RequestStatusReport" asp-action="Export" class="d-inline">
+                <input type="hidden" name="requestTypeIds" value="@Model.SelectedRequestTypeIds" />
+                <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                <input type="hidden" name="dateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="dateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-file-excel me-1"></i>Xuất Excel
+                </button>
+            </form>
+        </div>
+    </form>
+
+    <form id="reminderForm" method="post" asp-controller="RequestStatusReport" asp-action="SendReminder" show-loading class="mb-3">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="requestTypeIds" value="@Model.SelectedRequestTypeIds" />
+        <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+        <input type="hidden" name="dateFrom" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" />
+        <input type="hidden" name="dateTo" value="@Model.DateTo?.ToString("yyyy-MM-dd")" />
+        <input type="hidden" name="ids" id="selectedIds" />
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="checkAll" title="Chọn/Bỏ chọn tất cả" />
+                        </th>
+                        <th>No</th>
+                        <th>Loại đơn</th>
+                        <th>Mã NV</th>
+                        <th>Họ và tên</th>
+                        <th>Phòng ban</th>
+                        <th>Ngày tạo đơn</th>
+                        <th>Tình trạng</th>
+                        <th>Chậm xử lý</th>
+                        <th style="width: 100px;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Requests.Any())
+                    {
+                        <tr>
+                            <td colspan="10" class="text-center text-muted py-4">Không có dữ liệu.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        for (var i = 0; i < Model.Requests.Count; i++)
+                        {
+                            var item = Model.Requests[i];
+                            var rowId = $"{(item.RequestSourceType == "BusRequest" ? "bus" : "trip")}_{item.Id}";
+                            var statusClass = "";
+                            @* var statusClass = item.StatusCode switch
+                            {
+                                (int)BusRequestStatus.PendingQlscApproval => "status-pending",
+                                (int)BusRequestStatus.QlscApproved => "status-processing",
+                                (int)BusRequestStatus.QlscRejected => "status-rejected",
+                                (int)BusRequestStatus.GaApproved => "status-approved",
+                                (int)BusRequestStatus.GaRejected => "status-rejected",
+                                (int)TripRequestStatuses.Completed => "status-approved",
+                                (int)TripRequestStatuses.GaRejected => "status-rejected",
+                                _ => "status-pending"
+                            }; *@
+
+                            <tr class="@statusClass">
+                                <td>
+                                    <input type="checkbox" class="request-check" value="@rowId" />
+                                </td>
+                                <td>@(startIndex + i)</td>
+                                <td>@item.RequestType</td>
+                                <td>@item.EmployeeCode</td>
+                                <td>@item.EmployeeName</td>
+                                <td>@item.DepartmentName</td>
+                                <td>@item.CreatedDate.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>
+                                    <span class="badge @item.StatusBadgeClass">@item.StatusText</span>
+                                </td>
+                                <td>
+                                    @if (item.IsDelayed)
+                                    {
+                                        <span class="badge delayed-badge">Chậm</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (item.IsDelayed)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-primary js-single-remind mb-1" data-id="@rowId" title="Nhắc nhở người phê duyệt">
+                                            <i class="fa-solid fa-bell"></i> Nhắc nhở
+                                        </button>
+                                    }
+                                    <a href="@item.HistoryUrl" class="btn btn-sm btn-primary mb-1" target="_blank" title="Xem lịch sử phê duyệt">
+                                        <i class="fa-solid fa-history"></i>
+                                    </a>
+                                    @*@if (item.CanViewHistory && !string.IsNullOrWhiteSpace(item.HistoryUrl))
+                                    {
+                                        <a href="@item.HistoryUrl" class="btn btn-sm btn-info" target="_blank" title="Xem lịch sử phê duyệt">
+                                            <i class="fa-solid fa-history"></i>
+                                        </a>
+                                    }*@
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="small text-muted">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+            <div>
+                <button type="button" class="btn btn-primary" id="bulkReminderBtn" style="display: none;">
+                    <i class="fa-solid fa-bell me-1"></i>Nhắc nhở (Các bản ghi đang chọn)
+                </button>
+            </div>
+        </div>
+    </form>
+
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Index",
+        Controller = "RequestStatusReport",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["requestTypeIds"] = Model.SelectedRequestTypeIds,
+            ["employeeCode"] = Model.EmployeeCode,
+            ["dateFrom"] = Model.DateFrom?.ToString("yyyy-MM-dd"),
+            ["dateTo"] = Model.DateTo?.ToString("yyyy-MM-dd")
+        }
+    })
+</div>
+
+@section Scripts {
+    @if (TempData["RequestStatusReportSuccess"] is string successMessage)
+    {
+        <script>window.AppCommon && AppCommon.successTopRight(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(successMessage)));</script>
+    }
+    @if (TempData["RequestStatusReportError"] is string errorMessage)
+    {
+        <script>window.AppCommon && AppCommon.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(errorMessage)));</script>
+    }
+
+    <script>
+        (function () {
+            var checkAll = document.getElementById('checkAll');
+            var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.request-check'));
+            var reminderForm = document.getElementById('reminderForm');
+            var selectedIdsInput = document.getElementById('selectedIds');
+            var bulkReminderBtn = document.getElementById('bulkReminderBtn');
+            var singleReminderBtns = document.querySelectorAll('.js-single-remind');
+
+            function updateBulkButtonState() {
+                var selectedCount = checkboxes.filter(function (cb) { return cb.checked; }).length;
+                if (bulkReminderBtn) {
+                    bulkReminderBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
+                }
+            }
+
+            if (checkAll) {
+                checkAll.addEventListener('change', function () {
+                    checkboxes.forEach(function (cb) { cb.checked = checkAll.checked; });
+                    updateBulkButtonState();
+                });
+            }
+
+            checkboxes.forEach(function (cb) {
+                cb.addEventListener('change', updateBulkButtonState);
+            });
+
+            if (bulkReminderBtn) {
+                bulkReminderBtn.addEventListener('click', function () {
+                    var selected = checkboxes
+                        .filter(function (cb) { return cb.checked; })
+                        .map(function (cb) { return cb.value; });
+
+                    if (!selected.length) {
+                        window.AppCommon && AppCommon.error('Vui lòng chọn ít nhất 1 bản ghi.');
+                        return;
+                    }
+
+                    selectedIdsInput.value = selected.join(',');
+                    reminderForm.submit();
+                });
+            }
+
+            singleReminderBtns.forEach(function (btn) {
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    var id = btn.getAttribute('data-id');
+                    if (!id) return;
+
+                    selectedIdsInput.value = id;
+                    reminderForm.submit();
+                });
+            });
+
+            updateBulkButtonState();
+        })();
+    </script>
+}

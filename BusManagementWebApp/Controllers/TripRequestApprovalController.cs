@@ -1,15 +1,16 @@
-﻿using System.Globalization;
-using System.Security.Claims;
-using BusManagement.Model.Common;
+﻿using BusManagement.Model.Common;
 using BusManagement.Model.Common.Enum;
 using BusManagement.Model.Dtos;
 using BusManagement.Model.Entity;
+using BusManagement.Service.Services.Implementations;
 using BusManagement.Service.Services.Interfaces;
 using BusManagement.ViewModels.TripRequest;
 using BusManagementWebApp.Helpers;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using System.Globalization;
+using System.Security.Claims;
 
 namespace BusManagement.Controllers;
 
@@ -26,6 +27,7 @@ public class TripRequestApprovalController : Controller
     private readonly ITmMasterMailService _tmMasterMailService;
     private readonly IActiveDirectoryService _activeDirectoryService;
     private readonly ITmRequestTypeService _tmRequestTypeService;
+    private readonly ITmUserService _tmUserService;
 
     public TripRequestApprovalController(
         ITmTripRequestService tmTripRequestService,
@@ -36,7 +38,8 @@ public class TripRequestApprovalController : Controller
         IWebHostEnvironment environment,
         ITmMasterMailService tmMasterMailService,
         IActiveDirectoryService activeDirectoryService,
-        ITmRequestTypeService tmRequestTypeService)
+        ITmRequestTypeService tmRequestTypeService,
+        ITmUserService tmUserService)
     {
         _tmTripRequestService = tmTripRequestService;
         _tmEmployeeService = tmEmployeeService;
@@ -47,6 +50,7 @@ public class TripRequestApprovalController : Controller
         _tmMasterMailService = tmMasterMailService;
         _activeDirectoryService = activeDirectoryService;
         _tmRequestTypeService = tmRequestTypeService;
+        _tmUserService = tmUserService;
     }
 
     [HttpGet]
@@ -275,7 +279,7 @@ public class TripRequestApprovalController : Controller
             {
                 await SendMailToGaGroupAsync(
                     "TRIP_REQUEST_GA_REQUOTE",
-                    "[TEST][BusManagement] CNV từ chối báo giá",
+                    "[TEST][BusManagement] Đơn đăng ký xe công tác đã được CNV xác nhận từ chối báo giá",
                     new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["{{RequestId}}"] = req.ID.ToString(),
@@ -283,7 +287,7 @@ public class TripRequestApprovalController : Controller
                         ["{{ApproveLink}}"] = BuildTripRequestApprovalLink("ga-quote")
                     },
                     """
-                    <p style="font-size:20px;margin:0 0 30px 0;">Đơn #{{RequestId}} bị CNV từ chối báo giá.</p>
+                    <p style="font-size:20px;margin:0 0 30px 0;">Đơn đăng ký xe công tác #{{RequestId}}: CNV đã phản hồi <b style="color:red;font-size:20px">từ chối</b> báo giá.</p>
                     <p style="font-size:20px;margin:0 0 30px 0;">Lý do: {{RejectReason}}</p>
                     <p style="font-size:20px;margin:0 0 10px 0;">Vui lòng nhập lại báo giá: <a href="{{ApproveLink}}">LINK</a></p>
                     """);
@@ -920,15 +924,14 @@ public class TripRequestApprovalController : Controller
                 Reason = x.NVCHR_REASON_REJECT,
                 Result = x.BIT_ACTION
             }).ToList(),
-            Steps = BuildWorkflowSteps(histories)
+            Steps = await BuildWorkflowStepsAsync(request, histories)
         };
     }
 
-    private static List<TripRequestWorkflowStepViewModel> BuildWorkflowSteps(List<TM_APPROVAL_HISTORYDTO> histories)
+    private async Task<List<TripRequestWorkflowStepViewModel>> BuildWorkflowStepsAsync(TM_TRIP_REQUESTDTO request, List<TM_APPROVAL_HISTORYDTO> histories)
     {
-        TripRequestWorkflowStepViewModel Build(string step, params string[] actions)
+        TripRequestWorkflowStepViewModel BuildDoneOrHistory(string step, TM_APPROVAL_HISTORYDTO? action)
         {
-            var action = histories.LastOrDefault(x => actions.Any(a => string.Equals(a, x.CHR_ACTION, StringComparison.OrdinalIgnoreCase)));
             if (action == null)
             {
                 return new TripRequestWorkflowStepViewModel
@@ -951,15 +954,105 @@ public class TripRequestApprovalController : Controller
             };
         }
 
-        return new List<TripRequestWorkflowStepViewModel>
+        TM_APPROVAL_HISTORYDTO? LastAction(params string[] actions)
         {
-            Build("CNV đăng ký", "CREATE_TRIP_REQUEST", "RESUBMIT_TRIP_REQUEST"),
-            Build("QLSC phê duyệt", "TRIP_QLSC_APPROVE", "TRIP_QLSC_REJECT"),
-            Build("QLTC phê duyệt", "TRIP_QLTC_APPROVE", "TRIP_QLTC_REJECT"),
-            Build("GA báo giá", "TRIP_GA_SENT_QUOTE", "TRIP_GA_REJECT"),
-            Build("CNV phản hồi báo giá", "TRIP_EMPLOYEE_ACCEPT_QUOTE", "TRIP_EMPLOYEE_REJECT_QUOTE"),
-            Build("GA điền thông tin lái xe", "TRIP_GA_DRIVER_FILLED")
-        };
+            return histories.LastOrDefault(x => actions.Any(a => string.Equals(a, x.CHR_ACTION, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        var create = LastAction("CREATE_TRIP_REQUEST", "RESUBMIT_TRIP_REQUEST");
+        var qlsc = LastAction("TRIP_QLSC_APPROVE", "TRIP_QLSC_REJECT");
+        var qltc = LastAction("TRIP_QLTC_APPROVE", "TRIP_QLTC_REJECT");
+        var gaQuote = LastAction("TRIP_GA_SENT_QUOTE", "TRIP_GA_REJECT");
+        var employeeResp = LastAction("TRIP_EMPLOYEE_ACCEPT_QUOTE", "TRIP_EMPLOYEE_REJECT_QUOTE");
+        var gaDriver = LastAction("TRIP_GA_DRIVER_FILLED");
+
+        var steps = new List<TripRequestWorkflowStepViewModel>();
+
+        // Create
+        steps.Add(BuildDoneOrHistory("CNV đăng ký", create));
+
+        // QLSC
+        if (qlsc != null)
+        {
+            steps.Add(BuildDoneOrHistory("QLSC phê duyệt", qlsc));
+        }
+        else if (request.INT_STATUS == TripRequestStatuses.PendingQlsc)
+        {
+            var actor = request.CHR_QLSC_APPROVE;
+            var display = string.Empty;
+            if (!string.IsNullOrWhiteSpace(actor)) display = await ResolveApproverNameAsync(actor);
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "QLSC phê duyệt", StateText = "Đang xử lý", CssClass = "workflow-step-progress", Actor = actor + " - " + display });
+        }
+        else
+        {
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "QLSC phê duyệt", StateText = "Chưa xử lý", CssClass = "workflow-step-pending" });
+        }
+
+        // QLTC
+        if (qltc != null)
+        {
+            steps.Add(BuildDoneOrHistory("QLTC phê duyệt", qltc));
+        }
+        else if (request.INT_STATUS == TripRequestStatuses.QlscApproved)
+        {
+            var actor = request.CHR_QLTC_APPROVE;
+            var display = string.Empty;
+            if (!string.IsNullOrWhiteSpace(actor)) display = await ResolveApproverNameAsync(actor);
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "QLTC phê duyệt", StateText = "Đang xử lý", CssClass = "workflow-step-progress", Actor = actor + " - " + display });
+        }
+        else
+        {
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "QLTC phê duyệt", StateText = "Chưa xử lý", CssClass = "workflow-step-pending" });
+        }
+
+        // GA quote
+        if (gaQuote != null)
+        {
+            steps.Add(BuildDoneOrHistory("GA báo giá", gaQuote));
+        }
+        else if (request.INT_STATUS == TripRequestStatuses.QltcApproved || request.INT_STATUS == TripRequestStatuses.EmployeeRejectedQuote)
+        {
+            var template = await GetMailTemplateByCodeAsync("TRIP_REQUEST_GA_QUOTE");
+            var gaDisplay = template?.CHR_TO ?? "nhóm quản lý xe Công ty";
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "GA báo giá", StateText = "Đang xử lý", CssClass = "workflow-step-progress", Actor = gaDisplay });
+        }
+        else
+        {
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "GA báo giá", StateText = "Chưa xử lý", CssClass = "workflow-step-pending" });
+        }
+
+        // Employee response
+        if (employeeResp != null)
+        {
+            steps.Add(BuildDoneOrHistory("CNV phản hồi báo giá", employeeResp));
+        }
+        else if (request.INT_STATUS == TripRequestStatuses.QuoteSentByGa)
+        {
+            var empDisplay = await ResolveEmployeeNameByCodeAsync(request.CHR_EMPLOYEE_ID);
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "CNV phản hồi báo giá", StateText = "Đang xử lý", CssClass = "workflow-step-progress", Actor = request.CHR_EMPLOYEE_ID + " - " + empDisplay });
+        }
+        else
+        {
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "CNV phản hồi báo giá", StateText = "Chưa xử lý", CssClass = "workflow-step-pending" });
+        }
+
+        // GA driver
+        if (gaDriver != null)
+        {
+            steps.Add(BuildDoneOrHistory("GA điền thông tin lái xe", gaDriver));
+        }
+        else if (request.INT_STATUS == TripRequestStatuses.EmployeeAcceptedQuote)
+        {
+            var template = await GetMailTemplateByCodeAsync("TRIP_REQUEST_GA_DRIVER_INFO");
+            var gaDisplay = template?.CHR_TO ?? "nhóm quản lý xe Công ty";
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "GA điền thông tin lái xe", StateText = "Đang xử lý", CssClass = "workflow-step-progress", Actor = gaDisplay });
+        }
+        else
+        {
+            steps.Add(new TripRequestWorkflowStepViewModel { StepName = "GA điền thông tin lái xe", StateText = "Chưa xử lý", CssClass = "workflow-step-pending" });
+        }
+
+        return steps;
     }
 
     private TM_TRIP_REQUEST BuildUpdateEntity(TM_TRIP_REQUESTDTO dto, string actor)
@@ -1322,7 +1415,7 @@ public class TripRequestApprovalController : Controller
                 PageSize = 1,
                 Filters = new List<FilterOption>
                 {
-                    new() { Field = nameof(TM_MASTER_MAIL.CHR_MAIL_CODE), Operator = "=", Value = "TRIP_REQUEST_GA_QUOTE" }
+                    new() { Field = nameof(TM_MASTER_MAIL.CHR_MAIL_CODE), Operator = "=", Value = templateCode }
                 }
             });
             to = templateResp?.Data?.Data?.FirstOrDefault()?.CHR_TO;
@@ -1387,7 +1480,7 @@ public class TripRequestApprovalController : Controller
                 <title>Thông báo hệ thống xe công ty</title>
             </head>
             <body style="margin:0;padding:0;background-color:#ffffff;font-family:'Times New Roman', Times, serif;">
-                <div style="width:100%;max-width:800px;margin:0 auto;">
+                <div style="width:100%;margin:0 auto;">
                     <p style="color:red;font-size:24px;font-weight:bold;margin:0 0 30px 0;">Đây là mail tự động, vui lòng không Reply lại mail!</p>
                     <p style="font-size:20px;margin:0 0 30px 0;">Gửi anh/chị {{To}},</p>
                     __CONTENT__
@@ -1462,8 +1555,35 @@ public class TripRequestApprovalController : Controller
                 new() { Field = nameof(TM_EMPLOYEE.CHR_EMPLOYEE_ID), Operator = "=", Value = employeeCode.Trim() }
             }
         });
+        if (resp != null && !string.IsNullOrWhiteSpace(resp?.Data?.Data?.FirstOrDefault()?.NVCHR_EMPLOYEE_NAME))
+        {
+            return resp?.Data?.Data?.FirstOrDefault()?.NVCHR_EMPLOYEE_NAME;
+        }
 
-        return resp?.Data?.Data?.FirstOrDefault()?.NVCHR_EMPLOYEE_NAME ?? employeeCode;
+        // Fall back to user service if available
+        var userResp = await _tmUserService.SearchByConditionAsync(new SearchOptions
+        {
+            PageNumber = 1,
+            PageSize = 1,
+            Filters = new List<FilterOption>
+                {
+                    new() { Field = "CHR_EMPLOYEE_ID", Operator = "=", Value = employeeCode }
+                }
+        });
+        var userData = userResp?.Data?.Data?.FirstOrDefault();
+        if (userData != null)
+        {
+            return userData.NVCHR_NAME;
+        }
+
+        // Fall back to employee agent service if available
+        //var empAgent = _employeeAgentService.GetByEmployeeIdAsync(employeeCode);
+        //if (empAgent?.Result?.Data != null && !string.IsNullOrWhiteSpace(empAgent.Result.Data.CHR_EMPLOYEE_ADID))
+        //{
+        //    return empAgent.Result.Data.CHR_EMPLOYEE_NAME;
+        //}
+
+        return employeeCode;
     }
 
     private async Task<(string EmployeeCode, string EmployeeName, string EmployeeSection)> ResolveEmployeeInfoAsync(string? employeeCode)
@@ -1558,6 +1678,33 @@ public class TripRequestApprovalController : Controller
         var emp = employeeResp?.Data?.Data?.FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(emp?.CHR_EMPLOYEE_MAIL)) return emp.CHR_EMPLOYEE_MAIL!;
         if (!string.IsNullOrWhiteSpace(emp?.CHR_EMPLOYEE_ADID)) return ToCompanyEmail(emp.CHR_EMPLOYEE_ADID);
+
+        if (emp == null || string.IsNullOrWhiteSpace(emp?.CHR_EMPLOYEE_ADID))
+        {
+            // Fall back to user service if available
+            var userResp = await _tmUserService.SearchByConditionAsync(new SearchOptions
+            {
+                PageNumber = 1,
+                PageSize = 1,
+                Filters = new List<FilterOption>
+                {
+                    new() { Field = "CHR_EMPLOYEE_ID", Operator = "=", Value = employeeCode }
+                }
+            });
+            var userData = userResp?.Data?.Data?.FirstOrDefault();
+            if (userData != null)
+            {
+                return ToCompanyEmail(userData.CHR_ADID);
+            }
+
+            // Fall back to employee agent service if available
+            //var empAgent = _employeeAgentService.GetByEmployeeIdAsync(employeeCode);
+            //if (empAgent?.Result?.Data != null && !string.IsNullOrWhiteSpace(empAgent.Result.Data.CHR_EMPLOYEE_ADID))
+            //{
+            //    return ToCompanyEmail(empAgent.Result.Data.CHR_EMPLOYEE_ADID);
+            //}
+
+        }
         return ToCompanyEmail(employeeCode);
     }
 

@@ -12,7 +12,7 @@ public static class BusRequestStatusUiHelper
             (int)BusRequestStatus.PendingQlscApproval => "Chưa xử lý",
             (int)BusRequestStatus.QlscApproved => "Đang xử lý",
             (int)BusRequestStatus.QlscRejected => "Bị từ chối",
-            (int)BusRequestStatus.GaApproved => "Đã hoàn thành",
+            (int)BusRequestStatus.GaApproved => "Hoàn thành",
             (int)BusRequestStatus.GaRejected => "Bị từ chối",
             _ => "Chưa xử lý"
         };

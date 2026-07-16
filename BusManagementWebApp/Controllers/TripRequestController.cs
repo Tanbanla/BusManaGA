@@ -648,7 +648,7 @@ public class TripRequestController : Controller
             sheet.Cell(row, 6).Value = item.EmployeeCode;
             sheet.Cell(row, 7).Value = item.Phone;
             sheet.Cell(row, 8).Value = item.PassengerCount;
-            sheet.Cell(row, 9).Value = string.Equals(item.TripType, "TWO_WAY", StringComparison.OrdinalIgnoreCase) ? "2 chiều" : "1 chiều";
+            sheet.Cell(row, 9).Value = string.Equals(item.TripType, "TWO_WAY", StringComparison.OrdinalIgnoreCase) ? "Đăng ký xe đi công tác 2 chiều" : "Đăng ký xe đi công tác 1 chiều";
             sheet.Cell(row, 10).Value = item.PickupGo?.ToString("dd/MM/yyyy");
             sheet.Cell(row, 11).Value = item.PickupGo?.ToString("HH:mm");
             sheet.Cell(row, 12).Value = item.FromGo;
@@ -694,7 +694,7 @@ public class TripRequestController : Controller
             if (string.IsNullOrWhiteSpace(empCode)) return false;
 
             var tripTypeValue = cells.ElementAtOrDefault(offset + 5)?.Trim();
-            var typeCode = string.Equals(tripTypeValue, "2 chiều", StringComparison.OrdinalIgnoreCase)
+            var typeCode = string.Equals(tripTypeValue, "Đăng ký xe đi công tác 2 chiều", StringComparison.OrdinalIgnoreCase)
                 ? "TWO_WAY"
                 : "ONE_WAY";
             var mappedTripTypeName = ResolveTripTypeNameForDb(typeCode, allowedTripTypeNames);
@@ -1142,8 +1142,8 @@ public class TripRequestController : Controller
     private static string ResolveTripTypeNameForDb(string? tripTypeCode, List<string> configuredTypeNames)
     {
         var defaultName = string.Equals(tripTypeCode, "TWO_WAY", StringComparison.OrdinalIgnoreCase)
-            ? "2 chiều"
-            : "1 chiều";
+            ? "Đăng ký xe đi công tác 2 chiều"
+            : "Đăng ký xe đi công tác 1 chiều";
 
         if (!configuredTypeNames.Any())
         {

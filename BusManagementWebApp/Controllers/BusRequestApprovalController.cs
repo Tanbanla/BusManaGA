@@ -603,7 +603,7 @@ public class BusRequestApprovalController : Controller
                 Reason = x.NVCHR_REASON_REJECT,
                 Result = x.BIT_ACTION
             }).ToList(),
-            Steps = BuildWorkflowSteps(request, histories)
+            Steps = await BuildWorkflowStepsAsync(request, histories)
         };
     }
 
@@ -1651,13 +1651,108 @@ public class BusRequestApprovalController : Controller
         };
     }
 
-    private static List<BusRequestWorkflowStepViewModel> BuildWorkflowSteps(TM_BUS_REQUESTDTO request, List<TM_APPROVAL_HISTORYDTO> histories)
+    private async Task<List<BusRequestWorkflowStepViewModel>> BuildWorkflowStepsAsync(TM_BUS_REQUESTDTO request, List<TM_APPROVAL_HISTORYDTO> histories)
     {
         var create = histories.FirstOrDefault(x => string.Equals(x.CHR_ACTION, "CREATE_REQUEST", StringComparison.OrdinalIgnoreCase));
         var qlsc = histories.FirstOrDefault(x => string.Equals(x.CHR_ACTION, "QLSC_APPROVE", StringComparison.OrdinalIgnoreCase)
                                               || string.Equals(x.CHR_ACTION, "QLSC_REJECT", StringComparison.OrdinalIgnoreCase));
         var ga = histories.FirstOrDefault(x => string.Equals(x.CHR_ACTION, "GA_APPROVE", StringComparison.OrdinalIgnoreCase)
                                             || string.Equals(x.CHR_ACTION, "GA_REJECT", StringComparison.OrdinalIgnoreCase));
+
+        async Task<BusRequestWorkflowStepViewModel> BuildQlscStepAsync()
+        {
+            if (qlsc != null)
+            {
+                var isReject = string.Equals(qlsc.CHR_ACTION, "QLSC_REJECT", StringComparison.OrdinalIgnoreCase)
+                               || qlsc.BIT_ACTION == false
+                               || request.INT_STATUS == (int)BusRequestStatus.QlscRejected;
+
+                return new BusRequestWorkflowStepViewModel
+                {
+                    StepName = "QLSC phòng ban duyệt đơn",
+                    State = isReject ? "reject" : "done",
+                    StateText = isReject ? "Bị từ chối" : "Đã xử lý",
+                    CssClass = isReject ? "workflow-step-reject" : "workflow-step-done",
+                    Actor = qlsc.CHR_CONFIRMER_APPROVER,
+                    ActionTime = qlsc.DTM_ACTION,
+                    Reason = qlsc.NVCHR_REASON_REJECT
+                };
+            }
+
+            if (request.INT_STATUS == (int)BusRequestStatus.PendingQlscApproval)
+            {
+                // show assigned QLSC approver if available
+                var actor = request.CHR_QLSC_APPROVE;
+                var display = actor;
+                if (!string.IsNullOrWhiteSpace(actor))
+                {
+                    // try resolve employee name
+                    var name = await ResolveApproverNameInternalAsync(actor);
+                    if (!string.IsNullOrWhiteSpace(name)) display = name;
+                }
+
+                return new BusRequestWorkflowStepViewModel
+                {
+                    StepName = "QLSC phòng ban duyệt đơn",
+                    State = "progress",
+                    StateText = "Đang xử lý",
+                    CssClass = "workflow-step-progress",
+                    Actor = display
+                };
+            }
+
+            return new BusRequestWorkflowStepViewModel
+            {
+                StepName = "QLSC phòng ban duyệt đơn",
+                State = "pending",
+                StateText = "Chưa xử lý",
+                CssClass = "workflow-step-pending"
+            };
+        }
+
+        async Task<BusRequestWorkflowStepViewModel> BuildGaStepAsync()
+        {
+            if (ga != null)
+            {
+                var isReject = string.Equals(ga.CHR_ACTION, "GA_REJECT", StringComparison.OrdinalIgnoreCase)
+                               || ga.BIT_ACTION == false
+                               || request.INT_STATUS == (int)BusRequestStatus.GaRejected;
+
+                return new BusRequestWorkflowStepViewModel
+                {
+                    StepName = "Nhóm quản lý xe Công ty xác nhận",
+                    State = isReject ? "reject" : "done",
+                    StateText = isReject ? "Bị từ chối" : "Đã xử lý",
+                    CssClass = isReject ? "workflow-step-reject" : "workflow-step-done",
+                    Actor = ga.CHR_CONFIRMER_APPROVER,
+                    ActionTime = ga.DTM_ACTION,
+                    Reason = ga.NVCHR_REASON_REJECT
+                };
+            }
+
+            if (request.INT_STATUS == (int)BusRequestStatus.QlscApproved)
+            {
+                // GA step in progress - show GA group from template if available
+                var template = await GetMailTemplateByCodeAsync("BUS_REQUEST_GA_APPROVAL");
+                var gaDisplay = template?.CHR_TO ?? "Nhóm quản lý xe Công ty";
+                return new BusRequestWorkflowStepViewModel
+                {
+                    StepName = "Nhóm quản lý xe Công ty xác nhận",
+                    State = "progress",
+                    StateText = "Đang xử lý",
+                    CssClass = "workflow-step-progress",
+                    Actor = gaDisplay
+                };
+            }
+
+            return new BusRequestWorkflowStepViewModel
+            {
+                StepName = "Nhóm quản lý xe Công ty xác nhận",
+                State = "pending",
+                StateText = "Chưa xử lý",
+                CssClass = "workflow-step-pending"
+            };
+        }
 
         var steps = new List<BusRequestWorkflowStepViewModel>
         {
@@ -1670,11 +1765,44 @@ public class BusRequestApprovalController : Controller
                 Actor = create?.CHR_CONFIRMER_APPROVER ?? request.CHR_USER_CREATE,
                 ActionTime = create?.DTM_ACTION ?? request.DTM_CREATE
             },
-            BuildQlscStep(request, qlsc),
-            BuildGaStep(request, ga)
+            await BuildQlscStepAsync(),
+            await BuildGaStepAsync()
         };
 
         return steps;
+    }
+
+    private async Task<string> ResolveApproverNameInternalAsync(string? adidOrCode)
+    {
+        if (string.IsNullOrWhiteSpace(adidOrCode)) return string.Empty;
+        var id = adidOrCode.Trim();
+        // Try ADID first
+        var resp = await _tmEmployeeService.SearchByConditionAsync(new SearchOptions
+        {
+            PageNumber = 1,
+            PageSize = 1,
+            Filters = new List<FilterOption>
+            {
+                new() { Field = nameof(TM_EMPLOYEE.CHR_EMPLOYEE_ADID), Operator = "=", Value = id }
+            }
+        });
+        var emp = resp?.Data?.Data?.FirstOrDefault();
+        if (emp != null && !string.IsNullOrWhiteSpace(emp.NVCHR_EMPLOYEE_NAME)) return emp.NVCHR_EMPLOYEE_NAME;
+
+        // Try employee code
+        var resp2 = await _tmEmployeeService.SearchByConditionAsync(new SearchOptions
+        {
+            PageNumber = 1,
+            PageSize = 1,
+            Filters = new List<FilterOption>
+            {
+                new() { Field = nameof(TM_EMPLOYEE.CHR_EMPLOYEE_ID), Operator = "=", Value = id }
+            }
+        });
+        var emp2 = resp2?.Data?.Data?.FirstOrDefault();
+        if (emp2 != null && !string.IsNullOrWhiteSpace(emp2.NVCHR_EMPLOYEE_NAME)) return emp2.NVCHR_EMPLOYEE_NAME;
+
+        return id;
     }
 
     private static BusRequestWorkflowStepViewModel BuildQlscStep(TM_BUS_REQUESTDTO request, TM_APPROVAL_HISTORYDTO? qlsc)
