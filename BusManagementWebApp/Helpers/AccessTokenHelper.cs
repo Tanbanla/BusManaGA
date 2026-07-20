@@ -17,28 +17,39 @@ namespace BusManagement.Helpers
                 var jwt = handler.ReadJwtToken(token);
                 var claims = jwt.Claims.ToDictionary(c => c.Type, c => c.Value ?? string.Empty);
 
+                // helper to try multiple aliases
+                static string Lookup(System.Collections.Generic.Dictionary<string, string> dict, params string[] keys)
+                {
+                    foreach (var k in keys)
+                    {
+                        if (string.IsNullOrWhiteSpace(k)) continue;
+                        if (dict.TryGetValue(k, out var v) && !string.IsNullOrWhiteSpace(v)) return v!;
+                    }
+                    return string.Empty;
+                }
+
                 var user = new CurrentUser
                 {
-                    EmployeeId = TryParseInt(Get(claims, System.Security.Claims.ClaimTypes.NameIdentifier)),
-                    Name = Get(claims, System.Security.Claims.ClaimTypes.Name),
-                    EmployeeCode = Get(claims, "employee_code"),
-                    Adid = Get(claims, "adid"),
-                    AgentEmployeeId = Get(claims, "agent_employee_id"),
-                    AgentName = Get(claims, "agent_name"),
-                    Email = Get(claims, System.Security.Claims.ClaimTypes.Email),
-                    Position = Get(claims, "position"),
-                    PositionGroup = Get(claims, "position_group"),
-                    Group = Get(claims, "group"),
-                    DeptCode = Get(claims, "dept_code"),
-                    DeptName = Get(claims, "dept_name"),
-                    SecCode = Get(claims, "sec_code"),
-                    SecName = Get(claims, "sec_name"),
-                    CostCenterCode = Get(claims, "cost_center_code"),
-                    CostCenterName = Get(claims, "cost_center_name"),
-                    TeamId = TryParseInt(Get(claims, "team_id")),
-                    IsLeader = TryParseBool(Get(claims, "is_leader")),
-                    EmployeeJoinDate = TryParseDate(Get(claims, "employee_join_date")),
-                    EmployeeLeaveDate = TryParseDate(Get(claims, "employee_leave_date"))
+                    EmployeeId = TryParseInt(Lookup(claims, System.Security.Claims.ClaimTypes.NameIdentifier, "sub", "employee_id", "employeeid")),
+                    Name = Lookup(claims, System.Security.Claims.ClaimTypes.Name, "name", "preferred_username", "unique_name"),
+                    EmployeeCode = Lookup(claims, "employee_code", "emp", "employee"),
+                    Adid = Lookup(claims, "adid", System.Security.Claims.ClaimTypes.NameIdentifier, "upn", "preferred_username", "unique_name"),
+                    AgentEmployeeId = Lookup(claims, "agent_employee_id"),
+                    AgentName = Lookup(claims, "agent_name"),
+                    Email = Lookup(claims, System.Security.Claims.ClaimTypes.Email, "email", "mail"),
+                    Position = Lookup(claims, "position"),
+                    PositionGroup = Lookup(claims, "position_group"),
+                    Group = Lookup(claims, "group"),
+                    DeptCode = Lookup(claims, "dept_code"),
+                    DeptName = Lookup(claims, "dept_name"),
+                    SecCode = Lookup(claims, "sec_code"),
+                    SecName = Lookup(claims, "sec_name"),
+                    CostCenterCode = Lookup(claims, "cost_center_code"),
+                    CostCenterName = Lookup(claims, "cost_center_name"),
+                    TeamId = TryParseInt(Lookup(claims, "team_id")),
+                    IsLeader = TryParseBool(Lookup(claims, "is_leader", "isLeader", "leader")),
+                    EmployeeJoinDate = TryParseDate(Lookup(claims, "employee_join_date")),
+                    EmployeeLeaveDate = TryParseDate(Lookup(claims, "employee_leave_date"))
                 };
 
                 return user;
@@ -54,12 +65,6 @@ namespace BusManagement.Helpers
             if (http == null) return null;
             var token = http.Request.Cookies["AccessToken"];
             return FromJwt(token);
-        }
-
-        private static string Get(System.Collections.Generic.Dictionary<string, string> dict, string key)
-        {
-            if (dict == null) return string.Empty;
-            return dict.TryGetValue(key, out var v) ? v ?? string.Empty : string.Empty;
         }
 
         private static int TryParseInt(string s)

@@ -32,26 +32,16 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
                 t.NVCHR_CATEGORY,
                 t.NVCHR_BRAND,
 
-                e.NVCHR_EMPLOYEE_NAME,
-                e.CHR_CODE_SEC,
-
                 cb.DTM_BORROW_TIME,
                 cb.DTM_RETURN_TIME
 
             FROM TM_CARD_USAGE cu
-            INNER JOIN TM_CARD c
-                ON cu.INT_CARD_ID = c.ID
-
+            LEFT JOIN TM_CARD_BORROW cb
+                ON cb.id  = cu.INT_BORROW_ID
+            LEFT JOIN TM_CARD c
+                ON cb.INT_CARD_ID = c.ID
             LEFT JOIN TM_TAXI t
                 ON c.INT_TAXI_ID = t.ID
-
-            LEFT JOIN TM_EMPLOYEE e
-                ON cu.CHR_EMPLOYEE_ID = e.CHR_EMPLOYEE_ID
-
-            LEFT JOIN TM_CARD_BORROW cb
-                ON cb.INT_CARD_ID = cu.INT_CARD_ID
-                AND cb.CHR_EMPLOYEE_ID = cu.CHR_EMPLOYEE_ID
-
             WHERE ISNULL(cu.BIT_DELETE, 0) = 0
         ";
 

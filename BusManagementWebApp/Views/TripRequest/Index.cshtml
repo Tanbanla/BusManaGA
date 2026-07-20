@@ -27,10 +27,15 @@
 </style>
 
 <div class="trip-card p-3 p-md-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="m-0">Đăng ký xe công tác</h5>
-        <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTripRequestModal"><i class="fa-solid fa-plus me-1"></i>Đăng ký mới</button>
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <h5 class="m-0">Đăng ký xe công tác</h5>
+            <button type="button" class="btn btn-lg btn-primary" data-bs-toggle="modal" data-bs-target="#createTripRequestModal">
+                <i class="fa-solid fa-plus me-1"></i>Đăng ký đơn mới
+            </button>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
             <form method="get" asp-controller="TripRequest" asp-action="Export" class="d-inline">
                 <input type="hidden" name="department" value="@Model.Department" />
                 <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />

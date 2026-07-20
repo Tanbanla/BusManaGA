@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Serilog;
 using System.Configuration;
 using BusManagement.Data.Configs.DependencyInjection;
@@ -8,6 +8,7 @@ using BusManagement.Model.Models;
 using BusManagement.Service.Configs.AutoMapper;
 using BusManagement.Service.Configs.DependencyInjection;
 using BusManagementWebApp.Configs;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -92,6 +93,9 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 
+// Cached public menu paths (menus without role assignments are considered public)
+List<string>? menuPublicPaths = null;
+
 // Authentication middleware: require valid AccessToken for all requests except dashboard and public assets
 app.Use(async (context, next) =>
 {
@@ -108,8 +112,8 @@ app.Use(async (context, next) =>
         return $"/Account/Login?returnUrl={Uri.EscapeDataString(returnUrl)}";
     }
 
-    // Allowed without authentication
-    var publicPaths = new[]
+    // Allowed without authentication (built-in)
+    var builtInPublicPaths = new[]
     {
         "/",
         "/home",
@@ -122,50 +126,146 @@ app.Use(async (context, next) =>
     // static content prefixes
     var publicPrefixes = new[] { "/lib/", "/css/", "/js/", "/images/", "/img/", "/_content/" };
 
-    bool isPublic = publicPaths.Any(p => path == p) || publicPrefixes.Any(p => path.StartsWith(p));
+    // Build menu-based public paths once and cache
+    if (menuPublicPaths == null)
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var menuSvc = scope.ServiceProvider.GetService(typeof(BusManagement.Service.Services.Interfaces.ITmMenuService)) as BusManagement.Service.Services.Interfaces.ITmMenuService;
+            var menuRoleSvc = scope.ServiceProvider.GetService(typeof(BusManagement.Service.Services.Interfaces.ITmMenuRoleService)) as BusManagement.Service.Services.Interfaces.ITmMenuRoleService;
+            if (menuSvc != null && menuRoleSvc != null)
+            {
+                var menusResp = await menuSvc.SearchByConditionAsync(new BusManagement.Model.Common.SearchOptions
+                {
+                    PageNumber = 1,
+                    PageSize = 100000,
+                    Filters = new List<BusManagement.Model.Common.FilterOption>
+                    {
+                        new() { Field = "BIT_IS_ACTIVE", Operator = "=", Value = true }
+                    }
+                });
+
+                var menus = menusResp?.Data?.Data?.ToList() ?? new List<BusManagement.Model.Dtos.TM_MENUDTO>();
+                var menuRolesResp = await menuRoleSvc.SearchByConditionAsync(new BusManagement.Model.Common.SearchOptions { PageNumber = -1, PageSize = 100000 });
+                var menuRoles = menuRolesResp?.Data?.Data?.ToList() ?? new List<BusManagement.Model.Dtos.TM_MENU_ROLEDTO>();
+
+                var roleMap = menuRoles
+                    .Where(x => x.INT_ROLE_ID.HasValue)
+                    .GroupBy(x => x.INT_MENU_ID)
+                    .ToDictionary(g => g.Key, g => g.Select(x => x.INT_ROLE_ID!.Value).Distinct().ToHashSet());
+
+                var list = new List<string>();
+                foreach (var m in menus)
+                {
+                    if (m == null) continue;
+                    if (roleMap.TryGetValue(m.ID, out var roles) && roles.Count > 0) continue; // menu has roles => not public
+
+                    var controller = (m.CHR_CONTROLLER ?? string.Empty).Trim().ToLowerInvariant();
+                    var action = (m.CHR_ACTION ?? "Index").Trim().ToLowerInvariant();
+                    if (!string.IsNullOrWhiteSpace(controller))
+                    {
+                        var basePath = "/" + controller;
+                        list.Add(basePath);
+                        // add controller/action
+                        list.Add(basePath + "/" + action);
+                        // also add explicit index variant
+                        if (!action.Equals("index", StringComparison.OrdinalIgnoreCase))
+                        {
+                            list.Add(basePath + "/index");
+                        }
+                    }
+                }
+
+                menuPublicPaths = list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            }
+            else
+            {
+                menuPublicPaths = new List<string>();
+            }
+        }
+        catch
+        {
+            menuPublicPaths = new List<string>();
+        }
+    }
+
+    bool isPublic = builtInPublicPaths.Any(p => path == p)
+                || (menuPublicPaths?.Any(p => path == p) ?? false)
+                || publicPrefixes.Any(p => path.StartsWith(p));
+
+    var token = context.Request.Cookies["AccessToken"];
+
+    // Nếu có token, luôn cố validate để set context.User (kể cả trang public)
+    if (!string.IsNullOrEmpty(token))
+    {
+        try
+        {
+            var key = app.Configuration["JwtSettings:SecretKey"] ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                var validationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(key)),
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    ClockSkew = TimeSpan.Zero,
+                    ValidateLifetime = true
+                };
+
+                var principal = tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
+
+                if (principal?.Identity is ClaimsIdentity ci)
+                {
+                    string? adid = principal.Claims.FirstOrDefault(c => string.Equals(c.Type, "adid", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Type, ClaimTypes.NameIdentifier, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Type, "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Type, "upn", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Type, "preferred_username", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Type, "unique_name", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Type, "name", StringComparison.OrdinalIgnoreCase))?.Value;
+
+                    if (!string.IsNullOrWhiteSpace(adid) && !ci.HasClaim(c => string.Equals(c.Type, "adid", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        ci.AddClaim(new Claim("adid", adid));
+                    }
+
+                    string? emp = principal.Claims.FirstOrDefault(c => string.Equals(c.Type, "employee_code", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Type, "emp", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Type, "employee", StringComparison.OrdinalIgnoreCase))?.Value;
+
+                    if (!string.IsNullOrWhiteSpace(emp) && !ci.HasClaim(c => string.Equals(c.Type, "employee_code", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        ci.AddClaim(new Claim("employee_code", emp));
+                    }
+                }
+
+                context.User = principal; // set User bất kể public hay không, miễn token hợp lệ
+            }
+        }
+        catch
+        {
+            // token không hợp lệ -> coi như chưa đăng nhập, không set context.User
+        }
+    }
+
+    // Trang public: luôn cho qua, dù có set được User hay không
     if (isPublic)
     {
         await next();
         return;
     }
 
-    // check cookie token
-    var token = context.Request.Cookies["AccessToken"];
-    if (string.IsNullOrEmpty(token))
+    // Trang không public: bắt buộc phải có User đã authenticate
+    if (context.User?.Identity?.IsAuthenticated != true)
     {
         context.Response.Redirect(BuildLoginRedirectUrl());
         return;
     }
 
-    try
-    {
-        var key = app.Configuration["JwtSettings:SecretKey"] ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            // if jwt not configured, allow for safety
-            await next();
-            return;
-        }
-
-        var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-        var validationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(key)),
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ClockSkew = TimeSpan.Zero,
-            ValidateLifetime = true
-        };
-
-        var principal = tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
-        context.User = principal;
-        await next();
-    }
-    catch (Exception ex)
-    {
-        context.Response.Redirect(BuildLoginRedirectUrl());
-    }
+    await next();
 });
 
 app.UseRouting();

@@ -386,6 +386,7 @@ public class BusRequestController : Controller
             CurrentEmployeeCode = currentEmployeeCode,
             CurrentEmployeeName = currentEmployee?.NVCHR_EMPLOYEE_NAME,
             CurrentDepartmentCode = currentEmployee?.CHR_CODE_SEC,
+            CurrentAddress = currentEmployee?.NVCHR_SUGGESTED_ADDRESS ?? currentEmployee?.CHR_ADDRESS ?? currentEmployee?.NVCHR_ADDRESS_DETAIL,
             Requests = pagedRows,
             RequestTypes = requestTypes,
             Sections = sections

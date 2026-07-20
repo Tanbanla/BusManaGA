@@ -199,7 +199,7 @@ public class VendorController : Controller
 
         if (string.IsNullOrWhiteSpace(updateBusCode) || string.IsNullOrWhiteSpace(updateLicensePlate))
         {
-            TempData["VendorError"] = "Vui lòng nhập mã xe và biển số xe.";
+            TempData["VendorError"] = "Vui lòng nhập ký hiệu xe và biển số xe.";
             return RedirectToAction(nameof(Management), new { vendorName, address, vendorPhone, taxIdentifyNumber, directorName, directorPhone, picName, picPhone, page, pageSize });
         }
 
@@ -423,7 +423,7 @@ public class VendorController : Controller
 
         if (string.IsNullOrWhiteSpace(createBusCode) || string.IsNullOrWhiteSpace(createLicensePlate))
         {
-            TempData["VendorError"] = "Vui lòng nhập mã xe và biển số xe khi thêm nhanh.";
+            TempData["VendorError"] = "Vui lòng nhập ký hiệu xe và biển số xe khi thêm nhanh.";
             return RedirectToAction(nameof(Management), new { vendorName, address, vendorPhone, taxIdentifyNumber, directorName, directorPhone, picName, picPhone, page, pageSize });
         }
 

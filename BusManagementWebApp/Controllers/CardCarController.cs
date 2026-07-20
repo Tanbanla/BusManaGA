@@ -161,6 +161,27 @@ namespace BusManagementWebApp.Controllers
                 return StatusCode(500, "An error: " + ex.Message);
             }
         }
+        // lấy dữ liệu các thể đang cho mượn
+        [HttpGet]
+
+        public async Task<IActionResult> GetListCardUsingTaxi()
+        {
+            try
+            {
+                var result = await _tmCardBorrowService.GetListCardUsingTaxiAsync();
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving using taxi cards.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> GetInforEmployeeByCode([FromBody] string employeeCode)
         {

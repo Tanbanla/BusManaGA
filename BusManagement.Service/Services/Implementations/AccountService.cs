@@ -63,12 +63,20 @@ namespace BusManagement.Service.Services.Implementations
             //    }
             //});
 
-            if (string.IsNullOrEmpty(adid) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(password))
             {
                 response.Success = false;
                 response.Status = (int)HttpStatusCode.BadRequest; // 400
-                response.Error = "adid or password is empty!";
-                response.Message = "adid or password is empty!";
+                response.Error = "Password đang để trống!";
+                response.Message = "Password đang để trống!";
+                return response;
+            }
+            if (string.IsNullOrEmpty(adid))
+            {
+                response.Success = false;
+                response.Status = (int)HttpStatusCode.BadRequest; // 400
+                response.Error = "ADID đang để trống!";
+                response.Message = "ADID đang để trống!";
                 return response;
             }
 
@@ -105,8 +113,8 @@ namespace BusManagement.Service.Services.Implementations
                 response.Success = false;
                 response.Data = false;
                 response.Status = (int)HttpStatusCode.Unauthorized; // 401
-                response.Error = "Invalid credentials";
-                response.Message = "Invalid credentials";
+                response.Error = "Tên tài khoản hoặc mật khẩu không đúng";
+                response.Message = "Tên tài khoản hoặc mật khẩu không đúng";
                 return response;
             }
 
@@ -122,22 +130,39 @@ namespace BusManagement.Service.Services.Implementations
             var response = new GenericResponse<string>();
             try
             {
-                if (string.IsNullOrEmpty(adid) || string.IsNullOrEmpty(password))
+                if (string.IsNullOrEmpty(password))
                 {
                     response.Success = false;
                     response.Status = (int)HttpStatusCode.BadRequest; // 400
-                    response.Error = "adid or password is empty!";
-                    response.Message = "adid or password is empty!";
+                    response.Error = "Password đang để trống!";
+                    response.Message = "Password đang để trống!";
+                    return response;
+                }
+                if (string.IsNullOrEmpty(adid))
+                {
+                    response.Success = false;
+                    response.Status = (int)HttpStatusCode.BadRequest; // 400
+                    response.Error = "ADID đang để trống!";
+                    response.Message = "ADID đang để trống!";
                     return response;
                 }
 
                 bool isValid = false;
                 bool isAdmin = false;
 
+                TM_USER localUser;
+
                 if (!string.IsNullOrEmpty(adid) && (adid == "admin" || adid == "sa"))
                 {
-                    isValid = true;
-                    isAdmin = true;
+                    localUser = await GetTmUserByAdidAsync(adid);
+                    if (localUser != null)
+                    {
+                        if (password.Equals(localUser.CHR_PASSWORD, StringComparison.OrdinalIgnoreCase))
+                        {
+                            isValid = true;
+                            isAdmin = true;
+                        }
+                    }
                 }
                 else
                 {
@@ -163,11 +188,10 @@ namespace BusManagement.Service.Services.Implementations
                 {
                     response.Success = false;
                     response.Status = (int)HttpStatusCode.Unauthorized; // 401
-                    response.Error = "Invalid credentials";
-                    response.Message = "Invalid credentials";
+                    response.Error = "Tên tài khoản hoặc mật khẩu không đúng";
+                    response.Message = "Tên tài khoản hoặc mật khẩu không đúng";
                     return response;
                 }
-                TM_USER localUser;
                 Model.Models.TM_EMPLOYEE? agentEmployee = null;
 
                 if (isAdmin)
@@ -176,6 +200,7 @@ namespace BusManagement.Service.Services.Implementations
                     {
                         CHR_EMPLOYEE_ID = adid,
                         CHR_ADID = adid,
+                        CHR_PASSWORD = "admin",
                         NVCHR_NAME = "Administrator",
                         CHR_POSITION = "Admin",
                         BIT_IS_ACTIVE = true,
@@ -191,8 +216,8 @@ namespace BusManagement.Service.Services.Implementations
                     {
                         response.Success = false;
                         response.Status = (int)HttpStatusCode.NotFound; // 404
-                        response.Error = "Employee not found in agent DB";
-                        response.Message = "Employee not found in agent DB";
+                        response.Error = "Không tìm thấy nhân viên khi đồng bộ dữ liệu từ hệ thống Agent";
+                        response.Message = "Không tìm thấy nhân viên khi đồng bộ dữ liệu từ hệ thống Agent";
                         return response;
                     }
 
@@ -226,7 +251,7 @@ namespace BusManagement.Service.Services.Implementations
                 response.Success = true;
                 response.Status = (int)HttpStatusCode.OK; // 200
                 response.Data = token;
-                response.Message = "Authentication successfully";
+                response.Message = "Xác thực thành công";
                 return response;
             }
             catch (Exception ex)

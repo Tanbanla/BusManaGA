@@ -172,7 +172,7 @@ public class BusController : Controller
     {
         if (string.IsNullOrWhiteSpace(input.BusCode) || string.IsNullOrWhiteSpace(input.LicensePlate))
         {
-            TempData["BusError"] = "Vui lòng nhập mã xe và biển số xe.";
+            TempData["BusError"] = "Vui lòng nhập ký hiệu xe và biển số xe.";
             return RedirectToIndex(input);
         }
 
@@ -220,7 +220,7 @@ public class BusController : Controller
 
         if (string.IsNullOrWhiteSpace(input.BusCode) || string.IsNullOrWhiteSpace(input.LicensePlate))
         {
-            TempData["BusError"] = "Vui lòng nhập mã xe và biển số xe.";
+            TempData["BusError"] = "Vui lòng nhập ký hiệu xe và biển số xe.";
             return RedirectToIndex(input);
         }
 
@@ -542,7 +542,7 @@ public class BusController : Controller
         var sheet = workbook.Worksheets.Add("Buses");
         var headers = new[]
         {
-            "STT", "Mã xe", "Tên xe", "Biển số", "Loại xe", "Hãng xe", "Model", "Năm sản xuất", "Sức chứa", "Nhà cung cấp", "Trạng thái", "Thời gian tạo", "Thời gian cập nhật", "Người cập nhật"
+            "STT", "Ký hiệu xe", "Tên xe", "Biển số", "Loại xe", "Hãng xe", "Model", "Năm sản xuất", "Sức chứa", "Nhà cung cấp", "Trạng thái", "Thời gian tạo", "Thời gian cập nhật", "Người cập nhật"
         };
 
         for (var i = 0; i < headers.Length; i++)
@@ -700,7 +700,7 @@ public class BusController : Controller
                 row++;
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                if (row == 1 && (line.Contains("Mã xe", StringComparison.OrdinalIgnoreCase) || line.Contains("BusCode", StringComparison.OrdinalIgnoreCase)))
+                if (row == 1 && (line.Contains("Ký hiệu xe", StringComparison.OrdinalIgnoreCase) || line.Contains("BusCode", StringComparison.OrdinalIgnoreCase)))
                 {
                     continue;
                 }
@@ -779,7 +779,7 @@ public class BusController : Controller
         var sheet = workbook.Worksheets.Add("BusEvaluations");
         var headers = new[]
         {
-            "STT", "Mã xe", "Tài xế", "Điểm đánh giá", "Loại đánh giá", "Nội dung", "Ngày đánh giá", "Thời gian tạo", "Thời gian cập nhật", "Người cập nhật"
+            "STT", "Ký hiệu xe", "Tài xế", "Điểm đánh giá", "Loại đánh giá", "Nội dung", "Ngày đánh giá", "Thời gian tạo", "Thời gian cập nhật", "Người cập nhật"
         };
 
         for (var i = 0; i < headers.Length; i++)

@@ -2,6 +2,7 @@
 using BusManagement.ViewModels.Account;
 using Microsoft.Extensions.Configuration;
 using BusManagement.Service.Services.Interfaces;
+using BusManagement.Helpers;
 
 namespace BusManagement.Controllers;
 
@@ -56,12 +57,26 @@ public class AccountController : Controller
         };
         Response.Cookies.Append("AccessToken", token, cookieOptions);
 
-        // determine redirect based on is_leader claim in token
+        // determine redirect based on token info
         try
         {
-            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-            var jwt = handler.ReadJwtToken(token);
-            TempData["LoginMessage"] = $"Hi {model.Username}!";
+            var user = AccessTokenHelper.FromJwt(token);
+            if (user != null && !string.IsNullOrWhiteSpace(user.Name))
+            {
+                TempData["LoginMessage"] = $"Hi {user.Name}!";
+            }
+            else if (user != null && !string.IsNullOrWhiteSpace(user.Adid))
+            {
+                TempData["LoginMessage"] = $"Hi {user.Adid}!";
+            }
+            else if (user != null && !string.IsNullOrWhiteSpace(user.EmployeeCode))
+            {
+                TempData["LoginMessage"] = $"Hi {user.EmployeeCode}!";
+            }
+            else
+            {
+                TempData["LoginMessage"] = $"Hi {model.Username}!";
+            }
         }
         catch { }
 
@@ -78,7 +93,7 @@ public class AccountController : Controller
     public IActionResult Logout()
     {
         Response.Cookies.Delete("AccessToken");
-        TempData["LoginMessage"] = "You have logged out.";
+        TempData["LoginMessage"] = "Đã đăng xuất.";
         return RedirectToAction(nameof(Login));
     }
 }

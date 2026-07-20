@@ -11,6 +11,7 @@
     const getEmployeeUrl = cardRoot.dataset.getemployeeUrl;
     const getListCardUrl = cardRoot.dataset.listcardUrl;
     const addCardUrl = cardRoot.dataset.saveborrowUrl;
+    const listBorrowingUrl = cardRoot.dataset.listborrowingUrl;
 
     //
     const tbody = table.querySelector('.js-taxi-tbody');
@@ -124,7 +125,7 @@
             formatDate(pickValue(row, ['dtm_return_time'])),
             pickValue(row, ['nvchr_from_address']) ?? '',
             pickValue(row, ['nvchr_to_address']) ?? '',
-            pickValue(row, ['int_card_type']) ?? '',
+            pickValue(row, ['int_number_move']) ?? '',
             formatNumber(pickValue(row, ['int_amount']))
         ];
     };
@@ -451,8 +452,13 @@
     });
 
     document.getElementById('borrowCardId')?.addEventListener('mousedown', function () {
-        loadListCard();
+        loadListCardBorrow();
     });
+
+    document.getElementById('usageCardId')?.addEventListener('mousedown', function () {
+        loadListCardBorrowing();
+    });
+    
 
     document.getElementById('saveBorrow')?.addEventListener('click', function () {
         addCardTaxiBorrow();
@@ -662,7 +668,7 @@
         }
     };
     // Lấy dữ liệu thể taxi
-    const loadListCard = async () => {
+    const loadListCardBorrow = async () => {
         if (!getListCardUrl) {
             AppCommon.error('Không nhận được API');
             return;
@@ -697,7 +703,40 @@
             return;
         }
     };
+    // lấy dữ liệu thể taxi đang cho mượn 
+    const loadListCardBorrowing = async () => {
+        if (!listBorrowingUrl) {
+            AppCommon.error('Không nhận được API');
+            return;
+        }
+        const borrowingCardSelect = document.getElementById('usageCardId');
 
+        try {
+            const rep = await fetch(listBorrowingUrl, {
+                method: 'GET'
+            });
+            if (!rep.ok) {
+                AppCommon.error('Bug: ' + rep.statusText);
+                return;
+            }
+            const data = await rep.json();
+
+            borrowingCardSelect.innerHTML =
+            '<option value="">-- Chọn thẻ --</option>';
+            data.forEach(item => {
+                borrowingCardSelect.insertAdjacentHTML(
+                    'beforeend',
+                    `<option value="${item.ID}">
+                    ${item.CHR_CARD_CODE}
+                    </option>`
+                );
+            });
+
+        } catch (err) {
+            AppCommon.error('Bug: ' + err.message);
+            return;
+        }
+    };
 
     performSearch();
 });

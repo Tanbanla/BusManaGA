@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Security.Claims;
 
 namespace BusManagementWebApp.Configs
 {
@@ -51,7 +52,8 @@ namespace BusManagementWebApp.Configs
                         ValidAudience = jwtOptions.Audience,
                         IssuerSigningKey = signingKey,
                         ClockSkew = TimeSpan.FromSeconds(jwtOptions.ClockSkewSeconds),
-                        NameClaimType = "sub",
+                        // use 'adid' as primary name claim to align with app expectations
+                        NameClaimType = "adid",
                         RoleClaimType = "role"
                     };
 
@@ -121,7 +123,45 @@ namespace BusManagementWebApp.Configs
                             logger.LogError(ctx.Exception, "JWT authentication failed");
                             return Task.CompletedTask;
                         },
-                        OnTokenValidated = ctx => Task.CompletedTask,
+                        OnTokenValidated = ctx =>
+                        {
+                            try
+                            {
+                                var ci = ctx.Principal?.Identity as ClaimsIdentity;
+                                if (ci != null)
+                                {
+                                    // Normalize ADID claim: try common aliases and ensure 'adid' exists
+                                    var adid = ci.FindFirst("adid")?.Value
+                                        ?? ci.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                        ?? ci.FindFirst("sub")?.Value
+                                        ?? ci.FindFirst("upn")?.Value
+                                        ?? ci.FindFirst("preferred_username")?.Value
+                                        ?? ci.FindFirst("unique_name")?.Value
+                                        ?? ci.FindFirst("name")?.Value;
+
+                                    if (!string.IsNullOrWhiteSpace(adid) && !ci.HasClaim(c => string.Equals(c.Type, "adid", StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        ci.AddClaim(new Claim("adid", adid));
+                                    }
+
+                                    // Normalize employee_code claim
+                                    var emp = ci.FindFirst("employee_code")?.Value
+                                        ?? ci.FindFirst("emp")?.Value
+                                        ?? ci.FindFirst("employee")?.Value;
+
+                                    if (!string.IsNullOrWhiteSpace(emp) && !ci.HasClaim(c => string.Equals(c.Type, "employee_code", StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        ci.AddClaim(new Claim("employee_code", emp));
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                // ignore normalization errors
+                            }
+
+                            return Task.CompletedTask;
+                        },
                         OnChallenge = ctx =>
                         {
                             if (!ctx.Handled && !ctx.Response.HasStarted)

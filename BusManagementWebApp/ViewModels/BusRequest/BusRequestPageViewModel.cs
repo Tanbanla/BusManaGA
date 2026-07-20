@@ -32,6 +32,7 @@ public class BusRequestPageViewModel
     public bool CanManageAll { get; set; }
     public string? CurrentEmployeeCode { get; set; }
     public string? CurrentEmployeeName { get; set; }
+    public string? CurrentAddress { get; set; }
     public string? CurrentDepartmentCode { get; set; }
 
     public List<BusRequestRowViewModel> Requests { get; set; } = new();

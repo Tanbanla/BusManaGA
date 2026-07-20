@@ -11,6 +11,10 @@
     .table thead th { white-space: nowrap; vertical-align: middle; }
     .form-group-shell { border: 1px solid #e2e8f0; border-radius: 10px; padding: .9rem; }
     .form-group-title { font-size: .8rem; font-weight: 700; color: #2563eb; margin-bottom: .6rem; text-transform: uppercase; letter-spacing: .4px; }
+
+    .js-vehicle-menu-btn {
+        border-color:#ced4da;
+    }
     .vehicle-menu .dropdown-menu { min-width: 100%; }
     .vehicle-menu .dropend .dropdown-menu { top: 0; left: 100%; margin-left: .1rem; }
     .vehicle-menu .dropend:hover > .dropdown-menu { display: block; }
@@ -383,7 +387,7 @@
                                     </div>
                                     <div class="col-12">
                                         <label class="form-label">Địa chỉ</label>
-                                        <input class="form-control" name="Address" />
+                                        <input class="form-control" name="Address" value="@Model.CurrentAddress" />
                                     </div>
                                 </div>
                             </div>
@@ -406,7 +410,7 @@
                                     <div class="col-12 col-md-4 vehicle-menu">
                                         <label class="form-label">Loại xe</label>
                                         <div class="dropdown js-vehicle-menu">
-                                            <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle js-vehicle-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <button class="btn w-100 text-start dropdown-toggle js-vehicle-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                                 -- Chọn loại xe / khu vực --
                                             </button>
                                             <ul class="dropdown-menu w-100 js-vehicle-menu-root">

@@ -5,65 +5,238 @@
 
 <style>
     .login-page {
-        min-height: 82vh;
+        min-height: 100svh;
+        min-height: 89vh; /* fallback for browsers without svh support */
         display: flex;
         align-items: center;
         justify-content: center;
         background: radial-gradient(circle at top right, #dbeafe 0%, #eff6ff 35%, #f8fafc 100%);
         animation: bgpan 8s infinite alternate;
-        padding: 1rem;
+        padding: clamp(0.75rem, 2.5vh, 1.5rem);
+        overflow-y: auto;
     }
     @Html.Raw("@keyframes bgpan { from { background-position:0% 50% } to { background-position:100% 50% } }")
 
-    .login-card { width: 100%; max-width: 430px; border-radius: 18px; overflow: hidden; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14); transform: translateY(18px); opacity: 0; transition: transform .45s cubic-bezier(.2,.9,.2,1), opacity .45s ease; border: 1px solid #dbeafe; }
+    /* ===== Card wrapper: 2-column layout, wider overall ===== */
+    .login-card {
+        width: 100%;
+        max-width: 960px;
+        min-height: clamp(420px, 68vh, 560px);
+        max-height: 94vh;
+        border-radius: 22px;
+        overflow: hidden;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
+        transform: translateY(18px);
+        opacity: 0;
+        transition: transform .45s cubic-bezier(.2,.9,.2,1), opacity .45s ease;
+        border: 1px solid #dbeafe;
+        display: flex;
+        background: #fff;
+    }
     .login-card.visible { transform: translateY(0); opacity: 1; }
-    .login-card .card-body { padding: 2.25rem; }
-    .bus-hero { width: 88px; height: 88px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 38px; color: #fff; background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 65%, #0ea5e9 100%); box-shadow: 0 10px 24px rgba(37, 99, 235, 0.26); }
+
+    /* ===== Left panel: logos + lottie bus area ===== */
+    .login-visual {
+        flex: 0 0 42%;
+        background: linear-gradient(160deg, #1d4ed8 0%, #2563eb 55%, #0ea5e9 100%);
+        color: #fff;
+        padding: clamp(1.25rem, 3vh, 2.25rem) 2rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* logos centered, bigger */
+    .brand-center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: clamp(0.5rem, 1.5vh, 1rem);
+        padding-top: .5rem;
+    }
+    .brand-center .company-logo {
+        max-height: clamp(56px, 10vh, 92px);
+        max-width: 260px;
+        object-fit: contain;
+    }
+    .brand-center .system-logo-badge {
+        width: clamp(52px, 8vh, 78px);
+        height: clamp(52px, 8vh, 78px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(28px, 4.5vh, 44px);
+        color: #fff;
+    }
+
+    .login-visual .system-name {
+        margin-top: clamp(0.75rem, 2vh, 1.75rem);
+        text-align: center;
+    }
+    .login-visual .system-name h2 {
+        font-weight: 700;
+        font-size: clamp(1.15rem, 2vh + 0.9rem, 1.55rem);
+        line-height: 1.3;
+        margin-bottom: .5rem;
+    }
+    .login-visual .system-name p {
+        color: rgba(255,255,255,.85);
+        font-size: .92rem;
+        margin: 0;
+    }
+
+    /* Lottie bus animation strip: bus runs left -> right, loops, hides past the line */
+    .bus-lottie-wrap {
+        margin-top: auto;
+        position: relative;
+        height: clamp(64px, 12vh, 120px);
+        overflow: hidden; /* clip bus once it passes the right edge */
+    }
+    .bus-lottie-wrap .road-line {
+        position: absolute;
+        left: 0; right: 0; bottom: 20%;
+        height: 2px;
+        background: repeating-linear-gradient(to right, rgba(255,255,255,.55) 0 14px, transparent 14px 26px);
+    }
+    #busLottie {
+        position: absolute;
+        bottom: 0;
+        width: clamp(90px, 12vh, 140px);
+        height: clamp(64px, 8.5vh, 100px);
+        z-index: 2;
+        left: -40%;
+        animation: busRun 5s linear infinite;
+    }
+    @@keyframes busRun {
+        0%   { left: -30%; opacity: 1; }
+        88%  { opacity: 1; }
+        100% { left: 110%; opacity: 0; }
+    }
+
+    .login-visual .decor-circle {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255,255,255,.08);
+    }
+    .login-visual .decor-circle.c1 { width: 220px; height: 220px; top: -60px; right: -80px; }
+    .login-visual .decor-circle.c2 { width: 140px; height: 140px; bottom: -40px; left: -40px; }
+
+    /* ===== Right panel: form ===== */
+    .login-form-panel {
+        flex: 1 1 58%;
+        padding: clamp(1.5rem, 4vh, 3rem) clamp(1.75rem, 4vw, 3.25rem);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        overflow-y: auto;
+    }
     .login-title { color: #0f172a; font-weight: 700; }
     .login-subtitle { color: #64748b; }
-    /* make input-group visuals seamless: remove separate borders for icon span and input */
+
+    .login-form-panel form { max-width: 380px; margin: 0 auto; width: 100%; }
+
     .input-group.shadow-sm.rounded { background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
     .input-group.shadow-sm.rounded .input-group-text {
-        border: 0; /* remove bootstrap border */
-        background: transparent; /* match input background */
-        padding: .55rem .75rem;
+        border: 0;
+        background: transparent;
+        padding: .65rem .85rem;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         color: #6c757d;
     }
     .input-group.shadow-sm.rounded .form-control {
-        border: 0; /* remove bootstrap border so element appears unified */
+        border: 0;
+        border-radius: 0;
         background: transparent;
-        padding: .55rem .75rem;
+        padding: .65rem .85rem;
         box-shadow: none;
     }
     .input-group.shadow-sm.rounded .form-control:focus {
+        border-radius: 0;
         box-shadow: none;
         outline: none;
     }
 
+    /* ===== Windows display scaling (125% / 150% / 175%) on laptop screens =====
+       Scaling shrinks the effective CSS viewport height first (e.g. a 1080px-tall
+       screen becomes ~720px at 150%, ~617px at 175%), so target max-height rather
+       than max-width for these breakpoints. */
+    @@media (max-height: 800px) {
+        .login-card { min-height: unset; max-height: 92vh; }
+        .login-visual .system-name p { font-size: .85rem; }
+    }
+    @@media (max-height: 680px) {
+        .login-page { min-height: 84vh; padding-top: 1rem; }
+        .login-card { min-height: unset; max-height: none; }
+        .brand-center { gap: .4rem; }
+        .login-visual .system-name { margin-top: .6rem; }
+        .login-visual .system-name p { display: none; }
+        .bus-lottie-wrap { margin-top: .75rem; }
+        .bus-lottie-wrap .road-line {
+        position: absolute;
+        left: 0; right: 0; bottom: 24%;
+        height: 2px;
+        background: repeating-linear-gradient(to right, rgba(255,255,255,.55) 0 14px, transparent 14px 26px);
+    }
+    }
+
+    @@media (max-width: 860px) {
+        .login-card { flex-direction: column; min-height: unset; max-width: 480px; }
+        .login-visual { flex: none; padding: 1.75rem 1.75rem 1.25rem; }
+        .brand-center .company-logo { max-height: 72px; max-width: 210px; }
+        .brand-center .system-logo-badge { width: 64px; height: 64px; font-size: 28px; }
+        .bus-lottie-wrap { height: 90px; margin-top: 1.25rem; }
+        #busLottie { width: 110px; height: 80px; }
+        .login-form-panel { padding: 2rem 1.75rem; }
+    }
     @@media (max-width: 576px) {
-        .login-card .card-body { padding: 1.35rem; }
-        .bus-hero { width: 76px; height: 76px; font-size: 32px; }
+        .login-form-panel { padding: 1.5rem 1.25rem; }
+        .login-visual { padding: 1.25rem 1.25rem 1rem; }
     }
 </style>
 
 <div class="login-page">
-    <div class="login-card card border-0">
-        <div class="card-body text-center">
-            <div class="mb-3">
-                <div class="bus-hero mx-auto"><i class="fa-solid fa-bus"></i></div>
+    <div class="login-card">
+
+        <!-- ===== LEFT: logos (centered, larger) + lottie bus ===== -->
+        <div class="login-visual">
+            <div class="decor-circle c1"></div>
+            <div class="decor-circle c2"></div>
+
+            <div class="brand-center">
+                <img class="company-logo" src="~/img/white-brother-logo-transparent.png" alt="Logo công ty" />
+                <div class="system-logo-badge"><i class="fa-solid fa-bus"></i></div>
             </div>
-            <h3 class="mb-1 login-title">Hệ thống quản lý xe Công ty</h3>
-            <p class="mb-3 small login-subtitle">Vui lòng nhập thông tin tài khoản (ADID) để tiếp tục.</p>
+
+            <div class="system-name text-center">
+                <h2 class="text-light">Hệ thống quản lý xe Công ty</h2>
+                <p>Hỗ trợ quản lý tập trung phương tiện, xe taxi, tài xế và tuyến đường; số hóa quy trình đăng ký, xác nhận và phê duyệt sử dụng xe, đảm bảo vận hành hiệu quả, chính xác và minh bạch.</p>
+            </div>
+
+            <div class="bus-lottie-wrap">
+                <div class="road-line"></div>
+                <div id="busLottie"></div>
+            </div>
+        </div>
+
+        <!-- ===== RIGHT: form ===== -->
+        <div class="login-form-panel">
+            <div class="mb-4 text-center">
+                <h3 class="mb-1 login-title">Đăng nhập</h3>
+                <p class="mb-0 small login-subtitle">Vui lòng nhập thông tin tài khoản (ADID) để tiếp tục.</p>
+            </div>
 
             @if (TempData["LoginMessage"] is string message)
             {
                 <div class="alert alert-info py-2">@message</div>
             }
 
-            <form id="loginForm" asp-action="Login" method="post" class="mt-3">
+            <form id="loginForm" asp-action="Login" method="post">
                 @Html.AntiForgeryToken()
                 <input asp-for="ReturnUrl" type="hidden" />
                 <div asp-validation-summary="ModelOnly" class="text-danger small"></div>
@@ -103,6 +276,18 @@
         document.addEventListener('DOMContentLoaded', function () {
             var card = document.querySelector('.login-card');
             if (card) setTimeout(function () { card.classList.add('visible'); }, 80);
+
+            // ===== Lottie bus animation =====
+            // File JSON: wwwroot/lotties/busrunning.json
+            if (window.lottie) {
+                lottie.loadAnimation({
+                    container: document.getElementById('busLottie'),
+                    renderer: 'svg',
+                    loop: true,
+                    autoplay: true,
+                    path: '@Url.Content("~/lotties/busrunning.json")'
+                });
+            }
 
             var form = document.getElementById('loginForm');
             var isSubmitting = false;
