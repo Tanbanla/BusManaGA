@@ -3,6 +3,7 @@ namespace BusManagement.ViewModels.BusRouteAssign;
 public class BusRouteAssignUpsertInputModel
 {
     public int? ID { get; set; }
+    public string? BusRouteAssignWorkingName { get; set; }
     public int? BusId { get; set; }
     public int? RoutePickupId { get; set; }
     public int? RouteReturnId { get; set; }

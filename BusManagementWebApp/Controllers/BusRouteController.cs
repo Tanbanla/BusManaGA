@@ -490,7 +490,10 @@ public class BusRouteController : Controller
                 INT_ROUTE_ID = toRouteId,
                 INT_BUS_STOP_ID = src.INT_BUS_STOP_ID,
                 INT_ORDER = order++,
-                DTM_PICKUP_TIME = src.DTM_PICKUP_TIME
+                DTM_PICKUP_TIME = src.DTM_PICKUP_TIME,
+                // preserve turn information when copying
+                INT_TURN = src.INT_TURN,
+                NVCHR_TURN_NAME = src.NVCHR_TURN_NAME
             };
             await _tmBusRouteStopService.AddAsyncV2(entity);
         }
@@ -499,7 +502,7 @@ public class BusRouteController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> SaveRouteStops(int routeId, int[] stopIds, string[] pickupTimes)
+    public async Task<IActionResult> SaveRouteStops(int routeId, int[] stopIds, string[] pickupTimes, int[] turns, string[] turnNames)
     {
         // remove existing
         var existingResp = await _tmBusRouteStopService.SearchByConditionAsync(new SearchOptions
@@ -517,11 +520,20 @@ public class BusRouteController : Controller
         }
 
         var actor = GetCurrentActor();
+
+        // Có nhiều hơn 1 turn hay không
+        bool hasMultipleTurns = turns != null && turns.Where(x => x > 0).Distinct().Count() > 1;
+
         for (var i = 0; i < stopIds.Length; i++)
         {
             var sId = stopIds[i];
+
             DateTime? dt = null;
-            if (i < pickupTimes.Length && DateTime.TryParse(pickupTimes[i], out var parsed)) dt = parsed;
+            if (i < pickupTimes.Length && DateTime.TryParse(pickupTimes[i], out var parsed))
+                dt = parsed;
+
+            var turn = (turns != null && i < turns.Length) ? turns[i] : (int?)null;
+            var turnName = (turnNames != null && i < turnNames.Length) ? turnNames[i] : null;
 
             var entity = new TM_BUS_ROUTE_STOP
             {
@@ -529,37 +541,44 @@ public class BusRouteController : Controller
                 INT_BUS_STOP_ID = sId,
                 INT_ORDER = i + 1,
                 DTM_PICKUP_TIME = dt,
+                INT_TURN = turn,
+                NVCHR_TURN_NAME = turnName,
+                // Nếu có nhiều turn thì Direction = 2
+                INT_DIRECTION = hasMultipleTurns ? (int)DirectionTypeEnum.Return : (int)DirectionTypeEnum.Pickup
             };
 
             await _tmBusRouteStopService.AddAsyncV2(entity);
-
-            var currentResp = await _tmBusRouteService.GetByIdAsync(routeId);
-            var current = currentResp.Data;
-            if (!currentResp.Success || current == null)
-            {
-                TempData["RouteError"] = currentResp.Message ?? "Không tìm thấy lộ trình.";
-                return RedirectToAction(nameof(Index));
-            }
-
-            var busRouteDto = new TM_BUS_ROUTE
-            {
-                ID = current.ID,
-                CHR_USER_CREATE = current.CHR_USER_CREATE,
-                DTM_CREATE = current.DTM_CREATE,
-                CHR_USER_UPDATE = actor,
-                DTM_UPDATE = DateTime.Now,
-                NVCHR_ROUTE_NAME = current.NVCHR_ROUTE_NAME,
-                NVCHR_ROUTE_TYPE = current.NVCHR_ROUTE_TYPE,
-                CHR_CODE_DEPT = current.CHR_CODE_DEPT,
-                CHR_CODE_SEC = current.CHR_CODE_SEC,
-                INT_ID_ROUTE_TYPE = current.INT_ID_ROUTE_TYPE,
-                BIT_IS_ACTIVE = current.BIT_IS_ACTIVE
-            };
-            await _tmBusRouteService.UpdateAsync(busRouteDto);
         }
 
+        // Update Route chỉ 1 lần
+        var currentResp = await _tmBusRouteService.GetByIdAsync(routeId);
+        var current = currentResp.Data;
+
+        if (!currentResp.Success || current == null)
+        {
+            TempData["RouteError"] = currentResp.Message ?? "Không tìm thấy lộ trình.";
+            return Redirect(Request.Headers["Referer"].ToString());
+        }
+
+        var busRouteDto = new TM_BUS_ROUTE
+        {
+            ID = current.ID,
+            CHR_USER_CREATE = current.CHR_USER_CREATE,
+            DTM_CREATE = current.DTM_CREATE,
+            CHR_USER_UPDATE = actor,
+            DTM_UPDATE = DateTime.Now,
+            NVCHR_ROUTE_NAME = current.NVCHR_ROUTE_NAME,
+            NVCHR_ROUTE_TYPE = current.NVCHR_ROUTE_TYPE,
+            CHR_CODE_DEPT = current.CHR_CODE_DEPT,
+            CHR_CODE_SEC = current.CHR_CODE_SEC,
+            INT_ID_ROUTE_TYPE = current.INT_ID_ROUTE_TYPE,
+            BIT_IS_ACTIVE = current.BIT_IS_ACTIVE,
+        };
+
+        await _tmBusRouteService.UpdateAsync(busRouteDto);
+
         TempData["RouteSuccess"] = "Cập nhật cấu hình điểm thành công.";
-        return RedirectToAction(nameof(Index));
+        return Redirect(Request.Headers["Referer"].ToString());
     }
 
     private IActionResult RedirectToIndex(RouteUpsertInputModel input)

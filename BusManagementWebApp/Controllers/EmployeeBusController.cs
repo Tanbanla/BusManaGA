@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Security.Claims;
 using BusManagement.Model.Common;
+using BusManagement.Model.Common.Enum;
 using BusManagement.Model.Dtos;
 using BusManagement.Model.Entity;
 using BusManagement.Service.Services.Interfaces;
@@ -120,6 +121,34 @@ public class EmployeeBusController : Controller
         var routeAssigns = routeAssignResp?.Data?.Data?.ToList() ?? new List<TM_BUS_ROUTE_ASSIGNDTO>();
         var routeAssignLookups = await BuildRouteAssignLookupAsync(routeAssigns);
 
+        // Load active employee routes
+        var employees = employeeResp?.Data?.Data?.ToList() ?? new();
+        var employeeRoutes = new List<TM_EMPLOYEE_ROUTEDTO>();
+        if (employees.Any())
+        {
+            var employeeCodes = employees.Select(e => e.CHR_EMPLOYEE_ID).ToList();
+            var employeeRouteResp = await _tmEmployeeRouteService.SearchByConditionAsync(new SearchOptions
+            {
+                PageNumber = -1,
+                PageSize = 100000,
+                Filters = new List<FilterOption>
+                {
+                    new() { Field = nameof(TM_EMPLOYEE_ROUTE.BIT_IS_ACTIVE), Operator = "=", Value = true }
+                }
+            });
+
+            var allActiveRoutes = employeeRouteResp?.Data?.Data ?? new List<TM_EMPLOYEE_ROUTEDTO>();
+            employeeRoutes = allActiveRoutes
+                .Where(r => employeeCodes.Contains(r.CHR_EMPLOYEE_ID))
+                .ToList();
+        }
+
+        // Load bus stops for route display
+        var busStopMap = (busStopsResp?.Data?.Data ?? new List<TM_BUS_STOPDTO>())
+            .GroupBy(x => x.ID)
+            .Select(g => g.First())
+            .ToDictionary(x => x.ID, x => x);
+
         var vm = new EmployeeBusPageViewModel
         {
             EmployeeCode = employeeCode,
@@ -131,11 +160,8 @@ public class EmployeeBusController : Controller
             BusStopId = busStopId,
             PageNumber = page,
             PageSize = pageSize,
-            Employees = employeeResp?.Data?.Data?.ToList() ?? new(),
-            BusStops = (busStopsResp?.Data?.Data ?? new List<TM_BUS_STOPDTO>())
-                .GroupBy(x => x.ID)
-                .Select(g => g.First())
-                .ToList(),
+            Employees = employees,
+            BusStops = busStopMap.Values.ToList(),
             Sections = (sectionsResp?.Data ?? new List<TM_SECTIONDTO>())
                 .Where(x => !string.IsNullOrWhiteSpace(x.CHR_CODE))
                 .GroupBy(x => x.CHR_CODE!.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -155,6 +181,8 @@ public class EmployeeBusController : Controller
             RouteAssignOptions = routeAssignLookups,
             PickupRouteMap = routeAssignLookups.ToDictionary(x => x.Id, x => x.DisplayName ?? "-"),
             ReturnRouteMap = routeAssignLookups.ToDictionary(x => x.Id, x => x.DisplayName ?? "-"),
+            EmployeeRoutes = employeeRoutes,
+            BusStopMapForRouteDisplay = busStopMap,
             TotalCount = (int)(employeeResp?.Data?.TotalCount ?? 0),
             TotalPages = (int)(employeeResp?.Data?.TotalPages ?? 0),
             CanManage = await CanManageAsync()
@@ -332,7 +360,7 @@ public class EmployeeBusController : Controller
             var updateResp = await _tmEmployeeService.UpdateAsync(updateEntity);
             if (updateResp.Success)
             {
-                await SyncEmployeeRouteAsync(updateEntity.ID, updateEntity.CHR_EMPLOYEE_ID, input.RouteAssignId, input.BusStopId, actor, "UPSERT_FROM_EMPLOYEE_BUS");
+                await SyncEmployeeRouteAsync(updateEntity.ID, updateEntity.CHR_EMPLOYEE_ID, input.GetEffectivePickupRouteId(), input.GetEffectiveReturnRouteId(), input.GetEffectivePickupStopId(), input.GetEffectiveReturnStopId(), actor, "UPSERT_FROM_EMPLOYEE_BUS");
             }
             TempData[updateResp.Success ? "EmployeeBusSuccess" : "EmployeeBusError"] = updateResp.Success
                 ? "Mã nhân viên đã tồn tại, dữ liệu được cập nhật thành công."
@@ -351,8 +379,8 @@ public class EmployeeBusController : Controller
             NVCHR_CITY = input.City?.Trim(),
             NVCHR_WARD = input.Ward?.Trim(),
             NVCHR_ADDRESS_DETAIL = input.AddressDetail?.Trim(),
-            INT_BUS_STOP_ID = input.BusStopId,
-            INT_BUS_ROUTE_ASSIGN_ID = input.RouteAssignId,
+            INT_BUS_STOP_ID = input.GetEffectivePickupStopId(),
+            INT_BUS_ROUTE_ASSIGN_ID = input.GetEffectivePickupRouteId(),
             BIT_IS_USE_BUS = true,
             BIT_IS_ACTIVE = true,
             CHR_USER_CREATE = actor,
@@ -363,7 +391,7 @@ public class EmployeeBusController : Controller
         {
             var savedId = resp.Data?.ID ?? localEmployee.ID;
             var savedCode = resp.Data?.CHR_EMPLOYEE_ID ?? localEmployee.CHR_EMPLOYEE_ID;
-            await SyncEmployeeRouteAsync(savedId, savedCode, input.RouteAssignId, input.BusStopId, actor, "NEW_REGISTER");
+            await SyncEmployeeRouteAsync(savedId, savedCode, input.GetEffectivePickupRouteId(), input.GetEffectiveReturnRouteId(), input.GetEffectivePickupStopId(), input.GetEffectiveReturnStopId(), actor, "NEW_REGISTER");
         }
         TempData[resp.Success ? "EmployeeBusSuccess" : "EmployeeBusError"] = resp.Success
             ? "Thêm CNV sử dụng xe công ty thành công."
@@ -420,8 +448,8 @@ public class EmployeeBusController : Controller
             CHR_EMPLOYEE_ADID = current.CHR_EMPLOYEE_ADID,
             CHR_EMPLOYEE_MAIL = current.CHR_EMPLOYEE_MAIL,
             NVCHR_EMPLOYEE_NAME = input.EmployeeName?.Trim(),
-            INT_BUS_STOP_ID = input.BusStopId,
-            INT_BUS_ROUTE_ASSIGN_ID = input.RouteAssignId,
+            INT_BUS_STOP_ID = input.GetEffectivePickupStopId(),
+            INT_BUS_ROUTE_ASSIGN_ID = input.GetEffectivePickupRouteId(),
             CHR_SHIFT_CODE = current.CHR_SHIFT_CODE,
             CHR_CODE_DEPT = current.CHR_CODE_DEPT,
             CHR_CODE_SEC = input.Department?.Trim(),
@@ -443,7 +471,7 @@ public class EmployeeBusController : Controller
         var resp = await _tmEmployeeService.UpdateAsync(entity);
         if (resp.Success)
         {
-            await SyncEmployeeRouteAsync(entity.ID, entity.CHR_EMPLOYEE_ID, input.RouteAssignId, input.BusStopId, actor, "UPDATE_FROM_EMPLOYEE_BUS");
+            await SyncEmployeeRouteAsync(entity.ID, entity.CHR_EMPLOYEE_ID, input.GetEffectivePickupRouteId(), input.GetEffectiveReturnRouteId(), input.GetEffectivePickupStopId(), input.GetEffectiveReturnStopId(), actor, "UPDATE_FROM_EMPLOYEE_BUS");
         }
         TempData[resp.Success ? "EmployeeBusSuccess" : "EmployeeBusError"] = resp.Success
             ? "Cập nhật CNV thành công."
@@ -465,7 +493,7 @@ public class EmployeeBusController : Controller
         var current = (await _tmEmployeeService.GetByIdAsync(id))?.Data;
         if (current != null)
         {
-            await SyncEmployeeRouteAsync(current.ID, current.CHR_EMPLOYEE_ID, null, null, actor, "CANCEL_ROUTE");
+            await SyncEmployeeRouteAsync(current.ID, current.CHR_EMPLOYEE_ID, null, null, null, null, actor, "CANCEL_ROUTE");
         }
 
         var resp = await _tmEmployeeService.DeleteAsync(id);
@@ -496,7 +524,7 @@ public class EmployeeBusController : Controller
         var employeeResp = await _tmEmployeeService.GetByIdsAsync(ids);
         foreach (var employee in employeeResp?.Data ?? Enumerable.Empty<TM_EMPLOYEEDTO>())
         {
-            await SyncEmployeeRouteAsync(employee.ID, employee.CHR_EMPLOYEE_ID, null, null, actor, "CANCEL_ROUTE");
+            await SyncEmployeeRouteAsync(employee.ID, employee.CHR_EMPLOYEE_ID, null, null, null, null, actor, "CANCEL_ROUTE");
         }
 
         var resp = await _tmEmployeeService.DeleteRangeAsync(ids);
@@ -552,12 +580,30 @@ public class EmployeeBusController : Controller
         var activeRouteAssigns = routeAssignResp?.Data?.Data?.ToList() ?? new List<TM_BUS_ROUTE_ASSIGNDTO>();
         var routeAssignLookups = await BuildRouteAssignLookupAsync(activeRouteAssigns);
         var routeAssignMap = routeAssignLookups.ToDictionary(x => x.Id, x => x.DisplayName ?? string.Empty);
+        // Load active employee routes for detailed pickup/return information
+        var employeeCodes = rows.Where(x => !string.IsNullOrWhiteSpace(x.CHR_EMPLOYEE_ID)).Select(x => x.CHR_EMPLOYEE_ID!).Distinct().ToList();
+        var employeeRoutes = new List<TM_EMPLOYEE_ROUTEDTO>();
+        if (employeeCodes.Any())
+        {
+            var employeeRouteResp = await _tmEmployeeRouteService.SearchByConditionAsync(new SearchOptions
+            {
+                PageNumber = -1,
+                PageSize = 100000,
+                Filters = new List<FilterOption>
+                {
+                    new() { Field = nameof(TM_EMPLOYEE_ROUTE.BIT_IS_ACTIVE), Operator = "=", Value = true }
+                }
+            });
+
+            var allActiveRoutes = employeeRouteResp?.Data?.Data ?? new List<TM_EMPLOYEE_ROUTEDTO>();
+            employeeRoutes = allActiveRoutes.Where(r => employeeCodes.Contains(r.CHR_EMPLOYEE_ID)).ToList();
+        }
 
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("EmployeesUseBus");
         var headers = new[]
         {
-            "STT", "Mã NV", "Họ và tên", "Phòng ban", "SĐT", "Tỉnh", "Xã", "Địa chỉ chi tiết", "Điểm đón trả", "Tuyến xe đang hoạt động", "Trạng thái"
+            "STT", "Mã NV", "Họ và tên", "Phòng ban", "SĐT", "Tỉnh", "Xã", "Địa chỉ chi tiết", "Điểm đón", "Điểm trả", "Tuyến đi", "Tuyến về", "Trạng thái"
         };
 
         for (var i = 0; i < headers.Length; i++)
@@ -574,13 +620,36 @@ public class EmployeeBusController : Controller
         var stt = 1;
         foreach (var item in rows)
         {
-            busStopMap.TryGetValue(item.INT_BUS_STOP_ID ?? 0, out var busStop);
             sectionMap.TryGetValue(item.CHR_CODE_SEC?.Trim() ?? string.Empty, out var section);
-            var busStopName = busStop == null
-                ? string.Empty
-                : (!string.IsNullOrWhiteSpace(busStop.NVCHR_STOP_NAME)
-                    ? $"{busStop.NVCHR_STOP_NAME}"
-                    : busStop.NVCHR_STOP_NAME ?? busStop.NVCHR_STOP_NAME ?? string.Empty);
+
+            // Try to find employee route details (pickup/return)
+            var employeeRoute = employeeRoutes.FirstOrDefault(r => string.Equals(r.CHR_EMPLOYEE_ID, item.CHR_EMPLOYEE_ID, StringComparison.OrdinalIgnoreCase));
+
+            // Pickup stop
+            string pickupStopName = string.Empty;
+            int? pickupStopId = employeeRoute?.INT_PICKUP_STOP_ID ?? item.INT_BUS_STOP_ID;
+            if (pickupStopId.HasValue && busStopMap.TryGetValue(pickupStopId.Value, out var pickupStop))
+            {
+                pickupStopName = pickupStop.NVCHR_STOP_NAME ?? string.Empty;
+            }
+
+            // Return stop
+            string returnStopName = string.Empty;
+            int? returnStopId = employeeRoute?.INT_RETURN_STOP_ID ?? item.INT_BUS_STOP_ID;
+            if (returnStopId.HasValue && busStopMap.TryGetValue(returnStopId.Value, out var returnStop))
+            {
+                returnStopName = returnStop.NVCHR_STOP_NAME ?? string.Empty;
+            }
+
+            // Pickup route display
+            string pickupRouteDisplay = string.Empty;
+            int? pickupRouteId = employeeRoute?.INT_ROUTE_ASSIGN_PICKUP_ID ?? item.INT_BUS_ROUTE_ASSIGN_ID;
+            if (pickupRouteId.HasValue && routeAssignMap.TryGetValue(pickupRouteId.Value, out var prd)) pickupRouteDisplay = prd;
+
+            // Return route display
+            string returnRouteDisplay = string.Empty;
+            int? returnRouteId = employeeRoute?.INT_ROUTE_ASSIGN_RETURN_ID ?? item.INT_BUS_ROUTE_ASSIGN_ID;
+            if (returnRouteId.HasValue && routeAssignMap.TryGetValue(returnRouteId.Value, out var rrd)) returnRouteDisplay = rrd;
 
             sheet.Cell(row, 1).Value = stt;
             sheet.Cell(row, 2).Value = item.CHR_EMPLOYEE_ID;
@@ -590,11 +659,11 @@ public class EmployeeBusController : Controller
             sheet.Cell(row, 6).Value = item.NVCHR_CITY;
             sheet.Cell(row, 7).Value = item.NVCHR_WARD;
             sheet.Cell(row, 8).Value = item.NVCHR_ADDRESS_DETAIL;
-            sheet.Cell(row, 9).Value = busStopName;
-            sheet.Cell(row, 10).Value = item.INT_BUS_ROUTE_ASSIGN_ID.HasValue && routeAssignMap.TryGetValue(item.INT_BUS_ROUTE_ASSIGN_ID.Value, out var routeDisplay)
-                ? routeDisplay
-                : string.Empty;
-            sheet.Cell(row, 11).Value = item.BIT_IS_ACTIVE == false ? "Ngưng hoạt động" : "Đang hoạt động";
+            sheet.Cell(row, 9).Value = pickupStopName;
+            sheet.Cell(row, 10).Value = returnStopName;
+            sheet.Cell(row, 11).Value = pickupRouteDisplay;
+            sheet.Cell(row, 12).Value = returnRouteDisplay;
+            sheet.Cell(row, 13).Value = item.BIT_IS_ACTIVE == false ? "Ngưng hoạt động" : "Đang hoạt động";
 
             row++;
             stt++;
@@ -661,9 +730,15 @@ public class EmployeeBusController : Controller
             if (sectionItems.Count > 0) sheet.Range(r, 4, r, 4).SetDataValidation().List(sectionSheet.Range(1, 1, sectionItems.Count, 1));
             if (cityItems.Count > 0) sheet.Range(r, 6, r, 6).SetDataValidation().List(citySheet.Range(1, 1, cityItems.Count, 1));
             if (wardItems.Count > 0) sheet.Range(r, 7, r, 7).SetDataValidation().List(wardSheet.Range(1, 1, wardItems.Count, 1));
-            if (stopItems.Count > 0) sheet.Range(r, 9, r, 9).SetDataValidation().List(stopSheet.Range(1, 1, stopItems.Count, 1));
-            if (routeAssignLookups.Count > 0) sheet.Range(r, 10, r, 10).SetDataValidation().List(routeSheet.Range(1, 1, routeAssignLookups.Count, 1));
-            sheet.Range(r, 11, r, 11).SetDataValidation().List(statusSheet.Range(1, 1, 2, 1));
+            if (stopItems.Count > 0) {
+                sheet.Range(r, 9, r, 9).SetDataValidation().List(stopSheet.Range(1, 1, stopItems.Count, 1)); // pickup stop
+                sheet.Range(r, 10, r, 10).SetDataValidation().List(stopSheet.Range(1, 1, stopItems.Count, 1)); // return stop
+            }
+            if (routeAssignLookups.Count > 0) {
+                sheet.Range(r, 11, r, 11).SetDataValidation().List(routeSheet.Range(1, 1, routeAssignLookups.Count, 1)); // pickup route
+                sheet.Range(r, 12, r, 12).SetDataValidation().List(routeSheet.Range(1, 1, routeAssignLookups.Count, 1)); // return route
+            }
+            sheet.Range(r, 13, r, 13).SetDataValidation().List(statusSheet.Range(1, 1, 2, 1));
         }
 
         sheet.Columns().AdjustToContents();
@@ -740,9 +815,11 @@ public class EmployeeBusController : Controller
             var cityValue = cells.ElementAtOrDefault(offset + 4)?.Trim();
             var wardValue = cells.ElementAtOrDefault(offset + 5)?.Trim();
             var addressDetailValue = cells.ElementAtOrDefault(offset + 6)?.Trim();
-            var busStopText = cells.ElementAtOrDefault(offset + 7)?.Trim();
-            var routeAssignText = cells.ElementAtOrDefault(offset + 8)?.Trim();
-            var statusText = cells.ElementAtOrDefault(offset + 9)?.Trim();
+            var pickupStopText = cells.ElementAtOrDefault(offset + 7)?.Trim();
+            var returnStopText = cells.ElementAtOrDefault(offset + 8)?.Trim();
+            var pickupRouteText = cells.ElementAtOrDefault(offset + 9)?.Trim();
+            var returnRouteText = cells.ElementAtOrDefault(offset + 10)?.Trim();
+            var statusText = cells.ElementAtOrDefault(offset + 11)?.Trim();
 
             if (string.IsNullOrWhiteSpace(employeeCodeValue) || string.IsNullOrWhiteSpace(employeeNameValue))
             {
@@ -764,19 +841,35 @@ public class EmployeeBusController : Controller
                 }
             }
 
-            int? mappedBusStopId = null;
-            if (!string.IsNullOrWhiteSpace(busStopText) && stopByName.TryGetValue(busStopText, out var stopId))
+            int? mappedPickupStopId = null;
+            if (!string.IsNullOrWhiteSpace(pickupStopText) && stopByName.TryGetValue(pickupStopText, out var pickupStopId))
             {
-                mappedBusStopId = stopId;
+                mappedPickupStopId = pickupStopId;
             }
 
-            int? mappedRouteAssignId = null;
-            if (!string.IsNullOrWhiteSpace(routeAssignText) && routeByDisplay.TryGetValue(routeAssignText, out var routeId))
+            int? mappedReturnStopId = null;
+            if (!string.IsNullOrWhiteSpace(returnStopText) && stopByName.TryGetValue(returnStopText, out var returnStopId))
             {
-                mappedRouteAssignId = routeId;
+                mappedReturnStopId = returnStopId;
+            }
+
+            int? mappedPickupRouteAssignId = null;
+            if (!string.IsNullOrWhiteSpace(pickupRouteText) && routeByDisplay.TryGetValue(pickupRouteText, out var pickupRouteId))
+            {
+                mappedPickupRouteAssignId = pickupRouteId;
+            }
+
+            int? mappedReturnRouteAssignId = null;
+            if (!string.IsNullOrWhiteSpace(returnRouteText) && routeByDisplay.TryGetValue(returnRouteText, out var returnRouteId))
+            {
+                mappedReturnRouteAssignId = returnRouteId;
             }
 
             var isActive = ParseBool(statusText) ?? true;
+
+            // If return not specified, default to pickup
+            if (!mappedReturnStopId.HasValue) mappedReturnStopId = mappedPickupStopId;
+            if (!mappedReturnRouteAssignId.HasValue) mappedReturnRouteAssignId = mappedPickupRouteAssignId;
 
             var entity = new TM_EMPLOYEE
             {
@@ -787,8 +880,9 @@ public class EmployeeBusController : Controller
                 NVCHR_CITY = cityValue,
                 NVCHR_WARD = wardValue,
                 NVCHR_ADDRESS_DETAIL = addressDetailValue,
-                INT_BUS_STOP_ID = mappedBusStopId,
-                INT_BUS_ROUTE_ASSIGN_ID = mappedRouteAssignId,
+                // legacy fields: store pickup route/stop
+                INT_BUS_STOP_ID = mappedPickupStopId,
+                INT_BUS_ROUTE_ASSIGN_ID = mappedPickupRouteAssignId,
                 BIT_IS_USE_BUS = true,
                 BIT_IS_ACTIVE = isActive,
                 CHR_USER_CREATE = actor,
@@ -796,12 +890,13 @@ public class EmployeeBusController : Controller
             };
 
             var addResp = await _tmEmployeeService.AddAsyncV2(entity);
-            if (addResp.Success)
-            {
-                var savedId = addResp.Data?.ID ?? entity.ID;
-                var savedCode = addResp.Data?.CHR_EMPLOYEE_ID ?? entity.CHR_EMPLOYEE_ID;
-                await SyncEmployeeRouteAsync(savedId, savedCode, mappedRouteAssignId, mappedBusStopId, actor, "NEW_REGISTER");
-            }
+                if (addResp.Success)
+                {
+                    var savedId = addResp.Data?.ID ?? entity.ID;
+                    var savedCode = addResp.Data?.CHR_EMPLOYEE_ID ?? entity.CHR_EMPLOYEE_ID;
+                    // Sync employee route with pickup/return (return defaults to pickup when not provided)
+                    await SyncEmployeeRouteAsync(savedId, savedCode, mappedPickupRouteAssignId, mappedReturnRouteAssignId, mappedPickupStopId, mappedReturnStopId, actor, "NEW_REGISTER");
+                }
             return addResp.Success;
         }
 
@@ -821,7 +916,7 @@ public class EmployeeBusController : Controller
             for (var r = 2; r <= lastRow; r++)
             {
                 var cells = new List<string>();
-                for (var c = 1; c <= 11; c++)
+                for (var c = 1; c <= 13; c++)
                 {
                     cells.Add(sheet.Cell(r, c).GetString());
                 }
@@ -897,6 +992,51 @@ public class EmployeeBusController : Controller
 
         var lookup = await BuildRouteAssignLookupAsync(assigns);
         return Json(lookup.Select(x => new { id = x.Id, displayName = x.DisplayName }));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetBusStopTurns(int? routeAssignId, int? busStopId, int direction = (int)DirectionTypeEnum.Pickup)
+    {
+        if (!routeAssignId.HasValue || routeAssignId.Value <= 0 || !busStopId.HasValue || busStopId.Value <= 0)
+        {
+            return Json(new List<dynamic>());
+        }
+
+        try
+        {
+            int routeId = 0;
+            var routeAssign = await _tmBusRouteAssignService.GetByIdAsync(routeAssignId ?? 0);
+            if (routeAssign != null && routeAssign.Data != null)
+            {
+                if (direction == (int)DirectionTypeEnum.Pickup) routeId = routeAssign.Data.INT_ROUTE_PICKUP_ID ?? 0;
+                if (direction == (int)DirectionTypeEnum.Return) routeId = routeAssign.Data.INT_ROUTE_RETURN_ID ?? 0;
+            }
+            var searchOpts = new SearchOptions
+            {
+                PageNumber = -1,
+                PageSize = 100000,
+                Filters = new List<FilterOption>
+                {
+                    new() { Field = nameof(TM_BUS_ROUTE_STOP.INT_ROUTE_ID), Operator = "=", Value = routeId },
+                    new() { Field = nameof(TM_BUS_ROUTE_STOP.INT_BUS_STOP_ID), Operator = "=", Value = busStopId.Value },
+                    new() { Field = nameof(TM_BUS_ROUTE_STOP.INT_DIRECTION), Operator = "=", Value = direction }
+                }
+            };
+
+            var resp = await _tmBusRouteStopService.SearchByConditionAsync(searchOpts);
+            var stops = (resp?.Data?.Data ?? Enumerable.Empty<TM_BUS_ROUTE_STOPDTO>())
+                .Where(x => x.INT_TURN.HasValue)
+                .GroupBy(x => x.INT_TURN!.Value)
+                .Select(g => new { turn = g.Key, turnName = g.First().NVCHR_TURN_NAME ?? $"Lượt {g.Key}" })
+                .OrderBy(x => x.turn)
+                .ToList();
+
+            return Json(stops);
+        }
+        catch
+        {
+            return Json(new List<dynamic>());
+        }
     }
 
     [HttpGet]
@@ -995,7 +1135,7 @@ public class EmployeeBusController : Controller
                 return new EmployeeRouteAssignLookupItem
                 {
                     Id = assignId,
-                    DisplayName = $"{bus?.CHR_BUS_CODE} - {pickupName}"
+                    DisplayName = $"{a.NVCHR_BUS_ROUTE_WORKING_NAME}"
                 };
             })
             .Where(x => x != null)
@@ -1064,28 +1204,72 @@ public class EmployeeBusController : Controller
         return resp?.Data?.Data?.FirstOrDefault();
     }
 
-    private async Task SyncEmployeeRouteAsync(int employeeId, string? employeeCodeRaw, int? routeAssignId, int? busStopId, string actor, string actionType)
+    private async Task<int?> GetBusStopTurnAsync(int routeAssignId, int busStopId, int direction)
+    {
+        try
+        {
+            var searchOpts = new SearchOptions
+            {
+                PageNumber = -1,
+                PageSize = 100000,
+                Filters = new List<FilterOption>
+                {
+                    new() { Field = nameof(TM_BUS_ROUTE_STOP.INT_ROUTE_ID), Operator = "=", Value = routeAssignId },
+                    new() { Field = nameof(TM_BUS_ROUTE_STOP.INT_BUS_STOP_ID), Operator = "=", Value = busStopId },
+                    new() { Field = nameof(TM_BUS_ROUTE_STOP.INT_DIRECTION), Operator = "=", Value = direction }
+                }
+            };
+
+            var resp = await _tmBusRouteStopService.SearchByConditionAsync(searchOpts);
+            var firstTurn = resp?.Data?.Data?.FirstOrDefault()?.INT_TURN;
+            return firstTurn;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task SyncEmployeeRouteAsync(int employeeId, string? employeeCodeRaw, int? pickupRouteAssignId, int? returnRouteAssignId, int? pickupStopId, int? returnStopId, string actor, string actionType)
     {
         if (string.IsNullOrWhiteSpace(employeeCodeRaw)) return;
 
         var employeeCode = employeeCodeRaw.Trim();
         var activeRoute = await GetCurrentActiveEmployeeRouteAsync(employeeCode);
 
-        var oldRouteAssignId = activeRoute?.INT_ROUTE_ASSIGN_ID;
+        var oldPickupRouteAssignId = activeRoute?.INT_ROUTE_ASSIGN_PICKUP_ID;
+        var oldReturnRouteAssignId = activeRoute?.INT_ROUTE_ASSIGN_RETURN_ID;
         var oldPickupStopId = activeRoute?.INT_PICKUP_STOP_ID;
         var oldReturnStopId = activeRoute?.INT_RETURN_STOP_ID;
+        var oldPickupTurn = activeRoute?.INT_PICKUP_TURN;
+        var oldReturnTurn = activeRoute?.INT_RETURN_TURN;
 
-        var newRouteAssignId = routeAssignId;
-        var newPickupStopId = routeAssignId.HasValue ? busStopId : null;
-        var newReturnStopId = routeAssignId.HasValue ? busStopId : null;
+        var newPickupRouteAssignId = pickupRouteAssignId;
+        var newReturnRouteAssignId = returnRouteAssignId; 
+        var newPickupStopId = pickupRouteAssignId.HasValue ? pickupStopId : null;
+        var newReturnStopId = returnRouteAssignId.HasValue ? returnStopId : null;
+
+        // Resolve turn information from bus route stop
+        int? newPickupTurn = null;
+        int? newReturnTurn = null;
+        if (pickupRouteAssignId.HasValue && pickupStopId.HasValue && pickupStopId.Value > 0)
+        {
+            newPickupTurn = await GetBusStopTurnAsync(pickupRouteAssignId.Value, pickupStopId.Value, (int)DirectionTypeEnum.Pickup); // 1 = pickup/forward direction
+        }
+        if (returnRouteAssignId.HasValue && returnStopId.HasValue && returnStopId.Value > 0)
+        {
+            newReturnTurn = await GetBusStopTurnAsync(returnRouteAssignId.Value, returnStopId.Value, (int)DirectionTypeEnum.Return); // 2 = return/backward direction
+        }
 
         var resolvedActionType = actionType;
         if (string.IsNullOrWhiteSpace(resolvedActionType) || resolvedActionType == "UPSERT_FROM_EMPLOYEE_BUS" || resolvedActionType == "UPDATE_FROM_EMPLOYEE_BUS")
         {
-            if (!routeAssignId.HasValue) resolvedActionType = "CANCEL_ROUTE";
+            if (!pickupRouteAssignId.HasValue) resolvedActionType = "CANCEL_ROUTE";
             else if (activeRoute == null) resolvedActionType = "NEW_REGISTER";
-            else if (oldRouteAssignId != newRouteAssignId) resolvedActionType = "CHANGE_ROUTE";
+            else if (oldPickupRouteAssignId != newPickupRouteAssignId) resolvedActionType = "CHANGE_ROUTE";
+            else if (oldReturnRouteAssignId != newReturnRouteAssignId) resolvedActionType = "CHANGE_ROUTE";
             else if (oldPickupStopId != newPickupStopId) resolvedActionType = "CHANGE_STOP";
+            else if (oldReturnStopId != newReturnStopId) resolvedActionType = "CHANGE_STOP";
             else resolvedActionType = "CHANGE_ROUTE";
         }
 
@@ -1094,8 +1278,10 @@ public class EmployeeBusController : Controller
             INT_EMPLOYEE_ID = employeeId,
             CHR_EMPLOYEE_ID = employeeCode,
             INT_REQUEST_ID = 0,
-            INT_OLD_ROUTE_ASSIGN_ID = oldRouteAssignId,
-            INT_NEW_ROUTE_ASSIGN_ID = newRouteAssignId,
+            INT_OLD_ROUTE_ASSIGN_PICKUP_ID = oldPickupRouteAssignId,
+            INT_OLD_ROUTE_ASSIGN_RETURN_ID = oldReturnRouteAssignId,
+            INT_NEW_ROUTE_ASSIGN_PICKUP_ID = newPickupRouteAssignId,
+            INT_NEW_ROUTE_ASSIGN_RETURN_ID = newReturnRouteAssignId,
             INT_OLD_PICKUP_STOP_ID = oldPickupStopId,
             INT_NEW_PICKUP_STOP_ID = newPickupStopId,
             INT_OLD_RETURN_STOP_ID = oldReturnStopId,
@@ -1106,7 +1292,7 @@ public class EmployeeBusController : Controller
             DTM_CREATE = DateTime.Now
         });
 
-        if (!routeAssignId.HasValue)
+        if (!pickupRouteAssignId.HasValue)
         {
             if (activeRoute != null && activeRoute.BIT_IS_ACTIVE)
             {
@@ -1119,19 +1305,26 @@ public class EmployeeBusController : Controller
                     DTM_UPDATE = DateTime.Now,
                     INT_EMPLOYEE_ID = activeRoute.INT_EMPLOYEE_ID,
                     CHR_EMPLOYEE_ID = activeRoute.CHR_EMPLOYEE_ID,
-                    INT_ROUTE_ASSIGN_ID = activeRoute.INT_ROUTE_ASSIGN_ID,
+                    INT_ROUTE_ASSIGN_PICKUP_ID = activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID,
+                    INT_ROUTE_ASSIGN_RETURN_ID = activeRoute.INT_ROUTE_ASSIGN_RETURN_ID,
                     INT_PICKUP_STOP_ID = activeRoute.INT_PICKUP_STOP_ID,
                     INT_RETURN_STOP_ID = activeRoute.INT_RETURN_STOP_ID,
                     DTM_EFFECTIVE_FROM = activeRoute.DTM_EFFECTIVE_FROM,
                     DTM_EFFECTIVE_TO = DateTime.Now,
                     BIT_IS_ACTIVE = false
                 });
-                await RecalculateRouteAssignCurrentUserAsync(activeRoute.INT_ROUTE_ASSIGN_ID, actor);
+                if (activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID.HasValue)
+                    await RecalculateRouteAssignCurrentUserAsync(activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID.Value, actor);
+                if (activeRoute.INT_ROUTE_ASSIGN_RETURN_ID.HasValue)
+                    await RecalculateRouteAssignCurrentUserAsync(activeRoute.INT_ROUTE_ASSIGN_RETURN_ID.Value, actor);
             }
             return;
         }
 
-        if (!busStopId.HasValue || busStopId.Value <= 0) return;
+        if ((!pickupStopId.HasValue || pickupStopId.Value <= 0) && (!returnStopId.HasValue || returnStopId.Value <= 0)) return;
+
+        var effectivePickupStop = pickupStopId.HasValue && pickupStopId.Value > 0 ? pickupStopId.Value : (returnStopId.HasValue && returnStopId.Value > 0 ? returnStopId.Value : 0);
+        var effectiveReturnStop = returnStopId.HasValue && returnStopId.Value > 0 ? returnStopId.Value : effectivePickupStop;
 
         if (activeRoute == null)
         {
@@ -1139,22 +1332,27 @@ public class EmployeeBusController : Controller
             {
                 INT_EMPLOYEE_ID = employeeId,
                 CHR_EMPLOYEE_ID = employeeCode,
-                INT_ROUTE_ASSIGN_ID = routeAssignId.Value,
-                INT_PICKUP_STOP_ID = busStopId.Value,
-                INT_RETURN_STOP_ID = busStopId.Value,
+                INT_ROUTE_ASSIGN_PICKUP_ID = pickupRouteAssignId.Value, // For backward compatibility
+                INT_ROUTE_ASSIGN_RETURN_ID = returnRouteAssignId,
+                INT_PICKUP_STOP_ID = effectivePickupStop,
+                INT_RETURN_STOP_ID = effectiveReturnStop,
+                INT_PICKUP_TURN = newPickupTurn,
+                INT_RETURN_TURN = newReturnTurn,
                 DTM_EFFECTIVE_FROM = DateTime.Now,
                 DTM_EFFECTIVE_TO = null,
                 BIT_IS_ACTIVE = true,
                 CHR_USER_CREATE = actor,
                 DTM_CREATE = DateTime.Now
             });
-            await RecalculateRouteAssignCurrentUserAsync(routeAssignId.Value, actor);
+            if (pickupRouteAssignId.HasValue)
+                await RecalculateRouteAssignCurrentUserAsync(pickupRouteAssignId.Value, actor);
+            if (returnRouteAssignId.HasValue && returnRouteAssignId.Value != pickupRouteAssignId.Value)
+                await RecalculateRouteAssignCurrentUserAsync(returnRouteAssignId.Value, actor);
             return;
         }
 
-        var sameRoute = activeRoute.INT_ROUTE_ASSIGN_ID == routeAssignId.Value
-            && activeRoute.INT_PICKUP_STOP_ID == busStopId.Value
-            && activeRoute.INT_RETURN_STOP_ID == busStopId.Value;
+        var sameRoute = activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID == activeRoute.INT_ROUTE_ASSIGN_RETURN_ID
+            && activeRoute.INT_PICKUP_STOP_ID == activeRoute.INT_RETURN_STOP_ID;
 
         await _tmEmployeeRouteService.UpdateAsync(new TM_EMPLOYEE_ROUTE
         {
@@ -1165,9 +1363,12 @@ public class EmployeeBusController : Controller
             DTM_UPDATE = DateTime.Now,
             INT_EMPLOYEE_ID = activeRoute.INT_EMPLOYEE_ID,
             CHR_EMPLOYEE_ID = activeRoute.CHR_EMPLOYEE_ID,
-            INT_ROUTE_ASSIGN_ID = routeAssignId.Value,
-            INT_PICKUP_STOP_ID = busStopId.Value,
-            INT_RETURN_STOP_ID = busStopId.Value,
+            INT_ROUTE_ASSIGN_PICKUP_ID = pickupRouteAssignId.Value, // For backward compatibility
+            INT_ROUTE_ASSIGN_RETURN_ID = returnRouteAssignId,
+            INT_PICKUP_STOP_ID = effectivePickupStop,
+            INT_RETURN_STOP_ID = effectiveReturnStop,
+            INT_PICKUP_TURN = newPickupTurn,
+            INT_RETURN_TURN = newReturnTurn,
             DTM_EFFECTIVE_FROM = DateTime.Now,
             DTM_EFFECTIVE_TO = null,
             BIT_IS_ACTIVE = true
@@ -1175,12 +1376,21 @@ public class EmployeeBusController : Controller
 
         if (!sameRoute)
         {
-            await RecalculateRouteAssignCurrentUserAsync(activeRoute.INT_ROUTE_ASSIGN_ID, actor);
-            await RecalculateRouteAssignCurrentUserAsync(routeAssignId.Value, actor);
+            if (activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID.HasValue)
+                await RecalculateRouteAssignCurrentUserAsync(activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID.Value, actor);
+            if (activeRoute.INT_ROUTE_ASSIGN_RETURN_ID.HasValue && activeRoute.INT_ROUTE_ASSIGN_RETURN_ID.Value != activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID)
+                await RecalculateRouteAssignCurrentUserAsync(activeRoute.INT_ROUTE_ASSIGN_RETURN_ID.Value, actor);
+            if (pickupRouteAssignId.HasValue)
+                await RecalculateRouteAssignCurrentUserAsync(pickupRouteAssignId.Value, actor);
+            if (returnRouteAssignId.HasValue && returnRouteAssignId.Value != pickupRouteAssignId.Value)
+                await RecalculateRouteAssignCurrentUserAsync(returnRouteAssignId.Value, actor);
         }
         else
         {
-            await RecalculateRouteAssignCurrentUserAsync(routeAssignId.Value, actor);
+            if (pickupRouteAssignId.HasValue)
+                await RecalculateRouteAssignCurrentUserAsync(pickupRouteAssignId.Value, actor);
+            if (returnRouteAssignId.HasValue && returnRouteAssignId.Value != pickupRouteAssignId.Value)
+                await RecalculateRouteAssignCurrentUserAsync(returnRouteAssignId.Value, actor);
         }
     }
 
@@ -1226,7 +1436,7 @@ public class EmployeeBusController : Controller
             PageSize = 100000,
             Filters = new List<FilterOption>
             {
-                new() { Field = nameof(TM_EMPLOYEE_ROUTE.INT_ROUTE_ASSIGN_ID), Operator = "=", Value = routeAssignId.Value },
+                new() { Field = nameof(TM_EMPLOYEE_ROUTE.INT_ROUTE_ASSIGN_PICKUP_ID), Operator = "=", Value = routeAssignId.Value },
                 new() { Field = nameof(TM_EMPLOYEE_ROUTE.BIT_IS_ACTIVE), Operator = "=", Value = true }
             }
         });

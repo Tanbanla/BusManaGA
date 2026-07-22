@@ -159,4 +159,21 @@ public class TmCardService : BaseService<TM_CARD, int, TM_CARDDTO>, ITmCardServi
         }
         return result;
     }
+    // Get list Card using
+    public async Task<GenericResponse<dynamic>> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10)
+    {
+        var result = new GenericResponse<dynamic>();
+        try
+        {
+            result.Data = await _repo.GetCardUsing(employeeId, department, page, pageSize);
+            result.Success = true;
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.Status = 500;
+            result.Message = ex.Message;
+        }
+        return result;
+    }
 }

@@ -448,7 +448,7 @@
                                     : assign.PickupRouteName ?? "—";
 
                                     <tr data-assign-id="@assign.ID">
-                                        <td class="fw-semibold text-primary">@assign.PickupRouteName</td>
+                                        <td class="fw-semibold text-primary">@assign.BusRouteAssignWorkingName</td>
                                         <td class="text-center">@assign.DriverName <p>@assign.DriverPhone</p></td>
                                         <td class="text-center">@assign.CodeDept</td>
                                         <td>@pickupRoute</td>
@@ -631,6 +631,10 @@
                         <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
 
                         <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Tên lộ trình <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="BusRouteAssignWorkingName" value="" />
+                            </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Chọn xe <span class="text-danger">*</span></label>
                                 <select class="form-select" name="BusId" id="createBusId" required>
@@ -685,10 +689,14 @@
                             <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
 
                             <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Tên lộ trình <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="BusRouteAssignWorkingName" value="@assign.BusRouteAssignWorkingName" />
+                                </div>
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Chọn xe <span class="text-danger">*</span></label>
                                     <select class="form-select" name="BusId" required>
-                                        <option value="@assign.BusCode" selected>@assign.BusCode</option>
+                                        <option value="@assign.BusId" selected>@assign.BusCode</option>
                                     </select>
                                 </div>
                                 <div class="col-12 col-md-6">

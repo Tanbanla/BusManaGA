@@ -16,4 +16,6 @@ public interface ITmCardService : IBaseService<TM_CARD, int, TM_CARDDTO>
     Task<GenericResponse<byte[]>> DownloadExcelTaxiAsync(SearchCard serach);
     //List card taxi need usable
     Task<GenericResponse<List<TM_CARD>>> GetListCardTaxiUsableAsync();
+    // Get list Card using
+    Task<GenericResponse<dynamic>> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10);
 }

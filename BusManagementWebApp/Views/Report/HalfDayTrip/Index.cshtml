@@ -1,0 +1,210 @@
+﻿@using BusManagement.Model.Common.Enum
+@model BusManagement.ViewModels.TripRequest.TripRequestPageViewModel
+@{
+    ViewData["Title"] = "Báo cáo xe đi về nửa ngày";
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
+}
+
+<style>
+    .trip-card { 
+        border: 1px solid #e2e8f0; 
+        border-radius: 14px; 
+        background: #fff; 
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05); 
+    }
+    .bus-status-row-pending { background-color: #f3f4f6; }
+    .bus-status-row-processing { background-color: #dbeafe; }
+    .bus-status-row-approved { background-color: #dcfce7; }
+    .bus-status-row-rejected { background-color: #fee2e2; }
+    #approvalHistoryModal .modal-body { 
+        max-height: 70vh; 
+        overflow-y: auto; 
+    }
+</style>
+
+<div class="trip-card p-3 p-md-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <h5 class="m-0">Báo cáo xe đi về nửa ngày</h5>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            <form method="get" asp-controller="HalfDayTripReport" asp-action="Export" class="d-inline">
+                <input type="hidden" name="department" value="@Model.Department" />
+                <input type="hidden" name="employeeCode" value="@Model.EmployeeCode" />
+                <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+                <input type="hidden" name="phone" value="@Model.Phone" />
+                <input type="hidden" name="driverInfo" value="@ViewBag.DriverInfo" />
+                <input type="hidden" name="pickupGoFrom" value="@ViewBag.PickupGoFrom?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="pickupGoTo" value="@ViewBag.PickupGoTo?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="pickupReturnFrom" value="@ViewBag.PickupReturnFrom?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="pickupReturnTo" value="@ViewBag.PickupReturnTo?.ToString("yyyy-MM-dd")" />
+                <button type="submit" class="btn btn-success"><i class="fa-solid fa-file-excel me-1"></i>Xuất Excel</button>
+            </form>
+        </div>
+    </div>
+
+    <form method="get" show-loading asp-controller="HalfDayTripReport" asp-action="Index" class="row g-2 mb-3">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+        <div class="col-md-2">
+            <input class="form-control" name="employeeCode" value="@Model.EmployeeCode" placeholder="MNV" />
+        </div>
+
+        <div class="col-md-2">
+            <input class="form-control" name="employeeName" value="@Model.EmployeeName" placeholder="Họ tên" />
+        </div>
+
+        <div class="col-md-2">
+            <input class="form-control" name="phone" value="@Model.Phone" placeholder="SĐT" />
+        </div>
+
+        <div class="col-md-2">
+            <select class="form-select" name="department">
+                <option value="">-- Phòng ban --</option>
+                @foreach (var sec in Model.Sections)
+                {
+                    <option value="@sec.CHR_CODE" selected="@(Model.Department == sec.CHR_CODE)">
+                        @(sec.CHR_NAME ?? sec.CHR_SECTION_NAME)
+                    </option>
+                }
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <input type="date" class="form-control" name="pickupGoFrom" value="@ViewBag.PickupGoFrom?.ToString("yyyy-MM-dd")" />
+        </div>
+
+        <div class="col-md-2">
+            <input type="date" class="form-control" name="pickupGoTo" value="@ViewBag.PickupGoTo?.ToString("yyyy-MM-dd")" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Ngày đón về từ:</label>
+            <input type="date" class="form-control" name="pickupReturnFrom" value="@ViewBag.PickupReturnFrom?.ToString("yyyy-MM-dd")" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Ngày đón về đến:</label>
+            <input type="date" class="form-control" name="pickupReturnTo" value="@ViewBag.PickupReturnTo?.ToString("yyyy-MM-dd")" />
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label">Tìm theo thông tin lái xe:</label>
+            <input class="form-control" name="driverInfo" value="@ViewBag.DriverInfo" placeholder="Tên/số điện thoại lái xe" />
+        </div>
+
+        <div class="col-md-1 d-grid align-self-end">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center align-middle text-nowrap">STT</th>
+                    <th class="text-center align-middle text-nowrap">MNV</th>
+                    <th class="text-center align-middle text-nowrap">Phòng ban</th>
+                    <th class="text-center align-middle text-nowrap">Họ tên</th>
+                    <th class="text-center align-middle text-nowrap">SĐT</th>
+                    <th class="text-center align-middle text-nowrap">Ngày đón chiều đi</th>
+                    <th class="text-center align-middle text-nowrap">Giờ đón chiều đi</th>
+                    <th class="text-center align-middle text-nowrap">Điểm đón chiều đi</th>
+                    <th class="text-center align-middle text-nowrap">Ngày đón chiều về</th>
+                    <th class="text-center align-middle text-nowrap">Giờ đón chiều về</th>
+                    <th class="text-center align-middle text-nowrap">Điểm đón chiều về</th>
+                    <th class="text-center align-middle text-nowrap">Thông tin lái xe</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Requests.Any())
+                {
+                    <tr><td colspan="12" class="text-center text-muted">Không có dữ liệu.</td></tr>
+                }
+                else
+                {
+                    for (var i = 0; i < Model.Requests.Count; i++)
+                    {
+                        var item = Model.Requests[i];
+                        <tr class="@item.StatusRowClass">
+                            <td class="text-center">@(startIndex + i)</td>
+                            <td>@item.EmployeeCode</td>
+                            <td>@item.DepartmentName</td>
+                            <td>@item.EmployeeName</td>
+                            <td>@item.Phone</td>
+                            <td class="text-center">@item.PickupGo?.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center">@item.PickupGo?.ToString("HH:mm")</td>
+                            <td>@item.FromGo</td>
+                            <td class="text-center">@item.PickupReturn?.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center">@item.PickupReturn?.ToString("HH:mm")</td>
+                            <td>@item.FromReturn</td>
+                            <td style="white-space: pre-line; min-width: 220px;">@item.DriverInfo</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mb-2">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+    @await Html.PartialAsync("_Pagination", new
+    {
+        PageIndex = Model.PageNumber,
+        TotalPages = Model.TotalPages,
+        PageSize = Model.PageSize,
+        Action = "Index",
+        Controller = "HalfDayTripReport",
+        Term = (string?)null,
+        RouteExtras = new Dictionary<string, string?>
+        {
+            ["department"] = Model.Department,
+            ["employeeCode"] = Model.EmployeeCode,
+            ["employeeName"] = Model.EmployeeName,
+            ["phone"] = Model.Phone,
+            ["driverInfo"] = ViewBag.DriverInfo,
+            ["pickupGoFrom"] = ViewBag.PickupGoFrom?.ToString("yyyy-MM-dd"),
+            ["pickupGoTo"] = ViewBag.PickupGoTo?.ToString("yyyy-MM-dd"),
+            ["pickupReturnFrom"] = ViewBag.PickupReturnFrom?.ToString("yyyy-MM-dd"),
+            ["pickupReturnTo"] = ViewBag.PickupReturnTo?.ToString("yyyy-MM-dd")
+        }
+    })
+</div>
+
+<div class="modal fade" id="approvalHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Lịch sử xử lý</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body" id="approvalHistoryModalBody"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function(){
+            var historyModalEl = document.getElementById('approvalHistoryModal');
+            var historyModalBody = document.getElementById('approvalHistoryModalBody');
+            if (historyModalEl && historyModalBody) {
+                var historyModal = bootstrap.Modal.getOrCreateInstance(historyModalEl);
+                document.addEventListener('click', async function (e) {
+                    var btn = e.target.closest('.js-history-btn');
+                    if (!btn) return;
+
+                    historyModalBody.innerHTML = '<div class="text-center text-muted py-4">Đang tải...</div>';
+                    historyModal.show();
+
+                    try {
+                        var response = await fetch(btn.getAttribute('data-history-url'), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        if (!response.ok) throw new Error('Load history failed');
+                        historyModalBody.innerHTML = await response.text();
+                    } catch {
+                        historyModalBody.innerHTML = '<div class="alert alert-danger mb-0">Không thể tải lịch sử xử lý.</div>';
+                    }
+                });
+            }
+        })();
+    </script>
+}

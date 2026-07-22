@@ -4,6 +4,7 @@ namespace BusManagement.ViewModels.BusRouteAssign;
 
 public class BusRouteAssignPageViewModel
 {
+    public string? BusRouteAssignWorkingName { get; set; }
     public string? BusCode { get; set; }
     public string? RouteName { get; set; }
     public string? DriverName { get; set; }
@@ -18,6 +19,8 @@ public class BusRouteAssignPageViewModel
 public class BusRouteAssignViewModel
 {
     public int ID { get; set; }
+    public string? BusRouteAssignWorkingName { get; set; }
+    public int? BusId { get; set; }
     public string? BusCode { get; set; }
     public string? BusName { get; set; }
     public string? LicensePlate { get; set; }
@@ -53,4 +56,7 @@ public class RouteStopInfoViewModel
     public string? StopAddress { get; set; }
     public TimeSpan? PickupTime { get; set; }
     public string? RouteType { get; set; }
+    // Turn metadata (lượt)
+    public int? Turn { get; set; }
+    public string? TurnName { get; set; }
 }

@@ -19,6 +19,7 @@ public class BusCapacityReportController : Controller
     private readonly ITmBusRequestService _tmBusRequestService;
     private readonly ITmEmployeeService _tmEmployeeService;
     private readonly ISectionService _sectionService;
+    private readonly ITmEmployeeRouteService _tmEmployeeRouteService;
 
     private static readonly Dictionary<string, List<string>> VehicleAreaConfig = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,7 +33,8 @@ public class BusCapacityReportController : Controller
         ITmBusRouteService tmBusRouteService,
         ITmBusRequestService tmBusRequestService,
         ITmEmployeeService tmEmployeeService,
-        ISectionService sectionService)
+        ISectionService sectionService,
+        ITmEmployeeRouteService tmEmployeeRouteService)
     {
         _tmBusRouteAssignService = tmBusRouteAssignService;
         _tmBusService = tmBusService;
@@ -40,6 +42,7 @@ public class BusCapacityReportController : Controller
         _tmBusRequestService = tmBusRequestService;
         _tmEmployeeService = tmEmployeeService;
         _sectionService = sectionService;
+        _tmEmployeeRouteService = tmEmployeeRouteService;
     }
 
     [HttpGet]
@@ -57,6 +60,7 @@ public class BusCapacityReportController : Controller
         bool? showFullCapacity,
         bool? showAvailableOnly)
     {
+        if (string.IsNullOrWhiteSpace(vehicleType)) vehicleType = "Công nhân"; // Mặc định hiển thị data công nhân
         // Load all active route assignments
         var assignResp = await _tmBusRouteAssignService.SearchByConditionAsync(new SearchOptions
         {
@@ -112,6 +116,19 @@ public class BusCapacityReportController : Controller
         // Build report data
         var reports = new List<BusCapacityReportRowViewModel>();
 
+        // Load active employee routes to calculate pickup/return usage per assignment
+        var employeeRouteResp = await _tmEmployeeRouteService.SearchByConditionAsync(new SearchOptions
+        {
+            PageNumber = -1,
+            PageSize = 100000,
+            Filters = new List<FilterOption>
+            {
+                new() { Field = nameof(TM_EMPLOYEE_ROUTE.BIT_IS_ACTIVE), Operator = "=", Value = true }
+            }
+        });
+
+        var allEmployeeRoutes = employeeRouteResp?.Data?.Data ?? new List<TM_EMPLOYEE_ROUTEDTO>();
+
         foreach (var assign in assigns)
         {
             buses.TryGetValue(assign.INT_BUS_ID ?? 0, out var bus);
@@ -124,7 +141,7 @@ public class BusCapacityReportController : Controller
 
             var vehicleTypeResolved = ResolveVehicleType(assign.CHR_BRA_TYPE);
             var area = ResolveArea(routeName);
-            var routeDisplay = $"{bus.CHR_BUS_CODE} - {routeName}";
+            var routeDisplay = $"{assign.NVCHR_BUS_ROUTE_WORKING_NAME}";
             var capacity = Math.Max(0, assign.INT_CAPACITY ?? 0);
 
             // Count users for this route assignment
@@ -190,6 +207,7 @@ public class BusCapacityReportController : Controller
                 DepartmentName = deptEntity?.CHR_NAME ?? deptEntity?.CHR_SECTION_NAME ?? dept,
                 VehicleType = vehicleTypeResolved,
                 Capacity = capacity,
+                // Default aggregate (worker view)
                 CurrentUsed = currentUsed,
                 AvailableSeats = availableSeats,
                 UsagePercent = usagePercent,
@@ -198,6 +216,38 @@ public class BusCapacityReportController : Controller
                 CapacityStatusClass = ResolveCapacityStatusClass(usagePercent),
                 NoteStatusClass = isFullCapacity ? "bg-danger text-white" : ""
             };
+
+            // If vehicle type is Staff (Nhân viên), compute pickup/return specific metrics
+            if (string.Equals(vehicleTypeResolved, "Nhân viên", StringComparison.OrdinalIgnoreCase))
+            {
+                // Count employee routes assigned to this assignment
+                var pickupAssigned = allEmployeeRoutes.Where(r => r.INT_ROUTE_ASSIGN_PICKUP_ID == assign.ID).ToList();
+                var returnAssigned = allEmployeeRoutes.Where(r => r.INT_ROUTE_ASSIGN_RETURN_ID == assign.ID).ToList();
+
+                var pickupUsed = pickupAssigned.Count;
+                var returnUsed = returnAssigned.Count;
+                var pickupAvailable = Math.Max(0, capacity - pickupUsed);
+                var returnAvailable = Math.Max(0, capacity - returnUsed);
+                var pickupPercent = capacity > 0 ? (pickupUsed * 100.0 / capacity) : 0;
+                var returnPercent = capacity > 0 ? (returnUsed * 100.0 / capacity) : 0;
+
+                // route names for pickup/return
+                string pickupRouteName = string.Empty;
+                string returnRouteName = string.Empty;
+                if (assign.INT_ROUTE_PICKUP_ID.HasValue && routes.TryGetValue(assign.INT_ROUTE_PICKUP_ID.Value, out var rpu)) pickupRouteName = rpu.NVCHR_ROUTE_NAME ?? string.Empty;
+                if (assign.INT_ROUTE_RETURN_ID.HasValue && routes.TryGetValue(assign.INT_ROUTE_RETURN_ID.Value, out var rre)) returnRouteName = rre.NVCHR_ROUTE_NAME ?? string.Empty;
+
+                reportRow.PickupRouteDisplay = pickupRouteName;
+                reportRow.ReturnRouteDisplay = returnRouteName;
+                reportRow.PickupUsed = pickupUsed;
+                reportRow.PickupAvailable = pickupAvailable;
+                reportRow.PickupUsagePercent = pickupPercent;
+                reportRow.ReturnUsed = returnUsed;
+                reportRow.ReturnAvailable = returnAvailable;
+                reportRow.ReturnUsagePercent = returnPercent;
+                reportRow.CapacityStatusClass = ResolveCapacityStatusClass(pickupPercent); // for pickup column
+                reportRow.NoteStatusClass = pickupAvailable <= 0 ? "bg-danger text-white" : "";
+            }
 
             reports.Add(reportRow);
         }
@@ -264,7 +314,16 @@ public class BusCapacityReportController : Controller
 
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("BusCapacityReport");
-        var headers = new[] { "STT", "Tuyến xe", "Phòng ban", "Loại xe", "Số ghế", "Số lượng sử dụng", "Số ghế còn trống", "Tỉ lệ sử dụng (%)", "Ghi chú" };
+        string[] headers;
+        var isStaffView = string.Equals(vm.VehicleType, "Nhân viên", StringComparison.OrdinalIgnoreCase);
+        if (isStaffView)
+        {
+            headers = new[] { "STT", "Xe", "Lộ trình chiều đi", "Lộ trình chiều về", "Loại xe", "Số lượng sử dụng chiều đi", "Số người có thể lấy thêm chiều đi", "Tỉ lệ sử dụng chiều đi (%)", "Số lượng sử dụng chiều về", "Số người có thể lấy thêm chiều về", "Tỉ lệ sử dụng chiều về (%)" };
+        }
+        else
+        {
+            headers = new[] { "STT", "Tuyến xe", "Phòng ban", "Loại xe", "Số ghế", "Số lượng sử dụng", "Số ghế còn trống", "Tỉ lệ sử dụng (%)", "Ghi chú" };
+        }
 
         for (var i = 0; i < headers.Length; i++)
         {
@@ -281,19 +340,36 @@ public class BusCapacityReportController : Controller
         foreach (var item in vm.Reports)
         {
             sheet.Cell(row, 1).Value = stt;
-            sheet.Cell(row, 2).Value = item.RouteDisplay;
-            sheet.Cell(row, 3).Value = item.DepartmentName;
-            sheet.Cell(row, 4).Value = item.VehicleType;
-            sheet.Cell(row, 5).Value = item.Capacity;
-            sheet.Cell(row, 6).Value = item.CurrentUsed;
-            sheet.Cell(row, 7).Value = item.AvailableSeats;
-            sheet.Cell(row, 8).Value = item.UsagePercent.ToString("F1");
-            sheet.Cell(row, 9).Value = item.IsFullCapacity ? "STOP" : string.Empty;
-
-            if (item.IsFullCapacity)
+            if (isStaffView)
             {
-                sheet.Range(row, 9, row, 9).Style.Fill.BackgroundColor = XLColor.Red;
-                sheet.Range(row, 9, row, 9).Style.Font.FontColor = XLColor.White;
+                // Staff view: show vehicle (bus code part of RouteDisplay), pickup/return route names, and per-direction metrics
+                sheet.Cell(row, 2).Value = item.RouteDisplay; // contains bus code - route
+                sheet.Cell(row, 3).Value = item.PickupRouteDisplay ?? string.Empty;
+                sheet.Cell(row, 4).Value = item.ReturnRouteDisplay ?? string.Empty;
+                sheet.Cell(row, 5).Value = item.VehicleType;
+                sheet.Cell(row, 6).Value = item.PickupUsed;
+                sheet.Cell(row, 7).Value = item.PickupAvailable;
+                sheet.Cell(row, 8).Value = item.PickupUsagePercent.ToString("F1");
+                sheet.Cell(row, 9).Value = item.ReturnUsed;
+                sheet.Cell(row, 10).Value = item.ReturnAvailable;
+                sheet.Cell(row, 11).Value = item.ReturnUsagePercent.ToString("F1");
+            }
+            else
+            {
+                sheet.Cell(row, 2).Value = item.RouteDisplay;
+                sheet.Cell(row, 3).Value = item.DepartmentName;
+                sheet.Cell(row, 4).Value = item.VehicleType;
+                sheet.Cell(row, 5).Value = item.Capacity;
+                sheet.Cell(row, 6).Value = item.CurrentUsed;
+                sheet.Cell(row, 7).Value = item.AvailableSeats;
+                sheet.Cell(row, 8).Value = item.UsagePercent.ToString("F1");
+                sheet.Cell(row, 9).Value = item.IsFullCapacity ? "STOP" : string.Empty;
+
+                if (item.IsFullCapacity)
+                {
+                    sheet.Range(row, 9, row, 9).Style.Fill.BackgroundColor = XLColor.Red;
+                    sheet.Range(row, 9, row, 9).Style.Font.FontColor = XLColor.White;
+                }
             }
 
             row++;
@@ -323,7 +399,110 @@ public class BusCapacityReportController : Controller
             return Json(new { success = false, message = "Không tìm thấy tuyến xe." });
         }
 
-        // Load approved requests for this route assignment
+        // Determine vehicle type for this assignment
+        var vehicleTypeResolved = ResolveVehicleType(assign.CHR_BRA_TYPE);
+
+        // If staff vehicle, use TM_EMPLOYEE_ROUTE to fetch users by pickup/return assignment
+        if (string.Equals(vehicleTypeResolved, "Nhân viên", StringComparison.OrdinalIgnoreCase))
+        {
+            // fetch active employee routes
+            var empRouteResp = await _tmEmployeeRouteService.SearchByConditionAsync(new SearchOptions
+            {
+                PageNumber = -1,
+                PageSize = 100000,
+                Filters = new List<FilterOption>
+                {
+                    new() { Field = nameof(TM_EMPLOYEE_ROUTE.BIT_IS_ACTIVE), Operator = "=", Value = true }
+                }
+            });
+
+            var empRoutes = empRouteResp?.Data?.Data?.ToList() ?? new List<TM_EMPLOYEE_ROUTEDTO>();
+
+            // Pickup users
+            var pickupRoutes = empRoutes.Where(r => r.INT_ROUTE_ASSIGN_PICKUP_ID == assignId).ToList();
+            var pickupCodes = pickupRoutes.Select(r => r.CHR_EMPLOYEE_ID?.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            // Return users grouped by turn
+            var returnRoutes = empRoutes.Where(r => r.INT_ROUTE_ASSIGN_RETURN_ID == assignId).ToList();
+            var returnGrouped = returnRoutes
+                .Where(r => !string.IsNullOrWhiteSpace(r.CHR_EMPLOYEE_ID))
+                .GroupBy(r => r.INT_RETURN_TURN ?? 0)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.CHR_EMPLOYEE_ID!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+
+            // Aggregate employee codes to query details
+            var allCodes = pickupCodes.Union(returnGrouped.SelectMany(kv => kv.Value)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            var employeeDetails = new List<BusCapacityEmployeeDetailRowViewModel>();
+            if (allCodes.Any())
+            {
+                var empFilters = new List<FilterOption>();
+                for (var i = 0; i < allCodes.Count; i++)
+                {
+                    empFilters.Add(new FilterOption
+                    {
+                        Field = "CHR_EMPLOYEE_ID",
+                        Operator = "=",
+                        Value = allCodes[i],
+                        LogicType = "OR"
+                    });
+                }
+
+                var employeeResp = await _tmEmployeeService.SearchByConditionAsync(new SearchOptions
+                {
+                    PageNumber = -1,
+                    PageSize = 100000,
+                    Filters = empFilters
+                });
+
+                var employees = employeeResp?.Data?.Data?.ToList() ?? new List<TM_EMPLOYEEDTO>();
+
+                var deptResp = await _sectionService.GetAllAsync();
+                var departments = deptResp?.Data ?? new List<TM_SECTIONDTO>();
+                var deptMap = departments
+                    .Where(x => !string.IsNullOrWhiteSpace(x.CHR_CODE))
+                    .ToDictionary(x => x.CHR_CODE!.Trim(), x => x, StringComparer.OrdinalIgnoreCase);
+
+                employeeDetails = employees.Select(emp =>
+                {
+                    deptMap.TryGetValue(emp.CHR_CODE_SEC?.Trim() ?? string.Empty, out var dept);
+                    return new BusCapacityEmployeeDetailRowViewModel
+                    {
+                        EmployeeCode = emp.CHR_EMPLOYEE_ID,
+                        EmployeeName = emp.NVCHR_EMPLOYEE_NAME,
+                        DepartmentName = dept?.CHR_NAME ?? dept?.CHR_SECTION_NAME ?? emp.CHR_CODE_SEC,
+                        Position = emp.CHR_POSITION,
+                        Address = emp.NVCHR_ADDRESS_DETAIL
+                    };
+                }).OrderBy(x => x.EmployeeCode).ToList();
+            }
+
+            // Build grouped return details with full employee detail objects
+            var returnGroupsDetailed = new Dictionary<int, List<BusCapacityEmployeeDetailRowViewModel>>();
+            foreach (var kv in returnGrouped)
+            {
+                var turn = kv.Key;
+                var codes = kv.Value;
+                var list = employeeDetails.Where(e => codes.Contains(e.EmployeeCode)).ToList();
+                returnGroupsDetailed[turn] = list;
+            }
+
+            // pickup details
+            var pickupDetails = employeeDetails.Where(e => pickupCodes.Contains(e.EmployeeCode)).ToList();
+
+            return Json(new
+            {
+                success = true,
+                data = new
+                {
+                    assignId = assign.ID,
+                    totalUsers = pickupDetails.Count + returnGrouped.Values.SelectMany(x => x).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+                    pickup = new { total = pickupDetails.Count, employees = pickupDetails },
+                    @return = new { groups = returnGroupsDetailed }
+                }
+            });
+        }
+
+        // Default behavior (worker): load approved requests for this route assignment
         var requestsResp = await _tmBusRequestService.SearchByConditionAsync(new SearchOptions
         {
             PageNumber = -1,
@@ -337,14 +516,14 @@ public class BusCapacityReportController : Controller
 
         var requests = requestsResp?.Data?.Data?.ToList() ?? new List<TM_BUS_REQUESTDTO>();
 
-        // Load employee details
+        // Load employee details (old behavior)
         var employeeCodes = requests
             .Where(x => !string.IsNullOrWhiteSpace(x.CHR_EMPLOYEE_ID))
             .Select(x => x.CHR_EMPLOYEE_ID!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var employeeDetails = new List<BusCapacityEmployeeDetailRowViewModel>();
+        var employeeDetailsOld = new List<BusCapacityEmployeeDetailRowViewModel>();
 
         if (employeeCodes.Any())
         {
@@ -369,14 +548,13 @@ public class BusCapacityReportController : Controller
 
             var employees = employeeResp?.Data?.Data?.ToList() ?? new List<TM_EMPLOYEEDTO>();
 
-            // Load departments
             var deptResp = await _sectionService.GetAllAsync();
             var departments = deptResp?.Data ?? new List<TM_SECTIONDTO>();
             var deptMap = departments
                 .Where(x => !string.IsNullOrWhiteSpace(x.CHR_CODE))
                 .ToDictionary(x => x.CHR_CODE!.Trim(), x => x, StringComparer.OrdinalIgnoreCase);
 
-            employeeDetails = employees
+            employeeDetailsOld = employees
                 .Select(emp =>
                 {
                     deptMap.TryGetValue(emp.CHR_CODE_SEC?.Trim() ?? string.Empty, out var dept);
@@ -399,8 +577,8 @@ public class BusCapacityReportController : Controller
             data = new
             {
                 assignId = assign.ID,
-                totalUsers = employeeDetails.Count,
-                employees = employeeDetails
+                totalUsers = employeeDetailsOld.Count,
+                employees = employeeDetailsOld
             }
         });
     }

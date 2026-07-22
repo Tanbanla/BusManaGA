@@ -7,6 +7,7 @@ using BusManagement.Model.Models;
 using Dapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using System.Text;
 
 namespace BusManagement.Data.Repositories.Implementations;
 
@@ -33,7 +34,9 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
                 t.NVCHR_BRAND,
 
                 cb.DTM_BORROW_TIME,
-                cb.DTM_RETURN_TIME
+                cb.DTM_RETURN_TIME,
+                
+                e.CHR_CODE_SEC
 
             FROM TM_CARD_USAGE cu
             LEFT JOIN TM_CARD_BORROW cb
@@ -42,6 +45,8 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
                 ON cb.INT_CARD_ID = c.ID
             LEFT JOIN TM_TAXI t
                 ON c.INT_TAXI_ID = t.ID
+            left join TM_EMPLOYEE as e 
+				on cu.CHR_EMPLOYEE_ID = e.CHR_EMPLOYEE_ID
             WHERE ISNULL(cu.BIT_DELETE, 0) = 0
         ";
 
@@ -57,13 +62,13 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
 
         if (!string.IsNullOrEmpty(serach.EmployeeName))
         {
-            sql += " AND e.NVCHR_EMPLOYEE_NAME like @EmployeeName";
+            sql += " AND cu.NVCHR_EMPLOYEE_NAME like @EmployeeName";
             parameters.Add("@EmployeeName", $"%{serach.EmployeeName}%");
         }
 
         if (!string.IsNullOrEmpty(serach.SectionCode))
         {
-            sql += " AND e.NVCHR_SECTION_CODE = @SectionCode";
+            sql += " AND e.CHR_CODE_SEC = @SectionCode";
             parameters.Add("@SectionCode", serach.SectionCode);
         }
 
@@ -105,7 +110,7 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
 
         if (serach.Number.HasValue)
         {
-            sql += " AND c.INT_NUMBER_MOVE = @Number";
+            sql += " AND cu.INT_NUMBER_MOVE = @Number";
             parameters.Add("@Number", serach.Number.Value);
         }
 
@@ -156,8 +161,81 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
                     FROM TM_CARD as c
                     WHERE BIT_IS_ACTIVE = 1
 					and id not in (SELECT INT_CARD_ID FROM TM_CARD_BORROW where BIT_END = 0)
+                    and c.INT_CARD_TYPE = 2
                     ";
         var result = (await _conn.QueryAsync<TM_CARD>(sql)).ToList();
         return result;
+    }
+    public async Task<dynamic> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10)
+    {
+        var sql = @"
+            SELECT 
+                c.*,
+                e.CHR_CODE_SEC,
+                e.NVCHR_EMPLOYEE_NAME,
+                b.CHR_BUS_CODE as BusCode,
+                bs.NVCHR_STOP_NAME
+            FROM TM_CARD c
+            LEFT JOIN TM_EMPLOYEE e ON c.CHR_EMPLOYEE_ID = e.CHR_EMPLOYEE_ID
+            LEFT JOIN TM_BUS b ON c.INT_BUS_ID = b.ID
+            LEFT JOIN TM_BUS_STOP bs ON c.INT_BUS_STOP_ID = bs.ID
+            WHERE c.INT_CARD_TYPE = 1
+            AND c.BIT_IS_ACTIVE = 1
+        ";
+
+        var parameters = new DynamicParameters();
+
+        #region Filter
+        if (!string.IsNullOrEmpty(employeeId))
+        {
+            sql += " AND e.CHR_EMPLOYEE_ID like @EmployeeId";
+            parameters.Add("@EmployeeId", $"%{employeeId}%");
+        }
+
+        if (!string.IsNullOrEmpty(department))
+        {
+            sql += " AND e.CHR_CODE_SEC = @Department";
+            parameters.Add("@Department", department);
+        }
+
+
+        #endregion
+
+        // Query tổng record
+        var countSql = $@"
+            SELECT COUNT(1)
+            FROM (
+                {sql}
+            ) AS CountResult
+        ";
+
+        var totalRecords = await _conn.ExecuteScalarAsync<int>(countSql, parameters);
+
+
+        #region Paging
+
+        int offset = (page - 1) * pageSize;
+
+        sql += @"
+            ORDER BY c.ID
+            OFFSET @Offset ROWS
+            FETCH NEXT @PageSize ROWS ONLY
+        ";
+
+        parameters.Add("@Offset", offset);
+        parameters.Add("@PageSize", pageSize);
+
+        #endregion
+
+        var data = (await _conn.QueryAsync<dynamic>(sql, parameters)).ToList();
+
+        return new
+        {
+            TotalRecords = totalRecords,
+            PageNumber = page,
+            PageSize = pageSize,
+            TotalPages = (int)Math.Ceiling(totalRecords * 1.0 / pageSize),
+            Data = data
+        };
     }
 }

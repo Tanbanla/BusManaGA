@@ -21,14 +21,29 @@ public partial class TM_EMPLOYEE_ROUTE_HISTORY : AuditableEntity
     public int INT_REQUEST_ID { get; set; }
 
     /// <summary>
-    /// Mã tuyến xe cũ
+    /// Mã tuyến xe cũ (chiều đi)
     /// </summary>
-    public int? INT_OLD_ROUTE_ASSIGN_ID { get; set; }
+    public int? INT_OLD_ROUTE_ASSIGN_PICKUP_ID { get; set; }
 
     /// <summary>
-    /// Mã tuyến xe mới
+    /// Mã tuyến xe mới (chiều đi)
     /// </summary>
-    public int? INT_NEW_ROUTE_ASSIGN_ID { get; set; }
+    public int? INT_NEW_ROUTE_ASSIGN_PICKUP_ID { get; set; }
+
+    /// <summary>
+    /// Mã tuyến xe cũ (chiều về)
+    /// </summary>
+    public int? INT_OLD_ROUTE_ASSIGN_RETURN_ID { get; set; }
+
+    /// <summary>
+    /// Mã tuyến xe mới (chiều về)
+    /// </summary>
+    public int? INT_NEW_ROUTE_ASSIGN_RETURN_ID { get; set; }
+
+    public int? INT_OLD_PICKUP_TURN_ID { get; set; } = 1; // Chiều đi: thuộc lượt nào (mặc định chỉ có 1 lượt)
+    public int? INT_NEW_PICKUP_TURN_ID { get; set; } = 1; // Chiều đi: thuộc lượt nào (mặc định chỉ có 1 lượt)
+    public int? INT_OLD_RETURN_TURN_ID { get; set; } // Chiều về: thuộc lượt nào
+    public int? INT_NEW_RETURN_TURN_ID { get; set; } // Chiều về: thuộc lượt nào
 
     /// <summary>
     /// Điểm đón cũ

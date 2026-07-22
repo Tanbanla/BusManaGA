@@ -13,4 +13,6 @@ public interface ITmCardRepository : IBaseRepository<TM_CARD, int>
     Task<bool> DeleteCardByTaxiAsync(List<int> ids);
     //List card taxi need usable
     Task<List<TM_CARD>> GetListCardTaxiUsableAsync();
+    // Get list Card using
+    Task<dynamic> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10);
 }

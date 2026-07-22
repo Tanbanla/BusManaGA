@@ -94,6 +94,12 @@ public class BusRouteAssignController : Controller
             return RedirectToIndex(input);
         }
 
+        if (string.IsNullOrEmpty(input.BusRouteAssignWorkingName))
+        {
+            TempData["BusRouteAssignError"] = "Vui lòng nhập tên lộ trình.";
+            return RedirectToIndex(input);
+        }
+
         if (!input.BusId.HasValue || !input.DriverId.HasValue)
         {
             TempData["BusRouteAssignError"] = "Vui lòng chọn xe và lái xe.";
@@ -113,6 +119,7 @@ public class BusRouteAssignController : Controller
         var entity = new TM_BUS_ROUTE_ASSIGN
         {
             INT_BUS_ID = input.BusId,
+            NVCHR_BUS_ROUTE_WORKING_NAME = input.BusRouteAssignWorkingName,
             INT_ROUTE_PICKUP_ID = input.RoutePickupId,
             INT_ROUTE_RETURN_ID = input.RouteReturnId,
             INT_DRIVER_ID = input.DriverId,
@@ -153,6 +160,12 @@ public class BusRouteAssignController : Controller
             return RedirectToIndex(input);
         }
 
+        if (string.IsNullOrEmpty(input.BusRouteAssignWorkingName))
+        {
+            TempData["BusRouteAssignError"] = "Vui lòng nhập tên lộ trình.";
+            return RedirectToIndex(input);
+        }
+
         if (!input.RoutePickupId.HasValue && !input.RouteReturnId.HasValue)
         {
             TempData["BusRouteAssignError"] = "Vui lòng chọn ít nhất một lộ trình (chiều đi hoặc chiều về).";
@@ -174,6 +187,7 @@ public class BusRouteAssignController : Controller
         var entity = new TM_BUS_ROUTE_ASSIGN
         {
             ID = current.ID,
+            NVCHR_BUS_ROUTE_WORKING_NAME = input.BusRouteAssignWorkingName,
             CHR_USER_CREATE = current.CHR_USER_CREATE,
             DTM_CREATE = current.DTM_CREATE,
             CHR_USER_UPDATE = actor,
@@ -293,10 +307,27 @@ public class BusRouteAssignController : Controller
                     $"({s.PickupTime?.ToString(@"hh\:mm")}) {s.StopName}"))
                 : item.PickupRouteName ?? "—";
 
-            var returnRoute = item.ReturnStops.Any()
-                ? string.Join(" - ", item.ReturnStops.Select(s =>
-                    $"({s.PickupTime?.ToString(@"hh\:mm")}) {s.StopName}"))
-                : item.ReturnRouteName ?? "—";
+            //var returnRoute = item.ReturnStops.Any()
+            //    ? string.Join(" - ", item.ReturnStops.Select(s =>
+            //        $"({s.PickupTime?.ToString(@"hh\:mm")}) {s.StopName}"))
+            //    : item.ReturnRouteName ?? "—";
+            string returnRoute;
+            if (item.ReturnStops.Any())
+            {
+                var groups = item.ReturnStops.GroupBy(s => s.Turn ?? 1).OrderBy(g => g.Key);
+                var parts = new List<string>();
+                foreach (var g in groups)
+                {
+                    var turnName = g.FirstOrDefault()?.TurnName ?? ("Lượt " + g.Key);
+                    var stopsText = string.Join(" - ", g.OrderBy(s => s.Order).Select(s => $"({s.PickupTime?.ToString(@"hh\:mm")}) {s.StopName}"));
+                    parts.Add($"{turnName}: {stopsText}");
+                }
+                returnRoute = string.Join(" | ", parts);
+            }
+            else
+            {
+                returnRoute = item.ReturnRouteName ?? "—";
+            }
 
             sheet.Cell(row, 1).Value = stt;
             sheet.Cell(row, 2).Value = item.BusCode;
@@ -522,6 +553,8 @@ public class BusRouteAssignController : Controller
             var vm = new BusRouteAssignViewModel
             {
                 ID = assign.ID,
+                BusRouteAssignWorkingName = assign.NVCHR_BUS_ROUTE_WORKING_NAME,
+                BusId = assign.INT_BUS_ID,
                 BusCode = bus.CHR_BUS_CODE,
                 BusName = bus.NVCHR_BUS_NAME,
                 LicensePlate = bus.CHR_LICENSE_PLATE,
@@ -606,7 +639,9 @@ public class BusRouteAssignController : Controller
                     Order = stop.INT_ORDER ?? 0,
                     StopName = busStop.NVCHR_STOP_NAME,
                     StopAddress = busStop.NVCHR_STOP_ADDRESS,
-                    PickupTime = stop.DTM_PICKUP_TIME?.TimeOfDay
+                    PickupTime = stop.DTM_PICKUP_TIME?.TimeOfDay,
+                    Turn = stop.INT_TURN,
+                    TurnName = stop.NVCHR_TURN_NAME
                 });
             }
         }
@@ -670,6 +705,12 @@ public class BusRouteAssignController : Controller
             return RedirectToIndexWorker(input);
         }
 
+        if (string.IsNullOrEmpty(input.BusRouteAssignWorkingName))
+        {
+            TempData["BusRouteAssignError"] = "Vui lòng nhập tên lộ trình.";
+            return RedirectToIndex(input);
+        }
+
         if (!input.BusId.HasValue || !input.DriverId.HasValue)
         {
             TempData["BusRouteAssignError"] = "Vui lòng chọn xe và lái xe.";
@@ -689,6 +730,7 @@ public class BusRouteAssignController : Controller
         var entity = new TM_BUS_ROUTE_ASSIGN
         {
             INT_BUS_ID = input.BusId,
+            NVCHR_BUS_ROUTE_WORKING_NAME = input.BusRouteAssignWorkingName,
             INT_ROUTE_PICKUP_ID = input.RoutePickupId,
             INT_ROUTE_RETURN_ID = null,
             INT_DRIVER_ID = input.DriverId,
@@ -696,7 +738,8 @@ public class BusRouteAssignController : Controller
             DTM_EFFECTIVE_FROM = input.EffectiveDate ?? DateTime.Now,
             CHR_USER_CREATE = actor,
             INT_CAPACITY = bus?.INT_CAPACITY ?? 0,
-            DTM_CREATE = DateTime.Now
+            DTM_CREATE = DateTime.Now,
+            BIT_IS_ACTIVE = true
         };
 
         var resp = await _tmBusRouteAssignService.AddAsyncV2(entity);
@@ -714,6 +757,12 @@ public class BusRouteAssignController : Controller
         {
             TempData["BusRouteAssignError"] = "Bạn không có quyền thực hiện chức năng này.";
             return RedirectToIndexWorker(input);
+        }
+
+        if (string.IsNullOrEmpty(input.BusRouteAssignWorkingName))
+        {
+            TempData["BusRouteAssignError"] = "Vui lòng nhập tên lộ trình.";
+            return RedirectToIndex(input);
         }
 
         if (!input.ID.HasValue || input.ID.Value <= 0)
@@ -749,6 +798,7 @@ public class BusRouteAssignController : Controller
         var entity = new TM_BUS_ROUTE_ASSIGN
         {
             ID = current.ID,
+            NVCHR_BUS_ROUTE_WORKING_NAME = input.BusRouteAssignWorkingName,
             CHR_USER_CREATE = current.CHR_USER_CREATE,
             DTM_CREATE = current.DTM_CREATE,
             CHR_USER_UPDATE = actor,
@@ -759,7 +809,8 @@ public class BusRouteAssignController : Controller
             INT_DRIVER_ID = input.DriverId,
             CHR_BRA_TYPE = current.CHR_BRA_TYPE,
             DTM_EFFECTIVE_FROM = input.EffectiveDate,
-            INT_CAPACITY = bus?.INT_CAPACITY ?? current.INT_CAPACITY
+            INT_CAPACITY = bus?.INT_CAPACITY ?? current.INT_CAPACITY,
+            BIT_IS_ACTIVE = current.BIT_IS_ACTIVE ?? true
         };
 
         var resp = await _tmBusRouteAssignService.UpdateAsync(entity);

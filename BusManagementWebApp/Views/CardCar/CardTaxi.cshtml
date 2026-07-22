@@ -4,7 +4,6 @@
 }
 
 <style>
-
     .taxi-card {
         border: 1px solid #e2e8f0;
         border-radius: 14px;
@@ -32,14 +31,19 @@
     }
 </style>
 
+<!-- Phần nội dung chính -->
 <div class="taxi-card p-3 p-md-4"
      data-search-url="@Url.Action("SearchCardTaxi", "CardCar")"
      data-export-url="@Url.Action("DownloadExcelTaxi", "CardCar")"
      data-delete-url="@Url.Action("DeleteCardTaxi", "CardCar")"
-     data-getEmployee-url ="@Url.Action("GetInforEmployeeByCode", "CardCar")"
+     data-getEmployee-url="@Url.Action("GetInforEmployeeByCode", "CardCar")"
      data-listCard-url="@Url.Action("GetListCardTaxiUsable", "CardCar")"
      data-saveBorrow-url="@Url.Action("AddCardBorrowTaxi", "CardCar")"
-     data-listBorrowing-url="@Url.Action("GetListCardUsingTaxi", "CardCar")">
+     data-listBorrowing-url="@Url.Action("GetListCardUsingTaxi", "CardCar")"
+     data-addCardUsage-url="@Url.Action("AddCardUsage", "CardCar")"
+     data-updateCardUsage-url="@Url.Action("UpdateCardTaxiUsage", "CardCar")"
+     data-detaiCardUsage-url="@Url.Action("GetDetailCardUsage", "CardCar")">
+
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
         <div>
             <h5 class="m-0">Quản lý thẻ sử dụng taxi</h5>
@@ -47,6 +51,7 @@
         </div>
     </div>
 
+    <!-- Các trường tìm kiếm -->
     <div class="search-area">
         <div class="row g-2 mb-2 align-items-center">
             <div class="col-md-2" style="max-width: 120px;">
@@ -85,7 +90,6 @@
         </div>
 
         <div class="row g-2 mb-2 align-items-center">
-           
             <div class="col-md-2" style="max-width: 120px;">
                 <label class="title-label">Hãng</label>
             </div>
@@ -113,7 +117,6 @@
             <div class="col-md-2">
                 <input type="date" id="dateReturn" class="form-control green-input" />
             </div>
-
         </div>
 
         <div class="row g-2 align-items-center">
@@ -144,14 +147,23 @@
         </div>
     </div>
 
+    <!-- Nút chức năng -->
     <div class="taxi-actions d-flex flex-wrap gap-2 mt-4 mb-3">
-        <button type="button" class="btn btn-primary js-btn-search" data-no-loader><i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm</button>
-        <!--<button type="button" class="btn btn-warning text-white js-btn-update"><i class="fa-solid fa-pen me-1"></i>Cập nhật</button>-->
-        <button type="button" class="btn btn-danger js-btn-delete"><i class="fa-solid fa-trash me-1"></i>Xóa</button>
-        <button type="button" class="btn btn-success js-btn-add"><i class="fa-solid fa-plus me-1"></i>Thêm</button>
-        <button type="button" class="btn btn-info text-white js-btn-export" id ="DownloadExcel" data-no-loader><i class="fa-solid fa-file-excel me-1"></i>Tải Excel</button>
+        <button type="button" class="btn btn-primary js-btn-search" data-no-loader>
+            <i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm
+        </button>
+        <button type="button" class="btn btn-danger js-btn-delete">
+            <i class="fa-solid fa-trash me-1"></i>Xóa
+        </button>
+        <button type="button" class="btn btn-success js-btn-add">
+            <i class="fa-solid fa-plus me-1"></i>Thêm
+        </button>
+        <button type="button" class="btn btn-info text-white js-btn-export" id="DownloadExcel" data-no-loader>
+            <i class="fa-solid fa-file-excel me-1"></i>Tải Excel
+        </button>
     </div>
 
+    <!-- Bảng dữ liệu -->
     <div class="table-responsive">
         <table class="table table-bordered table-hover align-middle js-taxi-table">
             <thead class="table-light">
@@ -190,7 +202,6 @@
                     <th><input type="text" class="form-control form-control-sm js-column-filter" data-column-index="13" placeholder="Lọc" /></th>
                 </tr>
             </thead>
-
             <tbody class="js-taxi-tbody">
                 <tr>
                     <td colspan="15" class="text-center text-muted py-3">Đang tải dữ liệu...</td>
@@ -199,6 +210,7 @@
         </table>
     </div>
 
+    <!-- Phân trang -->
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mt-2">
         <div class="small text-muted js-taxi-page-info"></div>
         <nav aria-label="Taxi pagination">
@@ -207,6 +219,7 @@
     </div>
 </div>
 
+<!-- Modal xác nhận xóa -->
 <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -225,218 +238,217 @@
     </div>
 </div>
 
+<!-- Modal đăng ký thẻ taxi -->
 <div class="modal fade" id="taxiCardModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-
             <div class="modal-header">
-                <h5 class="modal-title">
-                    Đăng ký thẻ taxi
-                </h5>
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal"></button>
+                <h5 class="modal-title">Đăng ký thẻ taxi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-
             <div class="modal-body">
-
                 <ul class="nav nav-tabs" id="taxiCardTabs" role="tablist">
                     <li class="nav-item">
-                        <button class="nav-link active"
-                                data-bs-toggle="tab"
-                                data-bs-target="#tabBorrow">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabBorrow">
                             Đăng ký mượn thẻ
                         </button>
                     </li>
-
                     <li class="nav-item">
-                        <button class="nav-link"
-                                data-bs-toggle="tab"
-                                data-bs-target="#tabUsage">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabUsage">
                             Đăng ký sử dụng thẻ
                         </button>
                     </li>
                 </ul>
 
                 <div class="tab-content pt-3">
-
-                    <!-- TAB MƯỢN THẺ -->
-                    <div class="tab-pane fade show active"
-                         id="tabBorrow">
-
+                    <!-- Tab Mượn thẻ -->
+                    <div class="tab-pane fade show active" id="tabBorrow">
                         <div class="row g-3">
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Số thẻ taxi (Chưa cho mượn) <span class="text-danger">*</span>
-                                </label>
-                                <select id="borrowCardId"
-                                        class="form-select">
+                                <label class="form-label">Số thẻ taxi (Chưa cho mượn) <span class="text-danger">*</span></label>
+                                <select id="borrowCardId" class="form-select">
                                     <option value="">-- Chọn thẻ --</option>
                                 </select>
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Mã nhân viên
-                                </label>
-                                <input type="text"
-                                       id="borrowEmployeeId"
-                                       class="form-control" />
+                                <label class="form-label">Mã nhân viên</label>
+                                <input type="text" id="borrowEmployeeId" class="form-control" />
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Họ và tên
-                                </label>
-                                <input type="text"
-                                       id="borrowEmployeeName"
-                                       class="form-control"
-                                       readonly />
+                                <label class="form-label">Họ và tên</label>
+                                <input type="text" id="borrowEmployeeName" class="form-control" readonly />
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Phòng ban
-                                </label>
-                                <input type="text"
-                                       id="borrowSection"
-                                       class="form-control"
-                                       readonly />
+                                <label class="form-label">Phòng ban</label>
+                                <input type="text" id="borrowSection" class="form-control" readonly />
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Thời gian mượn
-                                </label>
-                                <input type="datetime-local"
-                                       id="borrowTime"
-                                       class="form-control" />
+                                <label class="form-label">Thời gian mượn</label>
+                                <input type="datetime-local" id="borrowTime" class="form-control" />
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Dự kiến trả
-                                </label>
-                                <input type="datetime-local"
-                                       id="returnTime"
-                                       class="form-control" />
+                                <label class="form-label">Dự kiến trả</label>
+                                <input type="datetime-local" id="returnTime" class="form-control" />
                             </div>
-
                         </div>
                     </div>
 
-                    <!-- TAB SỬ DỤNG THẺ -->
-                    <div class="tab-pane fade"
-                         id="tabUsage">
-
+                    <!-- Tab Sử dụng thẻ -->
+                    <div class="tab-pane fade" id="tabUsage">
                         <div class="row g-3">
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Số thẻ taxi (Đang cho mượn)
-                                </label>
-                                <select id="usageCardId"
-                                        class="form-select">
+                                <label class="form-label">Số thẻ taxi (Đang cho mượn)</label>
+                                <select id="usageCardId" class="form-select">
                                     <option value="">-- Chọn thẻ --</option>
                                 </select>
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Mã nhân viên
-                                </label>
-                                <input type="text"
-                                       id="usageEmployeeId"
-                                       class="form-control" />
+                                <label class="form-label">Mã nhân viên</label>
+                                <input type="text" id="usageEmployeeId" class="form-control" />
                             </div>
-
+                            <div class="col-md-6" hidden>
+                                <label class="form-label">Tên nhân viên</label>
+                                <input type="text" id="usageEmployeeName" class="form-control" />
+                            </div>
                             <div class="col-md-12">
-                                <label class="form-label">
-                                    Mục đích sử dụng
-                                </label>
-                                <textarea id="usageNote"
-                                          rows="2"
-                                          class="form-control"></textarea>
+                                <label class="form-label">Mục đích sử dụng</label>
+                                <textarea id="usageNote" rows="2" class="form-control"></textarea>
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Địa chỉ đi
-                                </label>
-                                <input type="text"
-                                       id="fromAddress"
-                                       class="form-control" />
+                                <label class="form-label">Địa chỉ đi</label>
+                                <input type="text" id="fromAddress" class="form-control" />
                             </div>
-
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    Địa chỉ đến
-                                </label>
-                                <input type="text"
-                                       id="toAddress"
-                                       class="form-control" />
+                                <label class="form-label">Địa chỉ đến</label>
+                                <input type="text" id="toAddress" class="form-control" />
                             </div>
-
                             <div class="col-md-4">
-                                <label class="form-label">
-                                    Ngày sử dụng
-                                </label>
-                                <input type="datetime-local"
-                                       id="useDate"
-                                       class="form-control" />
+                                <label class="form-label">Ngày sử dụng</label>
+                                <input type="datetime-local" id="useDate" class="form-control" />
                             </div>
-
                             <div class="col-md-4">
-                                <label class="form-label">
-                                    Số chiều
-                                </label>
-                                <select id="numberMove"
-                                        class="form-select">
+                                <label class="form-label">Số chiều</label>
+                                <select id="numberMove" class="form-select">
                                     <option value="1">1 chiều</option>
                                     <option value="2">2 chiều</option>
                                 </select>
                             </div>
-
                             <div class="col-md-4">
-                                <label class="form-label">
-                                    Số tiền
-                                </label>
-                                <input type="number"
-                                       id="amount"
-                                       class="form-control" />
+                                <label class="form-label">Số tiền</label>
+                                <input type="number" id="amount" class="form-control" />
                             </div>
-
+                            <div class="col-md-6">
+                                <div class="form-label">
+                                    <label class="title-label">Phòng ban chịu chi phí</label>
+                                </div>
+                                <div class="col-md-4">
+                                    <select id="sectionCodeUsage" class="form-control green-input">
+                                        <option value="">---</option>
+                                        @foreach (var sec in sections)
+                                        {
+                                            <option value="@sec.CHR_CODE">@sec.CHR_NAME</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
-
                 </div>
             </div>
-
             <div class="modal-footer">
-
-                <button type="button"
-                        class="btn btn-secondary"
-                        data-bs-dismiss="modal">
-                    Đóng
-                </button>
-
-                <button type="button" id="saveBorrow"
-                        class="btn btn-primary js-save-borrow">
-                    Lưu đăng ký mượn
-                </button>
-
-                <button type="button" id="saveUsage"
-                        class="btn btn-success js-save-usage"
-                        style="display:none">
-                    Lưu sử dụng
-                </button>
-
+                <button type="button" id="closeModalAdd" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" id="saveBorrow" class="btn btn-primary js-save-borrow">Lưu đăng ký mượn</button>
+                <button type="button" id="saveUsage" class="btn btn-success js-save-usage" style="display:none">Lưu sử dụng</button>
             </div>
-
         </div>
     </div>
-</div>
+</div> 
+
+<!-- Modal chi tiết sử dụng thẻ tax -->
+<div class="modal fade" id="taxiUsageDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"  style="color: white;" >Chi tiết sử dụng thẻ taxi</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="detailId" />
+                <input type="hidden" id="detailBorrowId" />
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Mã nhân viên</label>
+                        <input type="text" id="detailEmployeeId" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Họ tên</label>
+                        <input type="text" id="detailEmployeeName" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Ngày sử dụng</label>
+                        <input type="datetime-local" id="detailUseDate" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Phòng ban chịu chi phí</label>
+                        <select id="detailSectionCost" class="form-select">
+                            <option value="">---</option>
+                            @foreach (var sec in sections)
+                            {
+                                <option value="@sec.CHR_CODE">@sec.CHR_NAME</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Mục đích sử dụng</label>
+                        <textarea id="detailReason" rows="3" class="form-control"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Địa chỉ đi</label>
+                        <input type="text" id="detailFromAddress" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Địa chỉ đến</label>
+                        <input type="text" id="detailToAddress" class="form-control" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Số chiều</label>
+                        <select id="detailNumberMove" class="form-select">
+                            <option value="1">1 chiều</option>
+                            <option value="2">2 chiều</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Số tiền</label>
+                        <input type="number" id="detailAmount" class="form-control" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Mã giao dịch</label>
+                        <input type="text" id="detailTranCode" class="form-control" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Ghi chú</label>
+                        <textarea id="detailNote" rows="3" class="form-control"></textarea>
+                    </div>
+
+                    <!-- hidden -->
+                     <div class="col-md-4" hidden>
+                        <label class="form-label">Người cho mượn</label>
+                        <input type="text" id="detailCreate" class="form-control" />
+                    </div>
+                     <div class="col-md-4" hidden>
+                        <label class="form-label">Người cho mượn</label>
+                        <input type="datetime-local" id="detailCreateTime" class="form-control" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" id="saveUpdateUsage" class="btn btn-success js-save-detail"><i class="fa fa-save"></i> Cập nhật</button>
+            </div>
+        </div>
+    </div>
+</div> 
 
 @section Scripts {
     <script src="~/js/cardcar/card-taxi.js" asp-append-version="true"></script>

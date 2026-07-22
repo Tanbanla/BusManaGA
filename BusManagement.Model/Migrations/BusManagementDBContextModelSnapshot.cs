@@ -429,6 +429,9 @@ namespace BusManagement.Model.Migrations
                     b.Property<int?>("INT_ROUTE_RETURN_ID")
                         .HasColumnType("int");
 
+                    b.Property<string>("NVCHR_BUS_ROUTE_WORKING_NAME")
+                        .HasColumnType("nvarchar(max)");
+
                     b.HasKey("ID");
 
                     b.ToTable("TM_BUS_ROUTE_ASSIGN");
@@ -448,11 +451,20 @@ namespace BusManagement.Model.Migrations
                     b.Property<int?>("INT_BUS_STOP_ID")
                         .HasColumnType("int");
 
+                    b.Property<int?>("INT_DIRECTION")
+                        .HasColumnType("int");
+
                     b.Property<int?>("INT_ORDER")
                         .HasColumnType("int");
 
                     b.Property<int?>("INT_ROUTE_ID")
                         .HasColumnType("int");
+
+                    b.Property<int?>("INT_TURN")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NVCHR_TURN_NAME")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("ID");
 
@@ -1066,13 +1078,22 @@ namespace BusManagement.Model.Migrations
                     b.Property<int>("INT_EMPLOYEE_ID")
                         .HasColumnType("int");
 
-                    b.Property<int>("INT_PICKUP_STOP_ID")
+                    b.Property<int?>("INT_PICKUP_STOP_ID")
                         .HasColumnType("int");
 
-                    b.Property<int>("INT_RETURN_STOP_ID")
+                    b.Property<int?>("INT_PICKUP_TURN")
                         .HasColumnType("int");
 
-                    b.Property<int>("INT_ROUTE_ASSIGN_ID")
+                    b.Property<int?>("INT_RETURN_STOP_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_RETURN_TURN")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_ROUTE_ASSIGN_PICKUP_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_ROUTE_ASSIGN_RETURN_ID")
                         .HasColumnType("int");
 
                     b.HasKey("ID");
@@ -1117,19 +1138,37 @@ namespace BusManagement.Model.Migrations
                     b.Property<int?>("INT_NEW_PICKUP_STOP_ID")
                         .HasColumnType("int");
 
+                    b.Property<int?>("INT_NEW_PICKUP_TURN_ID")
+                        .HasColumnType("int");
+
                     b.Property<int?>("INT_NEW_RETURN_STOP_ID")
                         .HasColumnType("int");
 
-                    b.Property<int?>("INT_NEW_ROUTE_ASSIGN_ID")
+                    b.Property<int?>("INT_NEW_RETURN_TURN_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_NEW_ROUTE_ASSIGN_PICKUP_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_NEW_ROUTE_ASSIGN_RETURN_ID")
                         .HasColumnType("int");
 
                     b.Property<int?>("INT_OLD_PICKUP_STOP_ID")
                         .HasColumnType("int");
 
+                    b.Property<int?>("INT_OLD_PICKUP_TURN_ID")
+                        .HasColumnType("int");
+
                     b.Property<int?>("INT_OLD_RETURN_STOP_ID")
                         .HasColumnType("int");
 
-                    b.Property<int?>("INT_OLD_ROUTE_ASSIGN_ID")
+                    b.Property<int?>("INT_OLD_RETURN_TURN_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_OLD_ROUTE_ASSIGN_PICKUP_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_OLD_ROUTE_ASSIGN_RETURN_ID")
                         .HasColumnType("int");
 
                     b.Property<int>("INT_REQUEST_ID")

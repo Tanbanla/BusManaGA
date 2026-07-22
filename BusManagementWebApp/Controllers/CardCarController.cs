@@ -1,6 +1,9 @@
 ﻿using BusManagement.Model;
+using BusManagement.Model.Common;
+using BusManagement.Model.Dtos;
 using BusManagement.Model.Entity;
 using BusManagement.Service.Services.Interfaces;
+using BusManagementWebApp.ViewModels.CardCar;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BusManagementWebApp.Controllers
@@ -13,15 +16,17 @@ namespace BusManagementWebApp.Controllers
         private readonly ISectionService _sectionService;
         private readonly ITmEmployeeService _tmEmployeeService;
         private readonly ITmCardBorrowService _tmCardBorrowService;
+        private readonly ITmCardUsageService _tmCardUsageService;
         private readonly IWebHostEnvironment _env;
 
         public CardCarController(ILogger<CardCarController> logger, ITmCardService tmCardService, ISectionService sectionService,
-            IWebHostEnvironment env, ITmEmployeeService tmEmployeeService, ITmCardBorrowService tmCardBorrowService )
+            IWebHostEnvironment env, ITmEmployeeService tmEmployeeService, ITmCardBorrowService tmCardBorrowService, ITmCardUsageService tmCardUsageService)
         {
             _logger = logger;
             _tmCardService = tmCardService;
             _sectionService = sectionService;
             _tmEmployeeService = tmEmployeeService;
+            _tmCardUsageService = tmCardUsageService;
             _env = env;
             _tmCardBorrowService = tmCardBorrowService;
         }
@@ -89,21 +94,63 @@ namespace BusManagementWebApp.Controllers
         }
         // Update card taxi 
         [HttpPost]
-        public async Task<IActionResult> UpdateCardTaxi()
+        public async Task<IActionResult> UpdateCardTaxiUsage([FromBody] TM_CARD_USAGE request)
         {
-            return Ok();
+            if (request == null)
+            {
+                return StatusCode(500, "Request cannot be null.");
+            }
+
+            try
+            {
+                // update user create
+                var user = User?.Claims?.FirstOrDefault(c => c.Type == "adid")?.Value ?? "vietdo bad";
+                request.CHR_USER_UPDATE = user;
+                request.DTM_UPDATE = DateTime.Now;
+
+                var result = await _tmCardUsageService.UpdateCardUsageByCardIdAsync(request);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while updating card taxi usage.");
+                }
+                return Ok(result.Success);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while updating card taxi usage.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+            ;
         }
-        // Add card taxi
-        [HttpPost]
-        public async Task<IActionResult> AddCardTaxi()
+        // Get Detail Card Usage
+        [HttpGet]
+        public async Task<IActionResult> GetDetailCardUsage(int id)
         {
-            return Ok();
+            if (id <= 0)
+            {
+                return BadRequest("Invalid card ID.");
+            }
+            try
+            {
+                var result = await _tmCardUsageService.GetByIdAsync(id);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"An error occurred while retrieving card usage details for card ID: {id}");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
         }
+
         // Add card borrow taxi
         [HttpPost]
         public async Task<IActionResult> AddCardBorrowTaxi([FromBody] TM_CARD_BORROW request)
         {
-            if(request == null)
+            if (request == null)
             {
                 return BadRequest("Request cannot be null.");
             }
@@ -132,9 +179,43 @@ namespace BusManagementWebApp.Controllers
         }
 
         // MARK: Screen: Card using for car
-        public IActionResult CardUsingCar()
+        [HttpGet]
+        public async Task<IActionResult> CardUsingCar(
+            string? employeeId,
+            string? department,
+            int page = 1,
+            int pageSize = 10)
         {
-            return View();
+            var sectionsResp = await _sectionService.GetAllAsync();
+            ViewBag.Sections = sectionsResp?.Success == true ? sectionsResp.Data : null;
+
+            page = page <= 0 ? 1 : page;
+            pageSize = pageSize <= 0 ? 10 : pageSize;
+
+            var cardResp = await _tmCardService.GetCardUsing(employeeId,department,page,pageSize);
+
+            var vm = new UsingCardViewModel
+            {
+                EmployeeId = employeeId,
+                Department = department,
+
+                PageNumber = page,
+                PageSize = pageSize,
+
+                Cards = cardResp?.Data?.Data?.ToList() ?? new List<dynamic>(),
+
+                TotalCount = (int)(cardResp?.Data?.TotalCount ?? 0),
+                TotalPages = (int)(cardResp?.Data?.TotalPages ?? 0)
+            };
+
+            if (vm.TotalPages <= 0)
+            {
+                vm.TotalPages = vm.TotalCount > 0
+                    ? (int)Math.Ceiling(vm.TotalCount / (double)vm.PageSize)
+                    : 1;
+            }
+
+            return View(vm);
         }
         // MARK: Screen: Not Card
         public IActionResult NotCard()
@@ -179,6 +260,29 @@ namespace BusManagementWebApp.Controllers
             {
                 _logger.LogError(ex, "An error occurred while retrieving using taxi cards.");
                 return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+        [HttpPost]
+        public async Task<IActionResult> AddCardUsage([FromBody] TM_CARD_USAGE request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Request cannot be null.");
+            }
+            try
+            {
+                var user = User?.Claims?.FirstOrDefault(c => c.Type == "adid")?.Value ?? "vietdo bad";
+                request.CHR_USER_CREATE = user;
+                var result = await _tmCardUsageService.AddAsync(request);
+                if (!result.Success)
+                {
+                    return BadRequest("Lỗi khi thêm dữ liệu: " + result.Message);
+                }
+                return Ok(result.Success);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest("An error occurred while adding card usage: " + ex.Message);
             }
         }
 

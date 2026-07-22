@@ -1243,7 +1243,7 @@ public class BusRequestController : Controller
                 Id = a.ID,
                 VehicleType = vehicleType,
                 Area = area,
-                DisplayName = $"{bus?.CHR_BUS_CODE} - {routeName}",
+                DisplayName = $"{a.NVCHR_BUS_ROUTE_WORKING_NAME}",
                 BusStopId = null
             });
         }

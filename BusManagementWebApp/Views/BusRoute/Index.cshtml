@@ -334,10 +334,12 @@
                             <div id="cfg_allStops" style="max-height:420px;overflow-y:auto;"></div>
                         </div>
                         <div class="col-7">
-                            <h6>Điểm đã chọn (kéo thả để thay đổi thứ tự)</h6>
+                            <h6>Điểm đã chọn theo lượt (kéo thả để thay đổi thứ tự)</h6>
                             <div class="cfg-actions">
+                                <button type="button" id="cfg_addTurn" class="btn btn-sm btn-outline-primary">Thêm lượt</button>
                                 <button type="button" id="cfg_clearAll" class="btn btn-sm btn-danger">Xóa toàn bộ <i class="fa-solid fa-trash-can ms-1"></i></button>
                             </div>
+                            <div id="cfg_turnTabs" class="mb-2"></div>
                             <div id="cfg_chosenStops" class="chosen-stops-wrapper"></div>
                         </div>
                     </div>
@@ -433,123 +435,163 @@
 
             function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
-            // Configure stops
-            document.querySelectorAll('.js-config-stops').forEach(function(btn){ btn.addEventListener('click', async function(){ var routeId = btn.getAttribute('data-route-id'); document.getElementById('cfg_routeId').value = routeId; var allStopsContainer = document.getElementById('cfg_allStops'); var chosenContainer = document.getElementById('cfg_chosenStops'); allStopsContainer.innerHTML = 'Đang tải...'; chosenContainer.innerHTML = '';
-                    try{
-                        var res = await fetch('/BusRoute/GetRouteStops?routeId='+routeId);
-                        var data = await res.json();
-                        var stops = data.stops;
-                        var routeStops = data.routeStops;
-                        var chosenStopIds = new Set(routeStops.map(rs=>rs.INT_BUS_STOP_ID));
-                        
-                        // Group by city
-                        var grouped = {};
-                        stops.forEach(function(s){ var city = s.NVCHR_STOP_CITY||'Không xác định'; if(!grouped[city]) grouped[city]=[]; grouped[city].push(s); });
+            // Configure stops (support multiple turns)
+            document.querySelectorAll('.js-config-stops').forEach(function(btn){ btn.addEventListener('click', async function(){
+                var routeId = btn.getAttribute('data-route-id');
+                document.getElementById('cfg_routeId').value = routeId;
+                var allStopsContainer = document.getElementById('cfg_allStops');
+                var chosenContainer = document.getElementById('cfg_chosenStops');
+                var turnsTabsEl = document.getElementById('cfg_turnTabs');
+                allStopsContainer.innerHTML = 'Đang tải...'; chosenContainer.innerHTML = ''; turnsTabsEl.innerHTML = '';
+                try{
+                    var res = await fetch('/BusRoute/GetRouteStops?routeId='+routeId);
+                    var data = await res.json();
+                    var stops = data.stops;
+                    var routeStops = data.routeStops || [];
 
-                        // Render grouped stops
-                        allStopsContainer.innerHTML = '';
-                        Object.keys(grouped).sort().forEach(function(city){ 
-                            var groupDiv = document.createElement('div'); groupDiv.className='stop-group';
-                            var headerDiv = document.createElement('div'); headerDiv.className='stop-group-header'; headerDiv.textContent = city;
-                            groupDiv.appendChild(headerDiv);
-                            grouped[city].forEach(function(s){ 
-                                var itemDiv = document.createElement('div'); itemDiv.className='stop-item';
-                                var id = s.ID||s.id; var name = s.NVCHR_STOP_NAME;
-                                var isChecked = chosenStopIds.has(id)?'checked':'';
-                                itemDiv.innerHTML = `<label><input type="checkbox" class="cfg_stop_checkbox" data-id="${id}" ${isChecked} /> ${escapeHtml(name)}</label>`;
-                                groupDiv.appendChild(itemDiv);
+                    // helper to manage turns
+                    function createTurnSection(turnIndex, turnName){
+                        var tab = document.createElement('button'); tab.type='button'; tab.className='btn btn-sm btn-outline-secondary me-1 cfg-turn-tab'; tab.textContent = turnName || ('Lượt ' + turnIndex); tab.dataset.index = turnIndex; tab.dataset.name = turnName || '';
+                        turnsTabsEl.appendChild(tab);
+                        var section = document.createElement('div'); section.className='turn-section'; section.dataset.turnIndex = turnIndex; section.dataset.turnName = turnName || '';
+                        section.style.display = 'none';
+                        chosenContainer.appendChild(section);
+                        tab.addEventListener('click', function(){ setActiveTurn(turnIndex); });
+                        return { tab: tab, section: section };
+                    }
+
+                    function setActiveTurn(turnIndex){
+                        var sections = chosenContainer.querySelectorAll('.turn-section');
+                        sections.forEach(function(s){ s.style.display = (s.dataset.turnIndex == turnIndex) ? 'block' : 'none'; updateChosenOrder(s); });
+                        var tabs = turnsTabsEl.querySelectorAll('.cfg-turn-tab');
+                        tabs.forEach(function(t){ t.classList.toggle('active', t.dataset.index == turnIndex); });
+                    }
+
+                    function addChosenStopToSection(section, stop, timeVal){
+                        if(!section) return;
+                        var existing = section.querySelector(`[data-id='${stop.ID}']`);
+                        if(existing) return existing;
+                        var div = document.createElement('div'); div.className='chosen-stop'; div.setAttribute('data-id', stop.ID);
+                        div.innerHTML = `<span class="badge text-bg-primary chosen-order-badge cfg-order">0</span><span class="handle">☰</span><input type="hidden" name="stopIds" value="${stop.ID}" /><div style="flex:1">${escapeHtml(stop.NVCHR_STOP_NAME)}</div><input type="text" class="form-control time" name="pickupTimes" value="${escapeHtml(timeVal||'')}" placeholder="HH:mm" /> <button type="button" class="btn btn-sm btn-danger ms-2 cfg-remove" title="Xóa"><i class="fa-solid fa-trash-can"></i></button>`;
+                        section.appendChild(div);
+                        bindRemove(div);
+                        makeDraggable(div);
+                        updateChosenOrder(section);
+                        return div;
+                    }
+
+                    // Group by city
+                    var grouped = {};
+                    stops.forEach(function(s){ var city = s.NVCHR_STOP_CITY||'Không xác định'; if(!grouped[city]) grouped[city]=[]; grouped[city].push(s); });
+
+                    // Render grouped stops (left side)
+                    allStopsContainer.innerHTML = '';
+                    Object.keys(grouped).sort().forEach(function(city){
+                        var groupDiv = document.createElement('div'); groupDiv.className='stop-group';
+                        var headerDiv = document.createElement('div'); headerDiv.className='stop-group-header'; headerDiv.textContent = city;
+                        groupDiv.appendChild(headerDiv);
+                        grouped[city].forEach(function(s){
+                            var itemDiv = document.createElement('div'); itemDiv.className='stop-item';
+                            var id = s.ID||s.id; var name = s.NVCHR_STOP_NAME;
+                            // checkbox initial state will be set based on active turn after turns are built
+                            itemDiv.innerHTML = `<label><input type="checkbox" class="cfg_stop_checkbox" data-id="${id}" /> ${escapeHtml(name)}</label>`;
+                            groupDiv.appendChild(itemDiv);
+                        });
+                        allStopsContainer.appendChild(groupDiv);
+                    });
+
+                    // Build turns from existing routeStops
+                    var routeStopsByTurn = {};
+                    routeStops.forEach(function(rs){ var t = rs.INT_TURN || 1; if(!routeStopsByTurn[t]) routeStopsByTurn[t]=[]; routeStopsByTurn[t].push(rs); });
+                    var existingTurnIndexes = Object.keys(routeStopsByTurn).map(x=>parseInt(x,10)).sort(function(a,b){return a-b;});
+                    if(existingTurnIndexes.length==0) existingTurnIndexes = [1];
+                    existingTurnIndexes.forEach(function(tidx, idx){
+                        var first = routeStopsByTurn[tidx] && routeStopsByTurn[tidx][0];
+                        var turnName = first && first.NVCHR_TURN_NAME ? first.NVCHR_TURN_NAME : ('Lượt ' + tidx);
+                        var created = createTurnSection(tidx, turnName);
+                        var section = created.section;
+                        var rows = routeStopsByTurn[tidx] || [];
+                        rows.sort(function(a,b){ return (a.INT_ORDER||0)-(b.INT_ORDER||0); });
+                        rows.forEach(function(rs){ var stop = stops.find(x=>x.ID==rs.INT_BUS_STOP_ID); if(!stop) return; addChosenStopToSection(section, stop, formatTimeFromIso(rs.DTM_PICKUP_TIME)); });
+                    });
+
+                    // ensure at least one turn
+                    if(!chosenContainer.querySelector('.turn-section')){
+                        createTurnSection(1,'Lượt 1');
+                    }
+                    // set active to first
+                    var firstTab = turnsTabsEl.querySelector('.cfg-turn-tab'); if(firstTab) setActiveTurn(firstTab.dataset.index);
+
+                    // Search functionality
+                    var searchInput = document.getElementById('cfg_searchInput');
+                    searchInput.addEventListener('input', function(){ 
+                        var q = searchInput.value.toLowerCase();
+                        allStopsContainer.querySelectorAll('.stop-group').forEach(function(g){ 
+                            var visibleCount = 0;
+                            g.querySelectorAll('.stop-item').forEach(function(item){ 
+                                var text = item.textContent.toLowerCase(); 
+                                var show = text.includes(q); 
+                                item.style.display = show?'block':'none';
+                                if(show) visibleCount++;
                             });
-                            allStopsContainer.appendChild(groupDiv);
+                            g.style.display = visibleCount>0?'block':'none';
                         });
+                    });
 
-                        // Populate chosen with current stops
-                        chosenContainer.innerHTML = '';
-                        routeStops.forEach(function(rs){ 
-                            var stop = stops.find(x=>x.ID==rs.INT_BUS_STOP_ID); if(!stop) return;
-                            var name = stop.NVCHR_STOP_NAME;
-                            var timeVal = formatTimeFromIso(rs.DTM_PICKUP_TIME); 
-                            var div = document.createElement('div'); div.className='chosen-stop'; div.setAttribute('data-id', stop.ID); 
-                            div.innerHTML = `<span class="badge text-bg-primary chosen-order-badge cfg-order">0</span><span class="handle">☰</span><input type="hidden" name="stopIds" value="${stop.ID}" /><div style="flex:1">${escapeHtml(name)}</div><input type="text" class="form-control time" name="pickupTimes" value="${escapeHtml(timeVal)}" placeholder="HH:mm" /> <button type="button" class="btn btn-sm btn-danger ms-2 cfg-remove" title="Xóa"><i class="fa-solid fa-trash-can"></i></button>`; 
-                            chosenContainer.appendChild(div);
-                            bindRemove(div, stops);
-                            makeDraggable(div);
-                        });
-                        updateChosenOrder(chosenContainer);
-
-                        // Search functionality
-                        var searchInput = document.getElementById('cfg_searchInput');
-                        var originalAllStops = allStopsContainer.innerHTML;
-                        searchInput.addEventListener('input', function(){ 
-                            var q = searchInput.value.toLowerCase();
-                            allStopsContainer.querySelectorAll('.stop-group').forEach(function(g){ 
-                                var visibleCount = 0;
-                                g.querySelectorAll('.stop-item').forEach(function(item){ 
-                                    var text = item.textContent.toLowerCase(); 
-                                    var show = text.includes(q); 
-                                    item.style.display = show?'block':'none';
-                                    if(show) visibleCount++;
-                                });
-                                g.style.display = visibleCount>0?'block':'none';
-                            });
-                        });
-
-                        // Checkbox change: add/remove from chosen
-                        allStopsContainer.querySelectorAll('.cfg_stop_checkbox').forEach(function(cb){ cb.addEventListener('change', function(){ 
-                            var id = cb.getAttribute('data-id'); 
-                            if(cb.checked){
-                                var existing = chosenContainer.querySelector(`[data-id='${id}']`);
-                                if(existing){
-                                    updateChosenOrder(chosenContainer);
-                                    return;
-                                }
-                                var stop = stops.find(x=>x.ID==id); var name = stop.NVCHR_STOP_NAME;
-                                var div = document.createElement('div'); div.className='chosen-stop'; div.setAttribute('data-id', id); 
-                                div.innerHTML = `<span class="badge text-bg-primary chosen-order-badge cfg-order">0</span><span class="handle">☰</span><input type="hidden" name="stopIds" value="${id}" /><div style="flex:1">${escapeHtml(name)}</div><input type="text" class="form-control time" name="pickupTimes" value="" placeholder="HH:mm" /> <button type="button" class="btn btn-sm btn-danger ms-2 cfg-remove" title="Xóa"><i class="fa-solid fa-trash-can"></i></button>`; 
-                                chosenContainer.appendChild(div); 
-                                bindRemove(div, stops); 
-                                makeDraggable(div);
-                                updateChosenOrder(chosenContainer);
-                            }
-                            else { 
-                                var ex = chosenContainer.querySelector(`[data-id='${id}']`); 
-                                if(ex) ex.remove(); 
-                                updateChosenOrder(chosenContainer);
-                            }
-                        }); });
-
-                        function bindRemove(el, stops){ 
-                            var btn = el.querySelector('.cfg-remove'); if(!btn) return; 
-                            btn.addEventListener('click', function(){ el.remove(); var id = el.getAttribute('data-id'); 
-                                var cb = allStopsContainer.querySelector(`.cfg_stop_checkbox[data-id='${id}']`); 
-                                if(cb){ cb.checked = false; } 
-                                updateChosenOrder(chosenContainer);
-                            }); 
+                    // Checkbox change: add/remove from currently active turn
+                    allStopsContainer.querySelectorAll('.cfg_stop_checkbox').forEach(function(cb){ cb.addEventListener('change', function(){ 
+                        var id = cb.getAttribute('data-id'); 
+                        var activeSection = chosenContainer.querySelector('.turn-section[style*="display: block"]') || chosenContainer.querySelector('.turn-section');
+                        if(!activeSection) activeSection = chosenContainer.querySelector('.turn-section');
+                        if(cb.checked){
+                            // add to active turn
+                            var stop = stops.find(x=>x.ID==id); if(!stop) return; addChosenStopToSection(activeSection, stop, '');
                         }
+                        else {
+                            // remove from all turns
+                            chosenContainer.querySelectorAll(`.chosen-stop[data-id='${id}']`).forEach(function(ex){ ex.remove(); });
+                        }
+                        // update order on all sections
+                        chosenContainer.querySelectorAll('.turn-section').forEach(function(s){ updateChosenOrder(s); });
+                    }); });
 
-                        // Select/unselect all actions
-                        document.getElementById('cfg_selectAll').onclick = function(){ 
-                            allStopsContainer.querySelectorAll('.cfg_stop_checkbox').forEach(function(cb){ cb.checked = true; cb.dispatchEvent(new Event('change')); }); 
-                        };
-                        document.getElementById('cfg_unselectAll').onclick = function(){ 
-                            allStopsContainer.querySelectorAll('.cfg_stop_checkbox:checked').forEach(function(cb){ cb.checked = false; cb.dispatchEvent(new Event('change')); }); 
-                        };
-                        document.getElementById('cfg_clearAll').onclick = function(){ 
-                            chosenContainer.innerHTML=''; 
-                            allStopsContainer.querySelectorAll('.cfg_stop_checkbox').forEach(function(cb){ cb.checked = false; }); 
-                            updateChosenOrder(chosenContainer);
-                        };
+                    function bindRemove(el){ var btn = el.querySelector('.cfg-remove'); if(!btn) return; btn.addEventListener('click', function(){ var id = el.getAttribute('data-id'); el.remove(); // if no more chosen stops for this id, uncheck
+                            var still = chosenContainer.querySelector(`.chosen-stop[data-id='${id}']`); if(!still){ var cb = allStopsContainer.querySelector(`.cfg_stop_checkbox[data-id='${id}']`); if(cb) cb.checked = false; } updateChosenOrder(el.parentNode);
+                        }); }
 
-                        attachDnD(chosenContainer);
-                        var modal = new bootstrap.Modal(document.getElementById('configureStopsModal'));
-                        modal.show();
-                    }catch(ex){ console.error(ex); if(window.AppCommon) AppCommon.error('Không thể tải danh sách điểm.'); }
-                }); });
+                    // Select/unselect all actions (operate on checkboxes)
+                    document.getElementById('cfg_selectAll').onclick = function(){ allStopsContainer.querySelectorAll('.cfg_stop_checkbox').forEach(function(cb){ if(!cb.checked){ cb.checked = true; cb.dispatchEvent(new Event('change')); }}); };
+                    document.getElementById('cfg_unselectAll').onclick = function(){ allStopsContainer.querySelectorAll('.cfg_stop_checkbox:checked').forEach(function(cb){ cb.checked = false; cb.dispatchEvent(new Event('change')); }); };
+                    document.getElementById('cfg_clearAll').onclick = function(){ chosenContainer.querySelectorAll('.turn-section').forEach(function(s){ s.innerHTML = ''; }); allStopsContainer.querySelectorAll('.cfg_stop_checkbox').forEach(function(cb){ cb.checked = false; }); };
 
-            // Save route stops
+                    // Add turn action
+                    document.getElementById('cfg_addTurn').onclick = function(){ var existing = Array.from(turnsTabsEl.querySelectorAll('.cfg-turn-tab')).map(t=>parseInt(t.dataset.index,10)||0); var next = existing.length? Math.max.apply(null,existing)+1 : 1; var created = createTurnSection(next,'Lượt '+next); setActiveTurn(next); };
+
+                    // enable drag & drop per turn section
+                    chosenContainer.querySelectorAll('.turn-section').forEach(function(s){ attachDnD(s); });
+
+                    var modal = new bootstrap.Modal(document.getElementById('configureStopsModal'));
+                    modal.show();
+                }catch(ex){ console.error(ex); if(window.AppCommon) AppCommon.error('Không thể tải danh sách điểm.'); }
+            }); });
+
+            // Save route stops (collect per-turn data)
             var saveForm = document.getElementById('saveRouteStopsForm');
-            saveForm.addEventListener('submit', function(e){ e.preventDefault(); var chosen = document.getElementById('cfg_chosenStops'); var items = chosen.querySelectorAll('.chosen-stop'); if(!items.length){ if(window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 điểm.'); return; } var routeId = document.getElementById('cfg_routeId').value;
+            saveForm.addEventListener('submit', function(e){
+                e.preventDefault();
+                var chosenWrapper = document.getElementById('cfg_chosenStops');
+                var turnSections = chosenWrapper.querySelectorAll('.turn-section');
+                var totalItems = 0; turnSections.forEach(function(s){ totalItems += s.querySelectorAll('.chosen-stop').length; });
+                if(!totalItems){ if(window.AppCommon) AppCommon.warning('Vui lòng chọn ít nhất 1 điểm.'); return; }
+                var routeId = document.getElementById('cfg_routeId').value;
                 var fd = new FormData(); fd.append('routeId', routeId);
-                items.forEach(function(it){ var id = it.getAttribute('data-id'); var time = it.querySelector('input.time').value||''; fd.append('stopIds', id); fd.append('pickupTimes', time); });
+                // iterate turn sections in DOM order
+                turnSections.forEach(function(s){
+                    var turnIndex = parseInt(s.dataset.turnIndex,10) || 1;
+                    var turnName = s.dataset.turnName || '';
+                    var items = s.querySelectorAll('.chosen-stop');
+                    items.forEach(function(it){ var id = it.getAttribute('data-id'); var time = it.querySelector('input.time').value||''; fd.append('stopIds', id); fd.append('pickupTimes', time); fd.append('turns', turnIndex); fd.append('turnNames', turnName); });
+                });
                 var token = document.querySelector('input[name="__RequestVerificationToken"]'); if(token) fd.append('__RequestVerificationToken', token.value);
                 showLoading(); fetch('/BusRoute/SaveRouteStops', { method:'POST', body: fd }).then(function(res){ if(res.redirected) window.location = res.url; else return res.text(); }).catch(function(){ if(window.AppCommon) AppCommon.error('Lưu cấu hình thất bại'); }).finally(function(){ hideLoading(); });
             });

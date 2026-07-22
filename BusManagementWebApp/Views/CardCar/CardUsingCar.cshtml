@@ -1,5 +1,10 @@
-﻿@{
+﻿@using BusManagementWebApp.ViewModels.CardCar
+@model UsingCardViewModel
+@{
     ViewData["Title"] = "Thẻ sử dụng xe đi làm";
+    var sections = ViewBag.Sections as IEnumerable<BusManagement.Model.Dtos.TM_SECTIONDTO> ?? Enumerable.Empty<BusManagement.Model.Dtos.TM_SECTIONDTO>();
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
 }
 
 <style>
@@ -9,27 +14,21 @@
         background: #fff;
         box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
     }
-
     .using-card .table thead th {
         white-space: nowrap;
         vertical-align: middle;
         text-align: center;
     }
-
-    .using-filter-row th {
-        background: #f8fafc;
-        min-width: 120px;
-    }
-
     .using-actions .btn {
         min-width: 110px;
     }
-
     .confirm-cell {
         color: #15803d;
         font-weight: 600;
         text-align: center;
     }
+    .table-checkbox { width: 40px; }
+    .action-buttons .btn { min-width: 60px; }
 </style>
 
 <div class="using-card p-3 p-md-4">
@@ -38,44 +37,60 @@
             <h5 class="m-0">Quản lý thẻ sử dụng xe đi làm</h5>
             <div class="small text-muted">Tra cứu và cập nhật danh sách công nhân viên đã có thẻ</div>
         </div>
+        <button id="btnBulkDelete" type="button" class="btn btn-danger js-action-button d-none"
+                data-form-id="bulkDeleteForm"
+                data-confirm-title="Xóa nhiều thẻ"
+                data-confirm-message="Bạn có chắc chắn muốn xóa các thẻ đã chọn?"
+                data-require-selection="1"
+                disabled>
+            <i class="fa-solid fa-trash-can me-1"></i>Xóa đã chọn
+        </button>
     </div>
 
-    <div class="search-area">
-        <div class="row mb-2 align-items-center">
-            <div class="col-md-2" style="max-width: 120px;">
-                <label class="title-label">MNV</label>
-            </div>
-            <div class="col-md-2">
-                <input type="text" class="form-control green-input" />
-            </div>
+    <form method="get" asp-controller="CardCar" asp-action="CardUsingCar" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="employeeId" value="@Model.EmployeeId" placeholder="Mã nhân viên" />
         </div>
-
-        <div class="row mb-3 align-items-center">
-            <div class="col-md-2" style="max-width: 120px;">
-                <label class="title-label">Phòng ban</label>
-            </div>
-            <div class="col-md-2">
-                <select class="form-control green-input">
-                    <option>Tất cả</option>
-                    <option>HCNS</option>
-                    <option>Kế toán</option>
-                    <option>IT</option>
-                </select>
-            </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <select class="form-select" name="department">
+                <option value="">Tất cả phòng ban</option>
+                @foreach (var sec in sections)
+                {
+                    if (Model.Department == sec.CHR_CODE)
+                    {
+                        <option value="@sec.CHR_CODE" selected>@sec.CHR_NAME</option>
+                    }
+                    else
+                    {
+                        <option value="@sec.CHR_CODE">@sec.CHR_NAME</option>
+                    }
+                }
+            </select>
         </div>
-    </div>
+        <div class="col-12 col-md-6 col-lg-3 d-grid d-md-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm</button>
+            <button type="button" class="btn btn-secondary js-btn-reset"><i class="fa-solid fa-rotate-right me-1"></i>Làm mới</button>
+        </div>
+    </form>
 
-    <div class="using-actions d-flex flex-wrap gap-2 mb-4">
-        <button class="btn btn-primary"><i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm</button>
-        <button class="btn btn-warning text-white"><i class="fa-solid fa-pen me-1"></i>Cập nhật</button>
-        <button class="btn btn-danger"><i class="fa-solid fa-trash me-1"></i>Xóa</button>
-        <button class="btn btn-secondary"><i class="fa-solid fa-rotate-right me-1"></i>Làm mới</button>
-    </div>
+    <form id="bulkDeleteForm" method="post" asp-controller="CardCar" asp-action="DeleteCards"
+          class="js-confirm js-require-selection"
+          data-confirm-title="Xóa nhiều thẻ"
+          data-confirm-message="Bạn có chắc chắn muốn xóa các thẻ đã chọn?">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="employeeId" value="@Model.EmployeeId" />
+        <input type="hidden" name="department" value="@Model.Department" />
+        <input type="hidden" name="page" value="@Model.PageNumber" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    </form>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover align-middle js-using-card-table">
+        <table class="table table-bordered table-hover align-middle">
             <thead class="table-light">
                 <tr>
+                    <th class="table-checkbox"><input id="chkAll" type="checkbox" class="form-check-input" /></th>
                     <th width="60">STT</th>
                     <th>Mã nhân viên</th>
                     <th>Phòng ban</th>
@@ -83,153 +98,141 @@
                     <th>Số xe chiều đón và chiều về</th>
                     <th>Điểm đón/trả</th>
                     <th>Xác nhận</th>
-                </tr>
-                <tr class="using-filter-row">
-                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="0" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="1" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="2" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="3" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="4" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="5" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-using-filter" data-column-index="6" placeholder="Lọc" /></th>
+                    <th class="text-center">Thao tác</th>
                 </tr>
             </thead>
-
             <tbody>
-                @for (int i = 1; i <= 24; i++)
+                @if (!Model.Cards.Any())
                 {
-                    var dep = i % 3 == 0 ? "HCNS" : (i % 3 == 1 ? "Kế toán" : "IT");
                     <tr>
-                        <td>@i</td>
-                        <td>NV@i.ToString("000")</td>
-                        <td>@dep</td>
-                        <td>Nhân viên @i</td>
-                        <td>@(i % 2 == 0 ? "Xe 01 / Xe 03" : "Xe 02 / Xe 04")</td>
-                        <td>@(i % 2 == 0 ? "Cổng chính" : "Cổng phụ")</td>
-                        <td class="confirm-cell">Đã có thẻ</td>
+                        <td colspan="9" class="text-center text-muted py-4">Không có dữ liệu thẻ sử dụng xe.</td>
                     </tr>
+                }
+                else
+                {
+                    var index = 0;
+                    foreach (var card in Model.Cards)
+                    {
+                        index++;
+                        var stt = (Model.PageNumber - 1) * Model.PageSize + index;
+
+                        <tr>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input js-card-check"
+                                       name="ids" value="@card.ID" form="bulkDeleteForm" />
+                            </td>
+                            <td class="text-center">@stt</td>
+                            <td>@card.CHR_EMPLOYEE_ID</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="confirm-cell"><span class='badge bg-success'>✔ Đã </span></td>
+                            <td class="text-center action-buttons">
+                                <!-- Nút Sửa (mở modal) -->
+                                <button type="button" class="btn btn-sm btn-primary ms-1 mb-1" 
+                                        data-bs-toggle="modal" data-bs-target="#editCardModal-@card.ID">
+                                    <i class="fa-solid fa-pen"></i> Sửa
+                                </button>
+                                <!-- Form xóa đơn -->
+                                <form id="deleteCardForm-@card.ID" method="post" asp-controller="Admin" asp-action="DeleteCard" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@card.ID" />
+                                    <input type="hidden" name="employeeId" value="@Model.EmployeeId" />
+                                    <input type="hidden" name="department" value="@Model.Department" />
+                                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                    <button class="btn btn-sm btn-danger ms-1 mb-1 js-action-button" type="button"
+                                            data-form-id="deleteCardForm-@card.ID"
+                                            data-confirm-title="Xóa thẻ"
+                                            data-confirm-message="Bạn có chắc chắn muốn xóa thẻ này?">
+                                        <i class="fa-solid fa-trash"></i> Xóa
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
     </div>
 
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mt-2">
-        <div class="small text-muted js-using-page-info"></div>
-        <nav aria-label="Using car pagination">
-            <ul class="pagination pagination-sm mb-0 js-using-pagination"></ul>
-        </nav>
+        <div class="small text-muted">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+        @await Html.PartialAsync("_Pagination", new
+        {
+            PageIndex = Model.PageNumber,
+            TotalPages = Model.TotalPages,
+            PageSize = Model.PageSize,
+            Action = "CardUsingCar",
+            Term = (string?)null,
+            RouteExtras = new Dictionary<string, string?>
+            {
+                ["employeeId"] = Model.EmployeeId,
+                ["department"] = Model.Department
+            }
+        })
     </div>
 </div>
 
+<!-- Modal chỉnh sửa (lặp lại cho từng card) -->
+@foreach (var card in Model.Cards)
+{
+    // <div class="modal fade dragable-modal" id="editCardModal-@card.ID" tabindex="-1" aria-hidden="true">
+    //     <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    //         <div class="modal-content">
+    //             <div class="modal-header">
+    //                 <h5 class="modal-title">Chỉnh sửa thẻ - @card.CHR_CARD_CODE</h5>
+    //                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    //             </div>
+    //             <form method="post" asp-controller="Admin" asp-action="UpdateCard" class="js-post-form">
+    //                 @Html.AntiForgeryToken()
+    //                 <div class="modal-body">
+    //                     <input type="hidden" name="id" value="@card.ID" />
+    //                     <input type="hidden" name="employeeId" value="@Model.EmployeeId" />
+    //                     <input type="hidden" name="department" value="@Model.Department" />
+    //                     <input type="hidden" name="page" value="@Model.PageNumber" />
+    //                     <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+    //                     <div class="row g-3">
+    //                         <div class="col-12 col-md-6">
+    //                             <label class="form-label">Mã nhân viên</label>
+    //                             <input class="form-control" name="EmployeeId" value="@card.CHR_EMPLOYEE_ID" required />
+    //                         </div>
+    //                         <div class="col-12 col-md-6">
+    //                             <label class="form-label">Phòng ban</label>
+    //                             <input class="form-control" name="Department" value="@card.CHR_DEPARTMENT" />
+    //                         </div>
+    //                         <div class="col-12 col-md-6">
+    //                             <label class="form-label">Họ và tên</label>
+    //                             <input class="form-control" name="FullName" value="@card.NVCHR_NAME" required />
+    //                         </div>
+    //                         <div class="col-12 col-md-6">
+    //                             <label class="form-label">Số xe</label>
+    //                             <input class="form-control" name="BusNumber" value="@card.CHR_BUS_NUMBER" />
+    //                         </div>
+    //                         <div class="col-12 col-md-6">
+    //                             <label class="form-label">Điểm đón/trả</label>
+    //                             <input class="form-control" name="StopPoint" value="@card.CHR_STOP_POINT" />
+    //                         </div>
+    //                         <div class="col-12 col-md-6">
+    //                             <label class="form-label">Xác nhận</label>
+    //                             <select class="form-select" name="IsConfirmed">
+    //                                 <option value="true" @(card.BIT_IS_CONFIRMED == true ? "selected" : "")>Đã xác nhận</option>
+    //                                 <option value="false" @(card.BIT_IS_CONFIRMED == false ? "selected" : "")>Chưa xác nhận</option>
+    //                             </select>
+    //                         </div>
+    //                     </div>
+    //                 </div>
+    //                 <div class="modal-footer">
+    //                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+    //                     <button type="submit" class="btn btn-primary">Lưu</button>
+    //                 </div>
+    //             </form>
+    //         </div>
+    //     </div>
+    // </div>
+}
 @section Scripts {
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const table = document.querySelector('.js-using-card-table');
-            if (!table) {
-                return;
-            }
-
-            const filters = Array.from(table.querySelectorAll('.js-using-filter'));
-            const rows = Array.from(table.querySelectorAll('tbody tr'));
-            const pageInfo = document.querySelector('.js-using-page-info');
-            const pagination = document.querySelector('.js-using-pagination');
-
-            const pageSize = 8;
-            let currentPage = 1;
-
-            const normalize = (value) => (value || '').toString().trim().toLowerCase();
-
-            const getFilteredRows = () => {
-                const filterValues = filters.map((filter) => normalize(filter.value));
-
-                return rows.filter((row) => {
-                    const cells = row.querySelectorAll('td');
-
-                    for (let i = 0; i < filterValues.length; i++) {
-                        const keyword = filterValues[i];
-                        if (!keyword) {
-                            continue;
-                        }
-
-                        const cellText = normalize(cells[i]?.textContent);
-                        if (!cellText.includes(keyword)) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                });
-            };
-
-            const renderPagination = (totalPages) => {
-                if (!pagination) {
-                    return;
-                }
-
-                pagination.innerHTML = '';
-
-                const addItem = (label, page, disabled, active) => {
-                    const li = document.createElement('li');
-                    li.className = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
-
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'page-link';
-                    btn.textContent = label;
-                    btn.disabled = disabled;
-
-                    btn.addEventListener('click', function () {
-                        if (disabled || page === currentPage) {
-                            return;
-                        }
-
-                        currentPage = page;
-                        render();
-                    });
-
-                    li.appendChild(btn);
-                    pagination.appendChild(li);
-                };
-
-                addItem('«', currentPage - 1, currentPage <= 1, false);
-                for (let i = 1; i <= totalPages; i++) {
-                    addItem(String(i), i, false, i === currentPage);
-                }
-                addItem('»', currentPage + 1, currentPage >= totalPages, false);
-            };
-
-            const render = () => {
-                const filteredRows = getFilteredRows();
-                const totalCount = filteredRows.length;
-                const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-
-                if (currentPage > totalPages) {
-                    currentPage = totalPages;
-                }
-
-                const startIndex = totalCount === 0 ? 0 : ((currentPage - 1) * pageSize + 1);
-                const endIndex = totalCount === 0 ? 0 : Math.min(currentPage * pageSize, totalCount);
-
-                rows.forEach((row) => row.style.display = 'none');
-
-                const pageRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-                pageRows.forEach((row) => row.style.display = '');
-
-                if (pageInfo) {
-                    pageInfo.textContent = 'Hiển thị ' + startIndex + ' - ' + endIndex + ' / ' + totalCount;
-                }
-
-                renderPagination(totalPages);
-            };
-
-            filters.forEach((filter) => {
-                filter.addEventListener('input', function () {
-                    currentPage = 1;
-                    render();
-                });
-            });
-
-            render();
-        });
-    </script>
+    <script src="~/js/cardcar/card-using.js" asp-append-version="true"></script>
 }

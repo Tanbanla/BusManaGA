@@ -18,6 +18,29 @@
         vertical-align: middle;
     }
 
+    /* Select2 styling to mimic selectpicker/bootstrap look */
+    .select2-container--default .select2-selection--single {
+        height: calc(1.5em + .75rem + 2px);
+        padding: .375rem .75rem;
+        border: 1px solid #ced4da;
+        border-radius: .375rem;
+        background-color: #fff;
+        box-shadow: none;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 1.5;
+        color: #212529;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: calc(1.5em + .75rem + 2px);
+        right: .5rem;
+    }
+    .select2-container .select2-search--dropdown .select2-search__field {
+        width: 100% !important;
+        padding: .375rem .75rem;
+        border-radius: .25rem;
+    }
+
 </style>
 
 <div class="employeebus-card p-3 p-md-4">
@@ -223,9 +246,9 @@
                             <td>@employee.NVCHR_CITY</td>
                             <td>@employee.NVCHR_WARD</td>
                             <td>@employee.NVCHR_ADDRESS_DETAIL</td>
-                            <td>@Model.GetPickupRouteDisplay(employee.INT_BUS_ROUTE_ASSIGN_ID)</td>
-                            <td>@Model.GetReturnRouteDisplay(employee.INT_BUS_ROUTE_ASSIGN_ID)</td>
-                            <td>@Model.GetBusStopDisplayName(employee.INT_BUS_STOP_ID)</td>
+                            <td>@Model.GetEmployeePickupRouteDisplay(employee.ID)</td>
+                            <td>@Model.GetEmployeeReturnRouteDisplay(employee.ID)</td>
+                            <td>@Model.GetEmployeeRouteStopsDisplay(employee.ID)</td>
                             @if (Model.CanManage)
                             {
                                 <td class="text-end">
@@ -383,31 +406,72 @@
                                 <label class="form-label">Địa chỉ chi tiết</label>
                                 <input class="form-control" name="AddressDetail" />
                             </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">Điểm đón trả</label>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input type="hidden" name="IsUseSameStopAndRoute" value="false" />
+                                    <input class="form-check-input js-same-stop-route-toggle" type="checkbox" name="IsUseSameStopAndRoute" value="true" checked id="createUseSameStopRoute" />
+                                    <label class="form-check-label" for="createUseSameStopRoute">
+                                        Dùng chung điểm đón trả và tuyến xe
+                                    </label>
+                                </div>
                             </div>
                             <div class="col-12 col-md-6">
-                                <select class="selectpicker js-busstop-select-autofill" data-live-search="true" data-size="8" data-container="body" name="BusStopId" title="-- Chọn điểm --">
+                                <label class="form-label">Điểm đón</label>
+                                <select class="selectpicker js-pickup-busstop-select" data-live-search="true" data-size="8" data-container="body" name="PickupStopId" title="-- Chọn điểm --">
                                     <option value="">-- Chọn điểm --</option>
                                     @foreach (var cityGroup in Model.BusStops.GroupBy(x => string.IsNullOrWhiteSpace(x.NVCHR_STOP_CITY) ? "Khác" : x.NVCHR_STOP_CITY).OrderBy(x => x.Key))
                                     {
                                         <optgroup label="@cityGroup.Key">
                                             @foreach (var busStop in cityGroup.OrderBy(x => x.NVCHR_STOP_WARD).ThenBy(x => x.NVCHR_STOP_NAME))
                                             {
-                                                <option value="@busStop.ID"
-                                                        data-pickup-address="@busStop.NVCHR_STOP_NAME"
-                                                        data-return-address="@busStop.NVCHR_STOP_NAME">@Model.GetBusStopDisplayName(busStop.ID)</option>
+                                                <option value="@busStop.ID">@Model.GetBusStopDisplayName(busStop.ID)</option>
                                             }
                                         </optgroup>
                                     }
                                 </select>
                             </div>
-                            <div class="col-12 col-md-12">
-                                <label class="form-label">Tuyến xe đang hoạt động</label>
-                                <select class="form-select js-route-assign-select" name="RouteAssignId" data-selected="">
+                            <div class="col-12 col-md-6 js-return-stop-container" style="display: none;">
+                                <label class="form-label">Điểm trả</label>
+                                <select class="selectpicker js-return-busstop-select" data-live-search="true" data-size="8" data-container="body" name="ReturnStopId" title="-- Chọn điểm --">
+                                    <option value="">-- Chọn điểm --</option>
+                                    @foreach (var cityGroup in Model.BusStops.GroupBy(x => string.IsNullOrWhiteSpace(x.NVCHR_STOP_CITY) ? "Khác" : x.NVCHR_STOP_CITY).OrderBy(x => x.Key))
+                                    {
+                                        <optgroup label="@cityGroup.Key">
+                                            @foreach (var busStop in cityGroup.OrderBy(x => x.NVCHR_STOP_WARD).ThenBy(x => x.NVCHR_STOP_NAME))
+                                            {
+                                                <option value="@busStop.ID">@Model.GetBusStopDisplayName(busStop.ID)</option>
+                                            }
+                                        </optgroup>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tuyến xe chiều đi</label>
+                                <select class="form-select js-pickup-route-assign-select" name="PickupRouteAssignId" data-selected="">
                                     <option value="">-- Chọn tuyến xe --</option>
                                 </select>
                             </div>
+                            <div class="col-12 col-md-6 js-return-route-container" style="display: none;">
+                                <label class="form-label">Tuyến xe chiều về</label>
+                                <select class="form-select js-return-route-assign-select" name="ReturnRouteAssignId" data-selected="">
+                                    <option value="">-- Chọn tuyến xe --</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Lượt chiều đi</label>
+                                <select class="form-select js-pickup-turn-select" name="PickupTurn">
+                                    <option value="">-- Tự động xác định --</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6 js-return-turn-container" style="display: none;">
+                                <label class="form-label">Lượt chiều về</label>
+                                <select class="form-select js-return-turn-select" name="ReturnTurn">
+                                    <option value="">-- Tự động xác định --</option>
+                                </select>
+                            </div>
+                            <!-- Legacy fields for backward compatibility -->
+                            <input type="hidden" name="BusStopId" class="js-legacy-bus-stop-id" />
+                            <input type="hidden" name="RouteAssignId" class="js-legacy-route-assign-id" />
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -415,13 +479,13 @@
                         <button type="submit" class="btn btn-primary">Lưu</button>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
+             </div>
+         </div>
+     </div>
 
-    @foreach (var employee in Model.Employees)
-    {
-        <div class="modal fade dragable-modal" id="editEmployeeBusModal-@employee.ID" tabindex="-1" aria-hidden="true">
+     @foreach (var employee in Model.Employees)
+     {
+         <div class="modal fade dragable-modal" id="editEmployeeBusModal-@employee.ID" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -441,6 +505,18 @@
                             <input type="hidden" name="SearchBusStopId" value="@Model.BusStopId" />
                             <input type="hidden" name="Page" value="@Model.PageNumber" />
                             <input type="hidden" name="PageSize" value="@Model.PageSize" />
+
+                            @{
+                                var employeeRoute = Model.EmployeeRoutes.FirstOrDefault(r => r.INT_EMPLOYEE_ID == employee.ID && r.BIT_IS_ACTIVE);
+                            }
+
+                            <!-- Hidden data fields for route information -->
+                            <input type="hidden" class="js-route-data-pickup-stop" value="@(employeeRoute?.INT_PICKUP_STOP_ID ?? 0)" />
+                            <input type="hidden" class="js-route-data-return-stop" value="@(employeeRoute?.INT_RETURN_STOP_ID ?? 0)" />
+                            <input type="hidden" class="js-route-data-pickup-route" value="@(employeeRoute?.INT_ROUTE_ASSIGN_PICKUP_ID ?? 0)" />
+                            <input type="hidden" class="js-route-data-return-route" value="@(employeeRoute?.INT_ROUTE_ASSIGN_RETURN_ID ?? 0)" />
+                            <input type="hidden" class="js-route-data-pickup-turn" value="@(employeeRoute?.INT_PICKUP_TURN.ToString() ?? "")" />
+                            <input type="hidden" class="js-route-data-return-turn" value="@(employeeRoute?.INT_RETURN_TURN.ToString() ?? "")" />
 
                             <div class="row g-3">
                                 <div class="col-12 col-md-6">
@@ -510,11 +586,18 @@
                                     <label class="form-label">Địa chỉ chi tiết</label>
                                     <input class="form-control" name="AddressDetail" value="@employee.NVCHR_ADDRESS_DETAIL" />
                                 </div>
-                                <div class="col-12 col-md-6">
-                                    <label class="form-label">Điểm đón trả</label>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input type="hidden" name="IsUseSameStopAndRoute" value="false" />
+                                        <input class="form-check-input js-same-stop-route-toggle" type="checkbox" name="IsUseSameStopAndRoute" value="true" id="editUseSameStopRoute-@employee.ID" />
+                                        <label class="form-check-label" for="editUseSameStopRoute-@employee.ID">
+                                            Dùng chung điểm đón trả và tuyến xe
+                                        </label>
+                                    </div>
                                 </div>
-                                <div class="col-12 col-md-6 w-auto">
-                                    <select class="selectpicker js-busstop-select-autofill" data-live-search="true" data-size="8" name="BusStopId" title="-- Chọn điểm --">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Điểm đón</label>
+                                    <select class="selectpicker js-pickup-busstop-select" data-live-search="true" data-size="8" data-container="body" name="PickupStopId" title="-- Chọn điểm --">
                                         <option value="">-- Chọn điểm --</option>
                                         @foreach (var cityGroup in Model.BusStops.GroupBy(x => string.IsNullOrWhiteSpace(x.NVCHR_STOP_CITY) ? "Khác" : x.NVCHR_STOP_CITY).OrderBy(x => x.Key))
                                         {
@@ -523,28 +606,66 @@
                                                 {
                                                     if (employee.INT_BUS_STOP_ID == busStop.ID)
                                                     {
-                                                        <option value="@busStop.ID"
-                                                                selected
-                                                                data-pickup-address="@busStop.NVCHR_STOP_NAME"
-                                                                data-return-address="@busStop.NVCHR_STOP_NAME">@Model.GetBusStopDisplayName(busStop.ID)</option>
+                                                        <option value="@busStop.ID" selected>@Model.GetBusStopDisplayName(busStop.ID)</option>
                                                     }
                                                     else
                                                     {
-                                                        <option value="@busStop.ID"
-                                                                data-pickup-address="@busStop.NVCHR_STOP_NAME"
-                                                                data-return-address="@busStop.NVCHR_STOP_NAME">@Model.GetBusStopDisplayName(busStop.ID)</option>
+                                                        <option value="@busStop.ID">@Model.GetBusStopDisplayName(busStop.ID)</option>
                                                     }
                                                 }
                                             </optgroup>
                                         }
                                     </select>
                                 </div>
-                                <div class="col-12 col-md-12">
-                                    <label class="form-label">Tuyến xe đang hoạt động</label>
-                                    <select class="form-select js-route-assign-select" name="RouteAssignId" data-selected="@employee.INT_BUS_ROUTE_ASSIGN_ID">
+                                <div class="col-12 col-md-6 js-return-stop-container" style="display: none;">
+                                    <label class="form-label">Điểm trả</label>
+                                    <select class="selectpicker js-return-busstop-select" data-live-search="true" data-size="8" data-container="body" name="ReturnStopId" title="-- Chọn điểm --">
+                                        <option value="">-- Chọn điểm --</option>
+                                        @foreach (var cityGroup in Model.BusStops.GroupBy(x => string.IsNullOrWhiteSpace(x.NVCHR_STOP_CITY) ? "Khác" : x.NVCHR_STOP_CITY).OrderBy(x => x.Key))
+                                        {
+                                            <optgroup label="@cityGroup.Key">
+                                                @foreach (var busStop in cityGroup.OrderBy(x => x.NVCHR_STOP_WARD).ThenBy(x => x.NVCHR_STOP_NAME))
+                                                {
+                                                    if (employeeRoute?.INT_RETURN_STOP_ID == busStop.ID)
+                                                    {
+                                                        <option value="@busStop.ID" selected>@Model.GetBusStopDisplayName(busStop.ID)</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@busStop.ID">@Model.GetBusStopDisplayName(busStop.ID)</option>
+                                                    }
+                                                }
+                                            </optgroup>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Tuyến xe chiều đi</label>
+                                    <select class="form-select js-pickup-route-assign-select" name="PickupRouteAssignId" data-selected="">
                                         <option value="">-- Chọn tuyến xe --</option>
                                     </select>
                                 </div>
+                                <div class="col-12 col-md-6 js-return-route-container" style="display: none;">
+                                    <label class="form-label">Tuyến xe chiều về</label>
+                                    <select class="form-select js-return-route-assign-select" name="ReturnRouteAssignId" data-selected="">
+                                        <option value="">-- Chọn tuyến xe --</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Lượt chiều đi</label>
+                                    <select class="form-select js-pickup-turn-select" name="PickupTurn">
+                                        <option value="">-- Tự động xác định --</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6 js-return-turn-container" style="display: none;">
+                                    <label class="form-label">Lượt chiều về</label>
+                                    <select class="form-select js-return-turn-select" name="ReturnTurn">
+                                        <option value="">-- Tự động xác định --</option>
+                                    </select>
+                                </div>
+                                <!-- Legacy fields for backward compatibility -->
+                                <input type="hidden" name="BusStopId" class="js-legacy-bus-stop-id" />
+                                <input type="hidden" name="RouteAssignId" class="js-legacy-route-assign-id" />
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -677,6 +798,9 @@
                 var normalizedValue = normalizeText(value);
                 if (!normalizedValue) {
                     selectEl.value = '';
+                    if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.select2 === 'function') {
+                        try { window.jQuery(selectEl).val('').trigger('change'); } catch (e) { }
+                    }
                     return;
                 }
 
@@ -693,14 +817,50 @@
                 }
 
                 if (matchedOption) {
-                    selectEl.value = matchedOption.value;
+                    // Prefer select2 if available
+                    if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.select2 === 'function' && selectEl.classList.contains('selectpicker')) {
+                        var $select = window.jQuery(selectEl);
+                        try { $select.val(matchedOption.value).trigger('change'); } catch (e) { selectEl.value = matchedOption.value; }
+                    } else {
+                        selectEl.value = matchedOption.value;
+                    }
                 }
 
+                // If selectpicker library is still used, refresh it as fallback
                 if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.selectpicker === 'function' && selectEl.classList.contains('selectpicker')) {
-                    var $select = window.jQuery(selectEl);
-                    $select.selectpicker('render');
-                    $select.selectpicker('refresh');
+                    var $sp = window.jQuery(selectEl);
+                    try { $sp.selectpicker('render'); $sp.selectpicker('refresh'); } catch (e) { }
                 }
+            }
+
+            function initSelect2(container) {
+                if (!window.jQuery || typeof window.jQuery.fn.select2 !== 'function') return;
+                var $container = container ? window.jQuery(container) : window.jQuery(document);
+                $container.find('.selectpicker').each(function () {
+                    var $el = window.jQuery(this);
+                    if ($el.data('select2')) return;
+                    try {
+                        // If inside a modal, use the modal's .modal-content as dropdownParent to avoid focus/scroll issues
+                        var $modal = $el.closest('.modal');
+                        var $dropdownParent = ($modal && $modal.length) ? $modal.find('.modal-content').first() : window.jQuery(document.body);
+                        $el.select2({
+                            width: '100%',
+                            theme: (window.jQuery.fn.select2.defaults && window.jQuery.fn.select2.defaults.theme) ? window.jQuery.fn.select2.defaults.theme : 'classic',
+                            dropdownParent: $dropdownParent
+                        });
+                        // ensure the search input in dropdown is focusable inside modals
+                        $el.on('select2:open', function () {
+                            try {
+                                var $search = window.jQuery('.select2-container--open .select2-search__field');
+                                if ($search && $search.length) {
+                                    $search.first().focus();
+                                }
+                            } catch (e) { }
+                        });
+                    } catch (e) {
+                        // ignore
+                    }
+                });
             }
 
             function buildWardOptions(wardSelect, cityName, selectedWardName) {
@@ -774,13 +934,8 @@
 
             document.querySelectorAll('form').forEach(function (form) {
                 wireCityWardSelect(form);
-            });
-
-            document.querySelectorAll('form.js-post-form').forEach(function (form) {
-                form.addEventListener('submit', function () {
-                    ensureAntiForgery(form);
-                    showLoading();
-                });
+                // initialize select2 on form if available
+                try { initSelect2(form); } catch (e) { }
             });
 
             document.querySelectorAll('form.js-search-form').forEach(function (form) {
@@ -826,6 +981,210 @@
                 }
             }
 
+            async function fillPickupRouteOptions(form) {
+                if (!form) return;
+                var pickupRouteSelect = form.querySelector('.js-pickup-route-assign-select');
+                if (!pickupRouteSelect) return;
+
+                var pickupStopSelect = form.querySelector('select.js-pickup-busstop-select');
+                var pickupStopId = pickupStopSelect ? (pickupStopSelect.value || '') : '';
+                var selected = pickupRouteSelect.getAttribute('data-selected') || pickupRouteSelect.value || '';
+
+                if (pickupRouteSelect._abortCtrl) {
+                    pickupRouteSelect._abortCtrl.abort();
+                }
+                var controller = new AbortController();
+                pickupRouteSelect._abortCtrl = controller;
+
+                pickupRouteSelect.innerHTML = '<option value="">-- Chọn tuyến xe --</option>';
+                try {
+                    var response = await fetch(
+                        '@Url.Action("GetActiveRouteAssignOptions", "EmployeeBus")?busStopId=' + encodeURIComponent(pickupStopId),
+                        { signal: controller.signal }
+                    );
+                    if (!response.ok) return;
+                    var items = await response.json();
+
+                    if (pickupRouteSelect._abortCtrl !== controller) return;
+
+                    (items || []).forEach(function (item) {
+                        var opt = document.createElement('option');
+                        opt.value = item.id;
+                        opt.textContent = item.displayName;
+                        if (selected && String(item.id) === String(selected)) {
+                            opt.selected = true;
+                        }
+                        pickupRouteSelect.appendChild(opt);
+                    });
+                    pickupRouteSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.warn('Cannot load pickup route assign options', err);
+                    }
+                }
+            }
+
+            async function fillReturnRouteOptions(form) {
+                if (!form) return;
+                var returnRouteSelect = form.querySelector('.js-return-route-assign-select');
+                if (!returnRouteSelect) return;
+
+                var returnStopSelect = form.querySelector('select.js-return-busstop-select');
+                var returnStopId = returnStopSelect ? (returnStopSelect.value || '') : '';
+                var selected = returnRouteSelect.getAttribute('data-selected') || returnRouteSelect.value || '';
+
+                // Huỷ request trước đó (nếu còn đang chạy) để tránh nó ghi đè kết quả mới
+                if (returnRouteSelect._abortCtrl) {
+                    returnRouteSelect._abortCtrl.abort();
+                }
+                var controller = new AbortController();
+                returnRouteSelect._abortCtrl = controller;
+
+                returnRouteSelect.innerHTML = '<option value="">-- Chọn tuyến xe --</option>';
+                try {
+                    var response = await fetch(
+                        '@Url.Action("GetActiveRouteAssignOptions", "EmployeeBus")?busStopId=' + encodeURIComponent(returnStopId),
+                        { signal: controller.signal }
+                    );
+                    if (!response.ok) return;
+                    var items = await response.json();
+
+                    // Nếu trong lúc chờ, đã có 1 request mới hơn được gửi -> bỏ qua kết quả cũ này
+                    if (returnRouteSelect._abortCtrl !== controller) return;
+
+                    (items || []).forEach(function (item) {
+                        var opt = document.createElement('option');
+                        opt.value = item.id;
+                        opt.textContent = item.displayName;
+                        if (selected && String(item.id) === String(selected)) {
+                            opt.selected = true;
+                        }
+                        returnRouteSelect.appendChild(opt);
+                    });
+                    returnRouteSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.warn('Cannot load return route assign options', err);
+                    }
+                }
+            }
+
+            async function fillPickupTurnOptions(form) {
+                if (!form) return;
+                var pickupTurnSelect = form.querySelector('.js-pickup-turn-select');
+                if (!pickupTurnSelect) return;
+
+                var pickupStopSelect = form.querySelector('select.js-pickup-busstop-select');
+                var pickupRouteSelect = form.querySelector('.js-pickup-route-assign-select');
+                var pickupStopId = pickupStopSelect ? (pickupStopSelect.value || '') : '';
+                var pickupRouteId = pickupRouteSelect ? (pickupRouteSelect.value || '') : '';
+                var selectedTurn = pickupTurnSelect.getAttribute('data-selected-turn') || '';
+
+                if (pickupTurnSelect._abortCtrl) {
+                    pickupTurnSelect._abortCtrl.abort();
+                }
+                var controller = new AbortController();
+                pickupTurnSelect._abortCtrl = controller;
+
+                pickupTurnSelect.innerHTML = '<option value="">-- Tự động xác định --</option>';
+
+                if (!pickupStopId || !pickupRouteId) {
+                    console.log('[fillPickupTurnOptions] Missing pickupStopId or pickupRouteId', { pickupStopId, pickupRouteId });
+                    return;
+                }
+
+                try {
+                    var response = await fetch(
+                        '@Url.Action("GetBusStopTurns", "EmployeeBus")?' +
+                        'routeAssignId=' + encodeURIComponent(pickupRouteId) +
+                        '&busStopId=' + encodeURIComponent(pickupStopId) +
+                        '&direction=1',
+                        { signal: controller.signal }
+                    );
+                    if (!response.ok) {
+                        console.warn('[fillPickupTurnOptions] Response not ok:', response.status);
+                        return;
+                    }
+                    var items = await response.json();
+
+                    if (pickupTurnSelect._abortCtrl !== controller) return;
+
+                    console.log('[fillPickupTurnOptions] Loaded turns:', items, 'selectedTurn:', selectedTurn);
+                    (items || []).forEach(function (item) {
+                        var opt = document.createElement('option');
+                        opt.value = item.turn;
+                        opt.textContent = 'Lượt ' + item.turn + (item.turnName ? ' - ' + item.turnName : '');
+                        if (selectedTurn && String(item.turn) === String(selectedTurn)) {
+                            opt.selected = true;
+                        }
+                        pickupTurnSelect.appendChild(opt);
+                    });
+                    pickupTurnSelect.removeAttribute('data-selected-turn');
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.warn('[fillPickupTurnOptions] Error:', err);
+                    }
+                }
+            }
+
+            async function fillReturnTurnOptions(form) {
+                if (!form) return;
+                var returnTurnSelect = form.querySelector('.js-return-turn-select');
+                if (!returnTurnSelect) return;
+
+                var returnStopSelect = form.querySelector('select.js-return-busstop-select');
+                var returnRouteSelect = form.querySelector('.js-return-route-assign-select');
+                var returnStopId = returnStopSelect ? (returnStopSelect.value || '') : '';
+                var returnRouteId = returnRouteSelect ? (returnRouteSelect.value || '') : '';
+                var selectedTurn = returnTurnSelect.getAttribute('data-selected-turn') || '';
+
+                if (returnTurnSelect._abortCtrl) {
+                    returnTurnSelect._abortCtrl.abort();
+                }
+                var controller = new AbortController();
+                returnTurnSelect._abortCtrl = controller;
+
+                returnTurnSelect.innerHTML = '<option value="">-- Tự động xác định --</option>';
+
+                if (!returnStopId || !returnRouteId) {
+                    console.log('[fillReturnTurnOptions] Missing returnStopId or returnRouteId', { returnStopId, returnRouteId });
+                    return;
+                }
+
+                try {
+                    var response = await fetch(
+                        '@Url.Action("GetBusStopTurns", "EmployeeBus")?' +
+                        'routeAssignId=' + encodeURIComponent(returnRouteId) +
+                        '&busStopId=' + encodeURIComponent(returnStopId) +
+                        '&direction=2',
+                        { signal: controller.signal }
+                    );
+                    if (!response.ok) {
+                        console.warn('[fillReturnTurnOptions] Response not ok:', response.status);
+                        return;
+                    }
+                    var items = await response.json();
+
+                    if (returnTurnSelect._abortCtrl !== controller) return;
+
+                    console.log('[fillReturnTurnOptions] Loaded turns:', items, 'selectedTurn:', selectedTurn);
+                    (items || []).forEach(function (item) {
+                        var opt = document.createElement('option');
+                        opt.value = item.turn;
+                        opt.textContent = 'Lượt ' + item.turn + (item.turnName ? ' - ' + item.turnName : '');
+                        if (selectedTurn && String(item.turn) === String(selectedTurn)) {
+                            opt.selected = true;
+                        }
+                        returnTurnSelect.appendChild(opt);
+                    });
+                    returnTurnSelect.removeAttribute('data-selected-turn');
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.warn('[fillReturnTurnOptions] Error:', err);
+                    }
+                }
+            }
+
             function wireRouteAssignByStop(form) {
                 if (!form) return;
                 var busStopSelect = form.querySelector('select[name="BusStopId"]');
@@ -841,7 +1200,8 @@
                     });
 
                     if (window.jQuery) {
-                        window.jQuery(busStopSelect).on('changed.bs.select', function () {
+                        // support select2/selectpicker by listening to change
+                        window.jQuery(busStopSelect).off('change.routeByStop').on('change.routeByStop', function () {
                             routeSelect.setAttribute('data-selected', '');
                             fillRouteAssignOptions(form);
                         });
@@ -849,9 +1209,229 @@
                 }
             }
 
-            document.querySelectorAll('#createEmployeeBusModal form, [id^="editEmployeeBusModal-"] form').forEach(function (form) {
+            function wirePickupReturnStopAndRoute(form) {
+                if (!form) return;
+
+                var pickupStopSelect = form.querySelector('select.js-pickup-busstop-select');
+                var returnStopSelect = form.querySelector('select.js-return-busstop-select');
+                var pickupRouteSelect = form.querySelector('.js-pickup-route-assign-select');
+                var returnRouteSelect = form.querySelector('.js-return-route-assign-select');
+                var pickupTurnSelect = form.querySelector('.js-pickup-turn-select');
+                var returnTurnSelect = form.querySelector('.js-return-turn-select');
+                var sameStopRouteToggle = form.querySelector('.js-same-stop-route-toggle');
+                var returnStopContainer = form.querySelector('.js-return-stop-container');
+                var returnRouteContainer = form.querySelector('.js-return-route-container');
+                var returnTurnContainer = form.querySelector('.js-return-turn-container');
+                var legacyBusStopInput = form.querySelector('.js-legacy-bus-stop-id');
+                var legacyRouteInput = form.querySelector('.js-legacy-route-assign-id');
+
+                if (!pickupStopSelect || !pickupRouteSelect) return;
+
+                function updateVisibility() {
+                    var useSame = sameStopRouteToggle ? sameStopRouteToggle.checked : true;
+                    if (returnStopContainer) returnStopContainer.style.display = useSame ? 'none' : 'block';
+                    if (returnRouteContainer) returnRouteContainer.style.display = useSame ? 'none' : 'block';
+                    if (returnTurnContainer) returnTurnContainer.style.display = useSame ? 'none' : 'block';
+
+                    if (useSame) {
+                        if (returnStopSelect) returnStopSelect.value = pickupStopSelect.value;
+                        if (returnRouteSelect) returnRouteSelect.value = pickupRouteSelect.value;
+                        if (returnTurnSelect) returnTurnSelect.value = pickupTurnSelect ? (pickupTurnSelect.value || '') : '';
+                    }
+                }
+
+                function updateLegacyFields() {
+                    var useSame = sameStopRouteToggle ? sameStopRouteToggle.checked : true;
+                    if (legacyBusStopInput) {
+                        legacyBusStopInput.value = pickupStopSelect.value || '';
+                    }
+                    if (legacyRouteInput) {
+                        legacyRouteInput.value = (useSame ? pickupRouteSelect.value : returnRouteSelect.value) || '';
+                    }
+                }
+
+                // Initial setup - load routes first
+                fillPickupRouteOptions(form);
+                fillReturnRouteOptions(form);
+                updateVisibility();
+                updateLegacyFields();
+
+                // Auto-detect if using same stop and route (don't need to do again as it was set in populateEditModalFromRoute)
+
+                // Handle pickup stop change
+                if (window.jQuery) {
+                    window.jQuery(pickupStopSelect).off('change.pickupStop').on('change.pickupStop', function () {
+                        fillPickupRouteOptions(form);
+                        fillPickupTurnOptions(form);
+                        updateVisibility();
+                        updateLegacyFields();
+                    });
+                } else {
+                    pickupStopSelect.addEventListener('change', function () {
+                        fillPickupRouteOptions(form);
+                        fillPickupTurnOptions(form);
+                        updateVisibility();
+                        updateLegacyFields();
+                    });
+                }
+
+                // Handle return stop change
+                if (returnStopSelect) {
+                    if (window.jQuery) {
+                        window.jQuery(returnStopSelect).off('change.returnStop').on('change.returnStop', function () {
+                            fillReturnRouteOptions(form);
+                            fillReturnTurnOptions(form);
+                            updateLegacyFields();
+                        });
+                    } else {
+                        returnStopSelect.addEventListener('change', function () {
+                            fillReturnRouteOptions(form);
+                            fillReturnTurnOptions(form);
+                            updateLegacyFields();
+                        });
+                    }
+                }
+
+                // Handle pickup route change
+                window.jQuery(pickupRouteSelect).off('change.routeWire').on('change.routeWire', function () {
+                    fillPickupTurnOptions(form);
+                    updateVisibility();
+                    updateLegacyFields();
+                });
+
+                // Handle return route change
+                if (returnRouteSelect) {
+                    window.jQuery(returnRouteSelect).off('change.returnRouteWire').on('change.returnRouteWire', function () {
+                        fillReturnTurnOptions(form);
+                        updateLegacyFields();
+                    });
+                }
+
+                // Handle same stop/route toggle
+                if (sameStopRouteToggle) {
+                    window.jQuery(sameStopRouteToggle).off('change.routeWire').on('change.routeWire', function () {
+                        updateVisibility();
+                        updateLegacyFields();
+                    });
+                }
+
+                // Handle same stop/route toggle
+                if (sameStopRouteToggle) {
+                    sameStopRouteToggle.removeEventListener('change', arguments.callee);
+                    sameStopRouteToggle.addEventListener('change', function () {
+                        updateVisibility();
+                        updateLegacyFields();
+                    });
+                }
+
+                // After a delay, load turn options (to ensure routes have been loaded)
+                setTimeout(function () {
+                    fillPickupTurnOptions(form);
+                    fillReturnTurnOptions(form);
+                }, 300);
+            }
+
+            document.querySelectorAll('#createEmployeeBusModal form').forEach(function (form) {
+                try { initSelect2(form); } catch (e) { }
                 wireRouteAssignByStop(form);
+                wirePickupReturnStopAndRoute(form);
             });
+
+            function populateEditModalFromRoute(form) {
+                if (!form) return;
+
+                var pickupStopInput = form.querySelector('.js-route-data-pickup-stop');
+                var returnStopInput = form.querySelector('.js-route-data-return-stop');
+                var pickupRouteInput = form.querySelector('.js-route-data-pickup-route');
+                var returnRouteInput = form.querySelector('.js-route-data-return-route');
+                var pickupTurnInput = form.querySelector('.js-route-data-pickup-turn');
+                var returnTurnInput = form.querySelector('.js-route-data-return-turn');
+
+                if (!pickupStopInput) return;
+
+                var pickupStopId = parseInt(pickupStopInput.value || '0', 10);
+                var returnStopId = parseInt(returnStopInput.value || '0', 10);
+                var pickupRouteId = parseInt(pickupRouteInput.value || '0', 10);
+                var returnRouteId = parseInt(returnRouteInput.value || '0', 10);
+                var pickupTurn = pickupTurnInput.value || '';
+                var returnTurn = returnTurnInput.value || '';
+
+                // Only populate if there's valid route data
+                if (pickupStopId <= 0 && pickupRouteId <= 0) return;
+
+                var pickupStopSelect = form.querySelector('select.js-pickup-busstop-select');
+                var returnStopSelect = form.querySelector('select.js-return-busstop-select');
+                var pickupRouteSelect = form.querySelector('.js-pickup-route-assign-select');
+                var returnRouteSelect = form.querySelector('.js-return-route-assign-select');
+                var pickupTurnSelect = form.querySelector('.js-pickup-turn-select');
+                var returnTurnSelect = form.querySelector('.js-return-turn-select');
+                var sameStopRouteToggle = form.querySelector('.js-same-stop-route-toggle');
+
+                // Determine if using same stop/route
+                var isSameStopRoute = (pickupStopId === returnStopId && pickupRouteId === returnRouteId);
+
+                // Set checkbox state FIRST
+                if (sameStopRouteToggle) {
+                    sameStopRouteToggle.checked = isSameStopRoute;
+                }
+
+                // Set pickup stop and trigger change event
+                if (pickupStopId > 0 && pickupStopSelect) {
+                    if (window.jQuery && typeof window.jQuery.fn.select2 === 'function') {
+                        var $pickupStop = window.jQuery(pickupStopSelect);
+                        try { $pickupStop.val(pickupStopId.toString()).trigger('change'); } catch (e) { pickupStopSelect.value = pickupStopId.toString(); }
+                    } else {
+                        pickupStopSelect.value = pickupStopId.toString();
+                    }
+                }
+
+                // Set return stop (always set it, visibility is controlled by toggle)
+                if (returnStopId > 0 && returnStopSelect) {
+                    if (window.jQuery && typeof window.jQuery.fn.select2 === 'function') {
+                        var $returnStop = window.jQuery(returnStopSelect);
+                        try { $returnStop.val(returnStopId.toString()).trigger('change'); } catch (e) { returnStopSelect.value = returnStopId.toString(); }
+                    } else {
+                        returnStopSelect.value = returnStopId.toString();
+                    }
+                }
+
+                // Set pickup route and store IDs for async loading; turns stored for later
+                if (pickupRouteId > 0 && pickupRouteSelect) {
+                    pickupRouteSelect.setAttribute('data-selected', pickupRouteId.toString());
+                    if (pickupTurn) {
+                        pickupTurnSelect.setAttribute('data-selected-turn', pickupTurn);
+                    }
+                }
+
+                // Set return route and store IDs for async loading; turns stored for later
+                if (returnRouteId > 0 && returnRouteSelect) {
+                    returnRouteSelect.setAttribute('data-selected', returnRouteId.toString());
+                    if (returnTurn) {
+                        returnTurnSelect.setAttribute('data-selected-turn', returnTurn);
+                    }
+                }
+            }
+
+            function wireEditModalShow() {
+                document.querySelectorAll('[id^="editEmployeeBusModal-"]').forEach(function (modal) {
+                    modal.addEventListener('show.bs.modal', function () {
+                        var form = modal.querySelector('form');
+                        if (!form) return;
+
+                        // First populate the data
+                        populateEditModalFromRoute(form);
+                        // initialize select2 for this form (if available)
+                        try { initSelect2(form); } catch (e) { }
+                        // Then after a delay, trigger the wiring and load route/turn options
+                        setTimeout(function () {
+                            wirePickupReturnStopAndRoute(form);
+                        }, 150);
+                    });
+                });
+            }
+
+            wireEditModalShow();
+
 
             async function loadRouteCapacities() {
                 var container = document.getElementById('employeeRouteCapacityContainer');
@@ -1048,29 +1628,22 @@
                             }
                         }
 
-                        if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.selectpicker === 'function' && departmentInput.tagName === 'SELECT') {
-                            var $department = window.jQuery(departmentInput);
-                            console.log('selectpicker before set value:', $department.val(), 'initialized:', !!$department.data('selectpicker'));
-
-                            departmentInput.value = departmentCode;
-                            if ($department.data('selectpicker')) {
-                                $department.selectpicker('val', departmentCode);
-                                $department.selectpicker('render');
-                                $department.selectpicker('refresh');
-                                $department.trigger('changed.bs.select');
-                            }
-
-                            var selectedAfter = ($department.val() || '').toString();
-                            console.log('selectpicker after set value:', selectedAfter);
-
-                            if (!selectedAfter && departmentCode) {
+                        if (departmentInput.tagName === 'SELECT') {
+                            var $department = window.jQuery ? window.jQuery(departmentInput) : null;
+                            if ($department && typeof $department.select2 === 'function') {
+                                try {
+                                    $department.val(departmentCode).trigger('change');
+                                } catch (e) {
+                                    departmentInput.value = departmentCode;
+                                }
+                            } else if ($department && typeof $department.selectpicker === 'function') {
                                 departmentInput.value = departmentCode;
-                                $department.selectpicker('refresh');
-                                console.log('selectpicker fallback native assign:', departmentInput.value);
+                                try { $department.selectpicker('val', departmentCode); $department.selectpicker('render'); $department.selectpicker('refresh'); $department.trigger('changed.bs.select'); } catch (e) { }
+                            } else {
+                                departmentInput.value = departmentCode;
                             }
                         } else {
                             departmentInput.value = departmentCode;
-                            console.log('native select assigned value:', departmentInput.value);
                         }
                     }
                     if (phoneInput) phoneInput.value = result.data.phone || '';

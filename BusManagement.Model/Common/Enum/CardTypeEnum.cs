@@ -2,7 +2,7 @@
 {
     public enum CardTypeEnum
     {
-        Bus = 0,
-        Taxi = 1,
+        Bus = 1,
+        Taxi = 2,
     }
 }

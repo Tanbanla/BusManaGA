@@ -1,4 +1,4 @@
-using BusManagement.Model.Dtos;
+﻿using BusManagement.Model.Dtos;
 using BusManagement.Model.Dtos;
 
 namespace BusManagement.ViewModels.EmployeeBus;
@@ -22,6 +22,8 @@ public class EmployeeBusPageViewModel
 
     public List<TM_EMPLOYEEDTO> Employees { get; set; } = new();
     public List<TM_BUS_STOPDTO> BusStops { get; set; } = new();
+    public Dictionary<int, TM_BUS_STOPDTO> BusStopMapForRouteDisplay { get; set; } = new();
+    public List<TM_EMPLOYEE_ROUTEDTO> EmployeeRoutes { get; set; } = new();
     public List<EmployeeRouteAssignLookupItem> RouteAssignOptions { get; set; } = new();
     public Dictionary<int, string> PickupRouteMap { get; set; } = new();
     public Dictionary<int, string> ReturnRouteMap { get; set; } = new();
@@ -82,6 +84,52 @@ public class EmployeeBusPageViewModel
         return busStop.NVCHR_STOP_NAME
             ?? busStop.NVCHR_STOP_NAME
             ?? string.Empty;
+    }
+
+    public string GetEmployeeRouteStopsDisplay(int employeeId)
+    {
+        var route = EmployeeRoutes.FirstOrDefault(x => x.INT_EMPLOYEE_ID == employeeId && x.BIT_IS_ACTIVE);
+        if (route == null)
+        {
+            return "-";
+        }
+
+        var pickupStopName = GetBusStopDisplayName(route.INT_PICKUP_STOP_ID);
+        var returnStopName = GetBusStopDisplayName(route.INT_RETURN_STOP_ID);
+
+        if (string.IsNullOrWhiteSpace(pickupStopName) && string.IsNullOrWhiteSpace(returnStopName))
+        {
+            return "-";
+        }
+
+        if (string.Equals(pickupStopName, returnStopName, StringComparison.OrdinalIgnoreCase))
+        {
+            return pickupStopName;
+        }
+
+        return $"Đón: {pickupStopName} / Trả: {returnStopName}";
+    }
+
+    public string GetEmployeePickupRouteDisplay(int employeeId)
+    {
+        var route = EmployeeRoutes.FirstOrDefault(x => x.INT_EMPLOYEE_ID == employeeId && x.BIT_IS_ACTIVE);
+        if (route == null || !route.INT_ROUTE_ASSIGN_PICKUP_ID.HasValue)
+        {
+            return "-";
+        }
+
+        return GetPickupRouteDisplay(route.INT_ROUTE_ASSIGN_PICKUP_ID);
+    }
+
+    public string GetEmployeeReturnRouteDisplay(int employeeId)
+    {
+        var route = EmployeeRoutes.FirstOrDefault(x => x.INT_EMPLOYEE_ID == employeeId && x.BIT_IS_ACTIVE);
+        if (route == null || !route.INT_ROUTE_ASSIGN_RETURN_ID.HasValue)
+        {
+            return "-";
+        }
+
+        return GetReturnRouteDisplay(route.INT_ROUTE_ASSIGN_RETURN_ID);
     }
 }
 

@@ -470,18 +470,44 @@
                                 @foreach (var assign in Model.RouteAssigns)
                                 {
                                     var pickupRoute = assign.PickupStops.Any()
-                                        ? string.Join(" - ", assign.PickupStops.Select(s =>
-                                            $"({s.PickupTime?.ToString(@"hh\:mm")}) {s.StopName}"))
-                                        : assign.PickupRouteName ?? "—";
+                                    ? string.Join(" - ", assign.PickupStops.Select(s =>
+                                    $"{(s.PickupTime.HasValue ? $"({s.PickupTime.Value:hh\\:mm}) " : "")}{s.StopName}"))
+                                    : assign.PickupRouteName ?? "—";
 
                                     var returnRoute = assign.ReturnStops.Any()
-                                        ? string.Join(" - ", assign.ReturnStops.Select(s =>
-                                            $"({s.PickupTime?.ToString(@"hh\:mm")}) {s.StopName}"))
-                                        : assign.ReturnRouteName ?? "—";
+                                    ? string.Join(" - ", assign.ReturnStops.Select(s =>
+                                    $"{(s.PickupTime.HasValue ? $"({s.PickupTime.Value:hh\\:mm}) " : "")}{s.StopName}"))
+                                    : assign.ReturnRouteName ?? "—";
+
+                                    var returnGroups = assign.ReturnStops.Any()
+                                        ? assign.ReturnStops.GroupBy(s => s.Turn ?? 1).OrderBy(g => g.Key)
+                                        : null;
                                     <tr data-assign-id="@assign.ID">
-                                        <td class="fw-semibold text-primary">@assign.BusCode</td>
+                                        <td class="fw-semibold text-primary">@assign.BusRouteAssignWorkingName</td>
                                         <td>@pickupRoute</td>
-                                        <td>@returnRoute</td>
+                                        <td>
+                                            @if (returnGroups != null)
+                                            {
+                                                var showTurnName = returnGroups.Count() > 1;
+
+                                                foreach (var g in returnGroups)
+                                                {
+                                                    if (showTurnName)
+                                                    {
+                                                        var turnName = g.FirstOrDefault()?.TurnName ?? ("Lượt " + g.Key);
+                                                        <div><strong>@turnName</strong></div>
+                                                    }
+
+                                                    <div>
+                                                        @string.Join(" - ", g.OrderBy(s => s.Order).Select(s => $"{(s.PickupTime.HasValue ? $"({s.PickupTime.Value:hh\\:mm}) " : "")}{s.StopName}"))
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                @(assign.ReturnRouteName ?? "—")
+                                            }
+                                        </td>
                                         <td class="text-center">@assign.BusCapacity</td>
                                         <td>@assign.DriverName</td>
                                         <td>@assign.DriverPhone</td>
@@ -713,6 +739,10 @@
                         <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
 
                         <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Tên lộ trình <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="BusRouteAssignWorkingName" value="@Model.BusRouteAssignWorkingName" />
+                            </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Chọn xe <span class="text-danger">*</span></label>
                                 <select class="form-select" name="BusId" id="createBusId" required>
@@ -783,6 +813,10 @@
                             <input type="hidden" name="SearchIsActive" value="@Model.IsActive" />
 
                             <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Tên lộ trình <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="BusRouteAssignWorkingName" value="@assign.BusRouteAssignWorkingName" />
+                                </div>
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Chọn xe <span class="text-danger">*</span></label>
                                     <select class="form-select" name="BusId" required>

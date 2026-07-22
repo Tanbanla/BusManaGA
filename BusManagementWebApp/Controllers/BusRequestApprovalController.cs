@@ -708,7 +708,7 @@ public class BusRequestApprovalController : Controller
         var employeeCode = request.CHR_EMPLOYEE_ID.Trim();
         var activeRoute = await GetCurrentActiveEmployeeRouteAsync(employeeCode);
 
-        var oldRouteAssignId = activeRoute?.INT_ROUTE_ASSIGN_ID;
+        var oldRouteAssignId = activeRoute?.INT_ROUTE_ASSIGN_PICKUP_ID;
         var oldPickupStopId = activeRoute?.INT_PICKUP_STOP_ID;
         var oldReturnStopId = activeRoute?.INT_RETURN_STOP_ID;
 
@@ -738,8 +738,8 @@ public class BusRequestApprovalController : Controller
             INT_EMPLOYEE_ID = employeeId,
             CHR_EMPLOYEE_ID = employeeCode,
             INT_REQUEST_ID = request.ID,
-            INT_OLD_ROUTE_ASSIGN_ID = oldRouteAssignId,
-            INT_NEW_ROUTE_ASSIGN_ID = newRouteAssignId,
+            INT_OLD_ROUTE_ASSIGN_PICKUP_ID = oldRouteAssignId,
+            INT_NEW_ROUTE_ASSIGN_PICKUP_ID = newRouteAssignId,
             INT_OLD_PICKUP_STOP_ID = oldPickupStopId,
             INT_NEW_PICKUP_STOP_ID = newPickupStopId,
             INT_OLD_RETURN_STOP_ID = oldReturnStopId,
@@ -763,7 +763,8 @@ public class BusRequestApprovalController : Controller
                     DTM_UPDATE = DateTime.Now,
                     INT_EMPLOYEE_ID = activeRoute.INT_EMPLOYEE_ID,
                     CHR_EMPLOYEE_ID = activeRoute.CHR_EMPLOYEE_ID,
-                    INT_ROUTE_ASSIGN_ID = activeRoute.INT_ROUTE_ASSIGN_ID,
+                    INT_ROUTE_ASSIGN_PICKUP_ID = activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID,
+                    INT_ROUTE_ASSIGN_RETURN_ID = activeRoute.INT_ROUTE_ASSIGN_RETURN_ID,
                     INT_PICKUP_STOP_ID = activeRoute.INT_PICKUP_STOP_ID,
                     INT_RETURN_STOP_ID = activeRoute.INT_RETURN_STOP_ID,
                     DTM_EFFECTIVE_FROM = activeRoute.DTM_EFFECTIVE_FROM,
@@ -771,7 +772,7 @@ public class BusRequestApprovalController : Controller
                     BIT_IS_ACTIVE = false
                 });
 
-                await AdjustRouteAssignCurrentUserAsync(activeRoute.INT_ROUTE_ASSIGN_ID, -1, actor);
+                await AdjustRouteAssignCurrentUserAsync((int)activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID, -1, actor);
             }
 
             return null;
@@ -784,7 +785,7 @@ public class BusRequestApprovalController : Controller
             {
                 INT_EMPLOYEE_ID = employeeId,
                 CHR_EMPLOYEE_ID = employeeCode,
-                INT_ROUTE_ASSIGN_ID = newRouteAssignId!.Value,
+                INT_ROUTE_ASSIGN_PICKUP_ID = newRouteAssignId!.Value,
                 INT_PICKUP_STOP_ID = newPickupStopId!.Value,
                 INT_RETURN_STOP_ID = newReturnStopId ?? newPickupStopId.Value,
                 DTM_EFFECTIVE_FROM = effectiveFrom,
@@ -799,7 +800,7 @@ public class BusRequestApprovalController : Controller
         }
         else
         {
-            var sameRoute = activeRoute.INT_ROUTE_ASSIGN_ID == newRouteAssignId
+            var sameRoute = activeRoute.INT_ROUTE_ASSIGN_PICKUP_ID == newRouteAssignId
                 && activeRoute.INT_PICKUP_STOP_ID == newPickupStopId
                 && activeRoute.INT_RETURN_STOP_ID == (newReturnStopId ?? newPickupStopId);
 
@@ -812,7 +813,7 @@ public class BusRequestApprovalController : Controller
                 DTM_UPDATE = DateTime.Now,
                 INT_EMPLOYEE_ID = activeRoute.INT_EMPLOYEE_ID,
                 CHR_EMPLOYEE_ID = activeRoute.CHR_EMPLOYEE_ID,
-                INT_ROUTE_ASSIGN_ID = newRouteAssignId!.Value,
+                INT_ROUTE_ASSIGN_PICKUP_ID = newRouteAssignId!.Value,
                 INT_PICKUP_STOP_ID = newPickupStopId!.Value,
                 INT_RETURN_STOP_ID = newReturnStopId ?? newPickupStopId.Value,
                 DTM_EFFECTIVE_FROM = effectiveFrom,

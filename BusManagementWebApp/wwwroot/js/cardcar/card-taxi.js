@@ -12,6 +12,9 @@
     const getListCardUrl = cardRoot.dataset.listcardUrl;
     const addCardUrl = cardRoot.dataset.saveborrowUrl;
     const listBorrowingUrl = cardRoot.dataset.listborrowingUrl;
+    const addUsageUrl = cardRoot.dataset.addcardusageUrl;
+    const updateUsageUrl = cardRoot.dataset.updatecardusageUrl;
+    const detailUrl = cardRoot.dataset.detaicardusageUrl;
 
     //
     const tbody = table.querySelector('.js-taxi-tbody');
@@ -121,7 +124,7 @@
             pickValue(row, ['nvchr_employee_name']) ?? '',
             pickValue(row, ['chr_code_sec']) ?? '',
             formatDate(pickValue(row, ['dtm_borrow_time'])),
-            pickValue(row, ['nvchr_note']) ?? '',
+            pickValue(row, ['nvchr_reason']) ?? '',
             formatDate(pickValue(row, ['dtm_return_time'])),
             pickValue(row, ['nvchr_from_address']) ?? '',
             pickValue(row, ['nvchr_to_address']) ?? '',
@@ -221,9 +224,99 @@
         });
     };
 
-    const handleEditClick = function (e) {
+    const handleEditClick = async function (e) {
 
+        const btn = e.currentTarget;
+        const id = btn.dataset.id;
 
+        if (!id) {
+            return;
+        }
+
+        try {
+            if (!detailUrl) {
+                AppCommon.error("Không tìm thấy URL");
+                return;
+            }
+             
+            const response = await fetch(
+                `${detailUrl}?id=${encodeURIComponent(id)}`
+            );
+
+            if (!response.ok) {
+                AppCommon.error('Bug: ' + response.statusText);
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!data) {
+                AppCommon.error("Không tìm thấy dữ liệu");
+                return;
+            }
+
+            fillDetailModal(data);
+
+            const modal = document.getElementById('taxiUsageDetailModal');
+
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+
+        } catch (error) {
+            AppCommon.error("Bug: " + error.message);
+            return;
+        }
+    };
+    const fillDetailModal = (data) => {
+
+        document.getElementById("detailId").value =
+            data.ID || 0;
+
+        document.getElementById("detailEmployeeId").value =
+            data.CHR_EMPLOYEE_ID || '';
+
+        document.getElementById("detailEmployeeName").value =
+            data.NVCHR_EMPLOYEE_NAME || '';
+
+        document.getElementById("detailReason").value =
+            data.NVCHR_REASON || '';
+
+        document.getElementById("detailFromAddress").value =
+            data.NVCHR_FROM_ADDRESS || '';
+
+        document.getElementById("detailToAddress").value =
+            data.NVCHR_TO_ADDRESS || '';
+
+        document.getElementById("detailAmount").value =
+            data.INT_AMOUNT || '';
+
+        document.getElementById("detailNote").value =
+            data.NVCHR_NOTE || '';
+
+        document.getElementById("detailSectionCost").value =
+            data.CHR_SEC_COST || '';
+
+        document.getElementById("detailTranCode").value =
+            data.CHR_TRAN_CODE || '';
+
+        document.getElementById("detailNumberMove").value =
+            data.INT_NUMBER_MOVE || 1;
+
+        document.getElementById("detailBorrowId").value = data.INT_BORROW_ID || 0;
+        document.getElementById("detailCreate").value = data.CHR_USER_CREATE || 'vietdo bad';
+        document.getElementById("detailCreateTime").value = data.DTM_CREATE || null;
+
+        if (data.DTM_USE_DATE) {
+
+            const date = new Date(data.DTM_USE_DATE);
+
+            date.setMinutes(
+                date.getMinutes() - date.getTimezoneOffset()
+            );
+
+            document.getElementById("detailUseDate").value =
+                date.toISOString().slice(0, 16);
+        }
     };
 
     const handleDeleteClick = async function (e) {
@@ -331,7 +424,7 @@
 
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(errorText || 'Không thể tải dữ liệu.');
+                AppCommon.error(errorText || 'Không thể tải dữ liệu.');
             }
 
             const data = await response.json();
@@ -444,10 +537,69 @@
     document.getElementById('DownloadExcel')?.addEventListener('click', function () {
         exportCurrentData();
     });
+    document.querySelectorAll('#taxiCardTabs button[data-bs-toggle="tab"]')
+        .forEach(tab => {
+            tab.addEventListener('shown.bs.tab', function (e) {
 
-    document.getElementById('borrowEmployeeId')?.addEventListener('keydown', function (e) {
+                const target = e.target.getAttribute('data-bs-target');
+
+                if (target === '#tabBorrow') {
+                    document.getElementById('saveBorrow').style.display = '';
+                    document.getElementById('saveUsage').style.display = 'none';
+                }
+                else if (target === '#tabUsage') {
+                    document.getElementById('saveBorrow').style.display = 'none';
+                    document.getElementById('saveUsage').style.display = '';
+                }
+            });
+        });
+    // khi enter
+    document.getElementById('borrowEmployeeId')?.addEventListener('keydown', async function (e) {
+        const employeeCode = document.getElementById('borrowEmployeeId')?.value?.trim();
         if (e.key === 'Enter') {
-            loadEmployeeInfo();
+            const employeeData = await loadEmployeeInfo(employeeCode);
+            if (employeeData) {
+                document.getElementById('borrowEmployeeName').value = employeeData?.NVCHR_EMPLOYEE_NAME || '';
+                document.getElementById('borrowSection').value = employeeData?.CHR_CODE_SEC || '';
+            }
+        }
+    });
+    document.getElementById('usageEmployeeId')?.addEventListener('keydown', async function (e) {
+        const employeeCode = document.getElementById('usageEmployeeId')?.value?.trim();
+        if (e.key === 'Enter') {
+            const employeeData = await loadEmployeeInfo(employeeCode);
+            if (employeeData) {
+                document.getElementById('usageEmployeeName').value = employeeData?.NVCHR_EMPLOYEE_NAME || '';
+            }
+        }
+    });
+    // khi blur 
+    document.getElementById('borrowEmployeeId')?.addEventListener('blur', async function () {
+        const employeeCode = this.value?.trim();
+
+        if (!employeeCode) return;
+
+        const employeeData = await loadEmployeeInfo(employeeCode);
+
+        if (employeeData) {
+            document.getElementById('borrowEmployeeName').value =
+                employeeData.NVCHR_EMPLOYEE_NAME || '';
+
+            document.getElementById('borrowSection').value =
+                employeeData.CHR_CODE_SEC || '';
+        }
+    });
+
+    document.getElementById('usageEmployeeId')?.addEventListener('blur', async function () {
+        const employeeCode = this.value?.trim();
+
+        if (!employeeCode) return;
+
+        const employeeData = await loadEmployeeInfo(employeeCode);
+
+        if (employeeData) {
+            document.getElementById('usageEmployeeName').value =
+                employeeData.NVCHR_EMPLOYEE_NAME || '';
         }
     });
 
@@ -458,10 +610,20 @@
     document.getElementById('usageCardId')?.addEventListener('mousedown', function () {
         loadListCardBorrowing();
     });
-    
+
+    document.getElementById('closeModalAdd')?.addEventListener('click', function () {
+        resetModal();
+    });
+    document.getElementById('saveUpdateUsage')?.addEventListener('click', function () {
+        updateCardUsage();
+    });
 
     document.getElementById('saveBorrow')?.addEventListener('click', function () {
         addCardTaxiBorrow();
+    });
+
+    document.getElementById('saveUsage')?.addEventListener('click', function () {
+        addCardUsage();
     });
 
     const deleteDataAsync = async () => {
@@ -625,6 +787,7 @@
 
             taxiCardModal?.hide();
             performSearch();
+            resetModal();
 
         } catch (err) {
             AppCommon.error('Bug: ' + err.message);
@@ -633,16 +796,15 @@
 
     };
     // Get infor Employee 
-    const loadEmployeeInfo = async () => {
+    const loadEmployeeInfo = async (employeeCode) => {
         if (!getEmployeeUrl) {
             AppCommon.error('Không nhận được API');
-            return;
+            return null;
         }
 
-        const employeeCode = document.getElementById('borrowEmployeeId')?.value?.trim();
         if (!employeeCode) {
             AppCommon.error('Vui lòng nhập mã nhân viên.');
-            return;
+            return null;
         }
 
         try {
@@ -655,16 +817,15 @@
             });
             if (!rep.ok) {
                 AppCommon.error('Bug: ' + rep.statusText);
-                return;
+                return null;
             }
             const data = await rep.json();
 
-            document.getElementById('borrowEmployeeName').value = data?.NVCHR_EMPLOYEE_NAME || '';
-            document.getElementById('borrowSection').value = data?.CHR_CODE_SEC || '';
+            return data;
 
         } catch (err) {
             AppCommon.error('Bug: ' + err.message);
-            return;
+            return null;
         }
     };
     // Lấy dữ liệu thể taxi
@@ -736,6 +897,157 @@
             AppCommon.error('Bug: ' + err.message);
             return;
         }
+    };
+    // Lưu thông tin sử dụng thẻ taxi
+    const addCardUsage = async () => {
+        if (!addUsageUrl) {
+            AppCommon.error('Không nhận được API');
+            return;
+        }
+        const payInsert = DataInsert();
+        if(!payInsert) {
+            AppCommon.error('Vui lòng nhập đầy đủ thông tin.');
+            return;
+        }
+
+        try {
+            const rep = await fetch(addUsageUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payInsert)
+            });
+            if(!rep.ok) {
+                AppCommon.error('Bug: ' + rep.statusText);
+                return;
+            }
+            const data = await rep.json();
+
+            AppCommon.success('Thêm thông tin sử dụng thẻ taxi thành công.');
+            performSearch();
+            resetModal();
+
+            return;
+
+        } catch (err) {
+            AppCommon.error('Bug: ' + err.message);
+            return;
+        }
+    };
+
+    // Lưu thông tin chỉnh sửa sử dụng thẻ taxi
+    const updateCardUsage = async () => {
+        if (!updateUsageUrl) {
+            AppCommon.error('Không nhận được API');
+            return;
+        }
+        try {
+            const payUpdate = DataUpDateUsage();
+
+            const rep = await fetch(updateUsageUrl, {
+                method: 'POST',
+                headers: {
+                   'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payUpdate)
+            });
+
+            if(!rep.ok) {
+                AppCommon.error('Bug: ' + rep.statusText);
+                return;
+            }
+            const data = await rep.json();
+
+            AppCommon.success('Cập nhật thông tin sử dụng thẻ taxi thành công.');
+            performSearch();
+
+            return;
+
+        } catch (err) {
+            AppCommon.error('Bug: ' + err.message);
+            return;
+        }
+    };
+
+    const DataInsert = () => {
+        return {
+            INT_BORROW_ID: Number(document.getElementById('usageCardId')?.value) || 0,
+
+            CHR_EMPLOYEE_ID: document.getElementById('usageEmployeeId')?.value?.trim() || '',
+
+            NVCHR_EMPLOYEE_NAME: document.getElementById('usageEmployeeName')?.value?.trim() || '',
+
+            DTM_USE_DATE: document.getElementById('useDate')?.value || null,
+
+            NVCHR_REASON: document.getElementById('usageNote')?.value?.trim() || '',
+
+            NVCHR_FROM_ADDRESS: document.getElementById('fromAddress')?.value?.trim() || '',
+
+            NVCHR_TO_ADDRESS: document.getElementById('toAddress')?.value?.trim() || '',
+
+            INT_AMOUNT: Number(document.getElementById('amount')?.value) || 0,
+
+            INT_NUMBER_MOVE: Number(document.getElementById('numberMove')?.value) || 1,
+
+            NVCHR_NOTE: '',
+
+            CHR_SEC_COST: document.getElementById('sectionCodeUsage')?.value?.trim() || null,
+
+            CHR_TRAN_CODE: '',
+
+            BIT_DELETE: false
+        };
+    };
+
+    const DataUpDateUsage = () => {
+        return {
+            ID: Number(document.getElementById('detailId')?.value) || 0,
+            INT_BORROW_ID: Number(document.getElementById('detailBorrowId')?.value) || 0,
+            CHR_EMPLOYEE_ID: document.getElementById('detailEmployeeId')?.value?.trim() || '',
+            NVCHR_EMPLOYEE_NAME: document.getElementById('detailEmployeeName')?.value?.trim() || '',
+            //CHR_USER_CREATE: document.getElementById('detailCreate')?.value?.trim() || '',
+            //DTM_CREATE: document.getElementById('detailCreateTime')?.value || null,
+            DTM_USE_DATE: document.getElementById('detailUseDate')?.value || null,
+            CHR_SEC_COST: document.getElementById('detailSectionCost')?.value?.trim() || '',
+            NVCHR_REASON: document.getElementById('detailReason')?.value?.trim() || '',
+            NVCHR_FROM_ADDRESS: document.getElementById('detailFromAddress')?.value?.trim() || '',
+            NVCHR_TO_ADDRESS: document.getElementById('detailToAddress')?.value?.trim() || '',
+            INT_NUMBER_MOVE: Number(document.getElementById('detailNumberMove')?.value) || 1,
+            INT_AMOUNT: Number(document.getElementById('detailAmount')?.value) || 0,
+            CHR_TRAN_CODE: document.getElementById('detailTranCode')?.value?.trim() || '',
+            NVCHR_NOTE: document.getElementById('detailNote')?.value?.trim() || ''
+        };
+    };
+
+    // Reset modal khi đóng
+    const resetModal = () => {
+        // Tab mượn thẻ
+        $("#borrowCardId").val("");
+        $("#borrowEmployeeId").val("");
+        $("#borrowEmployeeName").val("");
+        $("#borrowSection").val("");
+        $("#borrowTime").val("");
+        $("#returnTime").val("");
+
+        // Tab sử dụng thẻ
+        $("#usageCardId").val("");
+        $("#usageEmployeeId").val("");
+        $("#usageEmployeeName").val("");
+        $("#usageNote").val("");
+        $("#fromAddress").val("");
+        $("#toAddress").val("");
+        $("#useDate").val("");
+        $("#numberMove").val("1");
+        $("#amount").val("");
+        $("#sectionCodeUsage").val("");
+
+        // Quay về tab đầu tiên
+        $('#taxiCardTabs .nav-link:first').tab('show');
+
+        // Hiển thị đúng nút theo tab mặc định
+        $("#saveBorrow").show();
+        $("#saveUsage").hide();
     };
 
     performSearch();
