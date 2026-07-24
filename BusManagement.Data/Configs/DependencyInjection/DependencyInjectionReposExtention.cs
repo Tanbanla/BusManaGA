@@ -31,6 +31,7 @@ namespace BusManagement.Data.Configs.DependencyInjection
             services.AddScoped<ITmApprovalHistoryRepository, TmApprovalHistoryRepository>();
             services.AddScoped<ITmTripRequestRepository, TmTripRequestRepository>();
             services.AddScoped<ITmBusOtRepository, TmBusOtRepository>();
+            services.AddScoped<ITmBusOtAssignRepository, TmBusOtAssignRepository>();
             services.AddScoped<ITmCardRepository, TmCardRepository>();
             services.AddScoped<ITmCardUsageRepository, TmCardUsageRepository>();
             services.AddScoped<ITmCardBorrowRepository, TmCardBorrowRepository>();
@@ -38,6 +39,7 @@ namespace BusManagement.Data.Configs.DependencyInjection
             services.AddScoped<ITmMasterMailRepository, TmMasterMailRepository>();
             services.AddScoped<ITmBusRequestFailedRepository, TmBusRequestFailedRepository>();
             services.AddScoped<ITmEmployeeRouteHistoryRepository, TmEmployeeRouteHistoryRepository>();
+            services.AddScoped<ITmEmployeeRouteOTRepository, TmEmployeeRouteOTRepository>();
             services.AddScoped<ITmEmployeeRouteRepository, TmEmployeeRouteRepository>();
             services.AddScoped<ITmDriverViolationRepository, TmDriverViolationRepository>();
             services.AddScoped<ITmBusEvaluationRepository, TmBusEvaluationRepository>();

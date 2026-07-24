@@ -1,5 +1,12 @@
-﻿@{
+﻿@using BusManagement.Model
+
+@model NotCardViewModel
+
+@{
     ViewData["Title"] = "Danh sách CNV chưa có thẻ";
+    var sections = ViewBag.Sections as IEnumerable<BusManagement.Model.Dtos.TM_SECTIONDTO> ?? Enumerable.Empty<BusManagement.Model.Dtos.TM_SECTIONDTO>();
+    var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
+    var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
 }
 
 <style>
@@ -10,16 +17,11 @@
         box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
     }
 
-    .notcard-card .table thead th {
-        white-space: nowrap;
-        vertical-align: middle;
-        text-align: center;
-    }
-
-    .notcard-filter-row th {
-        background: #f8fafc;
-        min-width: 120px;
-    }
+        .notcard-card .table thead th {
+            white-space: nowrap;
+            vertical-align: middle;
+            text-align: center;
+        }
 
     .notcard-actions .btn {
         min-width: 110px;
@@ -31,19 +33,19 @@
         text-align: center;
     }
 
-    .print-cell {
-        text-align: center;
+    .table-checkbox {
+        width: 40px;
     }
 
-    .row-select,
-    .row-select-all {
-        width: 16px;
-        height: 16px;
-        cursor: pointer;
+    .action-buttons .btn {
+        min-width: 60px;
     }
 </style>
 
-<div class="notcard-card p-3 p-md-4">
+<div class="notcard-card p-3 p-md-4"
+     data-deleteCardNots-url="@Url.Action("DeleteCardPrintQueues", "CardCar")"
+     data-printCard-url="@Url.Action("PrintCards", "CardCar")">
+
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
         <div>
             <h5 class="m-0">Danh sách CNV chưa có thẻ</h5>
@@ -51,43 +53,68 @@
         </div>
     </div>
 
-    <div class="search-area">
-        <div class="row mb-2 align-items-center">
-            <div class="col-md-2" style="max-width: 120px;">
-                <label class="title-label">MNV</label>
-            </div>
-            <div class="col-md-2">
-                <input type="text" class="form-control green-input" />
+    <form method="get" asp-controller="CardCar" asp-action="NotCard" class="row g-2 mb-3 js-search-form">
+        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <div class="col-12 col-md-6 col-lg-3">
+            <input class="form-control" name="employeeId" value="@Model.EmployeeId" placeholder="Mã nhân viên" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+            <select class="form-select" name="department">
+                <option value="">Tất cả phòng ban</option>
+                @foreach (var sec in sections)
+                {
+                    if (Model.Department == sec.CHR_CODE)
+                    {
+                        <option value="@sec.CHR_CODE" selected>@sec.CHR_NAME</option>
+                    }
+                    else
+                    {
+                        <option value="@sec.CHR_CODE">@sec.CHR_NAME</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-5 d-grid d-md-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-fill">
+                <i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm
+            </button>
+            <button type="button" class="btn btn-secondary flex-fill js-btn-reset">
+                <i class="fa-solid fa-rotate-right me-1"></i>Làm mới
+            </button>
+            <div class="d-flex gap-2 flex-fill">
+                <button type="button" class="btn btn-success flex-fill js-btn-print"
+                        id="btnBulkPrint" disabled>
+                    <i class="fa-solid fa-print me-1"></i>In nhiều
+                </button>
+                <button type="button"
+                        class="btn btn-danger flex-fill js-btn-delete"
+                        id="btnBulkDelete"
+                        data-confirm-title="Xóa nhiều"
+                        data-confirm-message="Bạn có chắc chắn muốn xóa các bản ghi đã chọn?"
+                        disabled>
+                    <i class="fa-solid fa-trash-can me-1"></i>Xóa nhiều
+                </button>
             </div>
         </div>
+    </form>
 
-        <div class="row mb-3 align-items-center">
-            <div class="col-md-2" style="max-width: 120px;">
-                <label class="title-label">Phòng ban</label>
-            </div>
-            <div class="col-md-2">
-                <select class="form-control green-input">
-                    <option>Tất cả</option>
-                    <option>HCNS</option>
-                    <option>Kế toán</option>
-                    <option>IT</option>
-                </select>
-            </div>
-        </div>
-    </div>
-
-    <div class="notcard-actions d-flex flex-wrap gap-2 mb-4">
-        <button class="btn btn-primary"><i class="fa-solid fa-magnifying-glass me-1"></i>Tìm kiếm</button>
-        <button class="btn btn-warning text-white"><i class="fa-solid fa-pen me-1"></i>Cập nhật</button>
-        <button class="btn btn-danger"><i class="fa-solid fa-trash me-1"></i>Xóa</button>
-        <button class="btn btn-secondary"><i class="fa-solid fa-rotate-right me-1"></i>Làm mới</button>
-        <button class="btn btn-success"><i class="fa-solid fa-print me-1"></i>In thẻ</button>
-    </div>
+    <form id="bulkPrintForm" method="post" asp-controller="CardCar" asp-action="PrintCards"
+          class="js-confirm js-require-selection"
+          data-confirm-title="In nhiều thẻ"
+          data-confirm-message="Bạn có chắc chắn muốn in các thẻ đã chọn?">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="employeeId" value="@Model.EmployeeId" />
+        <input type="hidden" name="department" value="@Model.Department" />
+        <input type="hidden" name="page" value="@Model.PageNumber" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    </form>
 
     <div class="table-responsive">
-        <table class="table table-bordered table-hover align-middle js-notcard-table">
+        <table class="table table-bordered table-hover align-middle">
             <thead class="table-light">
                 <tr>
+                    <th class="table-checkbox"><input id="chkAll" type="checkbox" class="form-check-input" form="bulkPrintForm" /></th>
                     <th width="60">STT</th>
                     <th>Mã nhân viên</th>
                     <th>Phòng ban</th>
@@ -95,173 +122,77 @@
                     <th>Số xe chiều đón và chiều về</th>
                     <th>Điểm đón/trả</th>
                     <th>Xác nhận</th>
-                    <th>In thẻ <input type="checkbox" class="row-select-all ms-1 js-select-all-print" /></th>
-                </tr>
-                <tr class="notcard-filter-row">
-                    <th><input type="text" class="form-control form-control-sm js-notcard-filter" data-column-index="0" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-notcard-filter" data-column-index="1" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-notcard-filter" data-column-index="2" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-notcard-filter" data-column-index="3" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-notcard-filter" data-column-index="4" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-notcard-filter" data-column-index="5" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-notcard-filter" data-column-index="6" placeholder="Lọc" /></th>
-                    <th><input type="text" class="form-control form-control-sm js-notcard-filter" data-column-index="7" placeholder="Lọc" /></th>
+                    <th class="text-center">Thao tác</th>
                 </tr>
             </thead>
-
             <tbody>
-                @for (int i = 1; i <= 24; i++)
+                @if (!Model.NotCards.Any())
                 {
-                    var dep = i % 3 == 0 ? "HCNS" : (i % 3 == 1 ? "Kế toán" : "IT");
                     <tr>
-                        <td>@i</td>
-                        <td>NV@i.ToString("000")</td>
-                        <td>@dep</td>
-                        <td>Nhân viên @i</td>
-                        <td>@(i % 2 == 0 ? "Xe 01 / Xe 03" : "Xe 02 / Xe 04")</td>
-                        <td>@(i % 2 == 0 ? "Cổng chính" : "Cổng phụ")</td>
-                        <td class="confirm-cell">Chưa có thẻ</td>
-                        <td class="print-cell">
-                            <input type="checkbox" class="row-select js-row-select-print" />
-                        </td>
+                        <td colspan="9" class="text-center text-muted py-4">Không có dữ liệu nhân viên chưa có thẻ.</td>
                     </tr>
+                }
+                else
+                {
+                    var index = 0;
+                    foreach (var emp in Model.NotCards)
+                    {
+                        var sectionName = sections
+                        .FirstOrDefault(x => x.CHR_CODE == emp.CHR_CODE_SEC)
+                        ?.CHR_NAME ?? emp.CHR_CODE_SEC;
+                        index++;
+                        var stt = (Model.PageNumber - 1) * Model.PageSize + index;
+
+                        <tr>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input js-print-check"
+                                       name="ids" value="@emp.ID" form="bulkPrintForm" />
+                            </td>
+                            <td class="text-center">@stt</td>
+                            <td>@emp.CHR_EMPLOYEE_ID</td>
+                            <td>@sectionName</td>
+                            <td>@emp.NVCHR_EMPLOYEE_NAME</td>
+                            <td>
+                                Xe đi: @emp.PICKUP_ROUTE_NAME - Xe về: @emp.RETURN_ROUTE_NAME
+                            </td>
+                            <td>
+                                Điểm đón: @emp.PICKUP_STOP_NAME - Điểm trả: @emp.RETURN_STOP_NAME
+                            </td>
+                            <td class="confirm-cell"><span class='badge bg-danger'>Chưa có thẻ</span></td>
+                            <td class="text-center action-buttons">
+                                <!-- Nút in thẻ đơn -->
+                                <button type="button" class="btn btn-sm btn-info ms-1 mb-1 js-print-single"
+                                        data-employee-id="@emp.ID"
+                                        data-confirm-title="In thẻ"
+                                        data-confirm-message="Bạn có chắc chắn muốn in thẻ cho nhân viên này?">
+                                    <i class="fa-solid fa-print"></i> In
+                                </button>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
     </div>
 
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mt-2">
-        <div class="small text-muted js-notcard-page-info"></div>
-        <nav aria-label="Not card pagination">
-            <ul class="pagination pagination-sm mb-0 js-notcard-pagination"></ul>
-        </nav>
+        <div class="small text-muted">Hiển thị @startIndex - @endIndex / @Model.TotalCount</div>
+        @await Html.PartialAsync("_Pagination", new
+        {
+            PageIndex = Model.PageNumber,
+                TotalPages = Model.TotalPages,
+                PageSize = Model.PageSize,
+                Action = "NotCard",
+                Term = (string?)null,
+                RouteExtras = new Dictionary<string, string?>
+                {
+                    ["employeeId"] = Model.EmployeeId,
+                    ["department"] = Model.Department
+                }
+        })
     </div>
 </div>
 
 @section Scripts {
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const table = document.querySelector('.js-notcard-table');
-            if (!table) {
-                return;
-            }
-
-            const filters = Array.from(table.querySelectorAll('.js-notcard-filter'));
-            const rows = Array.from(table.querySelectorAll('tbody tr'));
-            const pageInfo = document.querySelector('.js-notcard-page-info');
-            const pagination = document.querySelector('.js-notcard-pagination');
-            const selectAll = document.querySelector('.js-select-all-print');
-
-            const pageSize = 8;
-            let currentPage = 1;
-
-            const normalize = (value) => (value || '').toString().trim().toLowerCase();
-
-            const getFilteredRows = () => {
-                const filterValues = filters.map((filter) => normalize(filter.value));
-
-                return rows.filter((row) => {
-                    const cells = row.querySelectorAll('td');
-
-                    for (let i = 0; i < filterValues.length; i++) {
-                        const keyword = filterValues[i];
-                        if (!keyword) {
-                            continue;
-                        }
-
-                        const cellText = i === 7
-                            ? normalize(cells[i]?.querySelector('input')?.checked ? 'checked' : '')
-                            : normalize(cells[i]?.textContent);
-                        if (!cellText.includes(keyword)) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                });
-            };
-
-            const renderPagination = (totalPages) => {
-                if (!pagination) {
-                    return;
-                }
-
-                pagination.innerHTML = '';
-
-                const addItem = (label, page, disabled, active) => {
-                    const li = document.createElement('li');
-                    li.className = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
-
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'page-link';
-                    btn.textContent = label;
-                    btn.disabled = disabled;
-
-                    btn.addEventListener('click', function () {
-                        if (disabled || page === currentPage) {
-                            return;
-                        }
-
-                        currentPage = page;
-                        render();
-                    });
-
-                    li.appendChild(btn);
-                    pagination.appendChild(li);
-                };
-
-                addItem('«', currentPage - 1, currentPage <= 1, false);
-                for (let i = 1; i <= totalPages; i++) {
-                    addItem(String(i), i, false, i === currentPage);
-                }
-                addItem('»', currentPage + 1, currentPage >= totalPages, false);
-            };
-
-            const render = () => {
-                const filteredRows = getFilteredRows();
-                const totalCount = filteredRows.length;
-                const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-
-                if (currentPage > totalPages) {
-                    currentPage = totalPages;
-                }
-
-                const startIndex = totalCount === 0 ? 0 : ((currentPage - 1) * pageSize + 1);
-                const endIndex = totalCount === 0 ? 0 : Math.min(currentPage * pageSize, totalCount);
-
-                rows.forEach((row) => row.style.display = 'none');
-
-                const pageRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-                pageRows.forEach((row) => row.style.display = '');
-
-                if (pageInfo) {
-                    pageInfo.textContent = 'Hiển thị ' + startIndex + ' - ' + endIndex + ' / ' + totalCount;
-                }
-
-                renderPagination(totalPages);
-            };
-
-            if (selectAll) {
-                selectAll.addEventListener('change', function () {
-                    const visibleRows = rows.filter((row) => row.style.display !== 'none');
-                    visibleRows.forEach((row) => {
-                        const cb = row.querySelector('.js-row-select-print');
-                        if (cb) {
-                            cb.checked = selectAll.checked;
-                        }
-                    });
-                });
-            }
-
-            filters.forEach((filter) => {
-                filter.addEventListener('input', function () {
-                    currentPage = 1;
-                    render();
-                });
-            });
-
-            render();
-        });
-    </script>
+    <script src="~/js/cardcar/card-not.js" asp-append-version="true"></script>
 }

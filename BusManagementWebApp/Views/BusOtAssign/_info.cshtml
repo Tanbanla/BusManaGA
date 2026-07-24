@@ -1,0 +1,205 @@
+﻿@{
+    ViewData["Title"] = "Thông tin sắp xếp xe đi làm ngày nghỉ";
+}
+
+<style>
+    .info-card {
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    }
+
+    .title-blue {
+        color: #0000ff;
+        font-weight: 700;
+        font-size: clamp(1.75rem, 2vw, 2.4rem);
+        margin-bottom: .75rem;
+    }
+
+    .notice-table {
+        font-size: .95rem;
+    }
+
+        .notice-table th,
+        .notice-table td {
+            border: 2px solid #000 !important;
+            vertical-align: middle;
+            padding: .4rem .5rem;
+        }
+
+        .notice-table .number-col {
+            width: 60px;
+            text-align: center;
+        }
+
+        .notice-table .topic-col {
+            width: 140px;
+        }
+
+    .inner-section {
+        padding: .6rem .9rem;
+    }
+
+    .inner-border {
+        border-top: 2px solid #000;
+    }
+
+    .mail-link {
+        color: #0066cc;
+        text-decoration: underline;
+    }
+
+    .phone-red {
+        color: red;
+        font-weight: 600;
+    }
+
+    .compact p {
+        margin-bottom: .4rem;
+    }
+
+    @@media (min-width: 1200px) {
+        .container-fluid-custom {
+            /* max-width: 1800px; */
+        }
+
+        .notice-table {
+            font-size: 0.9rem;
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .notice-table {
+            font-size: .85rem;
+        }
+    }
+</style>
+
+<div class="container-fluid container-fluid-custom py-2">
+    <div class="info-card p-3">
+
+        <div class="small mb-1">
+            [Thông báo từ phòng Hành chính]
+        </div>
+
+        <h1 class="title-blue">
+            V/v: Thông tin sắp xếp xe đi làm ngày nghỉ
+        </h1>
+
+        <div class="compact">
+            <p>Phòng Hành chính xin gửi thông tin như sau:</p>
+            <p class="fw-bold">
+                Đề nghị CNV đi làm ngày nghỉ chủ động kiểm tra mail cá nhân của mình.
+            </p>
+        </div>
+
+        <table class="table table-bordered table-sm notice-table mb-2">
+            <thead>
+                <tr>
+                    <th class="number-col">#</th>
+                    <th class="topic-col text-center">Hạng mục</th>
+                    <th class="text-center">Chi tiết</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td class="text-center">1</td>
+                    <td>Mục đích</td>
+                    <td>
+                        CNV nắm được thông tin sắp xếp xe đi làm ngày nghỉ.
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="text-center">2</td>
+                    <td>Yêu cầu</td>
+                    <td class="p-0">
+
+                        <div class="inner-section">
+                            <b>1.</b> Xác nhận lộ trình điểm đón liên quan đến mình,
+                            nếu có điểm nào chưa rõ/phát sinh vấn đề hãy liên lạc cho nhóm mail
+                            và số điện thoại phía dưới trước 17:25 ngày nhận mail.
+
+                            <br><br>
+
+                            (Các trường hợp không liên lạc hoặc liên lạc sau thời gian trên
+                            CNV phải tự túc phương tiện đi làm)
+
+                            <br><br>
+
+                            <b>2. Trường hợp về khác các khung giờ ở dưới thì không bố trí xe.</b>
+                        </div>
+
+                        <div class="inner-section inner-border">
+                            <b>3. Với CNV được bố trí đi làm bằng xe taxi:</b>
+
+                            <div class="mt-2">
+                                Chủ động qua văn phòng GA-GA để lấy
+                                "Thẻ sử dụng taxi" trước 17:25 của ngày nhận mail.
+                            </div>
+
+                            <div class="mt-2">
+                                Liên lạc cho lái xe taxi vào tối trước 1 ngày sử dụng.
+                            </div>
+                        </div>
+
+                        <div class="inner-section inner-border fw-bold">
+                            4. CNV đi làm ngày nghỉ chủ động kiểm tra mail cá nhân của mình
+                        </div>
+
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="text-center">3</td>
+                    <td>Chú ý</td>
+                    <td>
+
+                        <div>
+                            Thông tin nhóm xe Công ty:
+                        </div>
+
+                        <div class="mt-2">
+                            Nhóm mail:
+                            <a href="mailto:BIVNgabus@brother-bivn.com.vn"
+                               class="mail-link">
+                                DL BIVN ML GA GA BUS BIVN
+                                gabus@brother-bivn.com.vn
+                            </a>
+                        </div>
+
+                        <div class="mt-2">
+                            Số điện thoại:
+                            <span class="phone-red">
+                                0899.090.244
+                            </span>
+                        </div>
+
+                    </td>
+                </tr>
+
+            </tbody>
+        </table>
+
+        <div class="compact">
+            <p>
+                Mọi vấn đề phát sinh vui lòng liên lạc cho phòng Hành chính theo số điện thoại người phụ trách.
+            </p>
+
+            <p>
+                問題が発生した場合は、総務課の担当者の電話番号までご連絡してください。
+            </p>
+
+            <p>
+                Xin cảm ơn và mong nhận được sự hợp tác.
+            </p>
+
+            <p class="mb-0">
+                よろしくお願い致します。
+            </p>
+        </div>
+
+    </div>
+</div>

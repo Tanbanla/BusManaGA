@@ -31,6 +31,7 @@ namespace BusManagement.Service.Configs.DependencyInjection
             services.AddScoped<ITmApprovalHistoryService, TmApprovalHistoryService>();
             services.AddScoped<ITmTripRequestService, TmTripRequestService>();
             services.AddScoped<ITmBusOtService, TmBusOtService>();
+            services.AddScoped<ITmBusOtAssignService, TmBusOtAssignService>();
             services.AddScoped<ITmCardService, TmCardService>();
             services.AddScoped<ITmCardUsageService, TmCardUsageService>();
             services.AddScoped<ITmCardBorrowService, TmCardBorrowService>();
@@ -39,6 +40,7 @@ namespace BusManagement.Service.Configs.DependencyInjection
             services.AddScoped<ITmBusRequestFailedService, TmBusRequestFailedService>();
             services.AddScoped<ITmEmployeeRouteHistoryService, TmEmployeeRouteHistoryService>();
             services.AddScoped<ITmEmployeeRouteService, TmEmployeeRouteService>();
+            services.AddScoped<ITmEmployeeRouteOTService, TmEmployeeRouteOTService>();
             services.AddScoped<ITmDriverViolationService, TmDriverViolationService>();
             services.AddScoped<ITmBusEvaluationService, TmBusEvaluationService>();
             services.AddScoped<ITmBusRouteAssignService, TmBusRouteAssignService>();

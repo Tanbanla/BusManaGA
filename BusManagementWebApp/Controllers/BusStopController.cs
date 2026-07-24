@@ -107,9 +107,9 @@ public class BusStopController : Controller
             return RedirectToIndex(input);
         }
 
-        if (string.IsNullOrWhiteSpace(input.City) || string.IsNullOrWhiteSpace(input.Ward))
+        if (string.IsNullOrWhiteSpace(input.City))
         {
-            TempData["BusStopError"] = "Vui lòng nhập Thành phố, Xã phường và ít nhất một tên điểm đón/trả.";
+            TempData["BusStopError"] = "Vui lòng nhập Thành phố, Xã phường";
             return RedirectToIndex(input);
         }
 
@@ -123,6 +123,8 @@ public class BusStopController : Controller
             CHR_COORDINATES = input.Coordinates?.Trim(),
             FLT_DISTANCE_TO_BIVN = input.DistanceToBivn,
             FLT_DISTANCE_TO_TTF = input.DistanceToTtf,
+            NVCHR_STOP_RETURN_ADDRESS = input.ReturnAddress?.Trim(),
+            FLT_DISTANCE_BIVN_TO_RETURN = input.DistanceBivnToReturn,
             BIT_IS_ACTIVE = input.IsActive ?? true,
             CHR_USER_CREATE = actor,
             DTM_CREATE = DateTime.Now
@@ -159,9 +161,9 @@ public class BusStopController : Controller
             return RedirectToIndex(input);
         }
 
-        if (string.IsNullOrWhiteSpace(input.City) || string.IsNullOrWhiteSpace(input.Ward) || string.IsNullOrWhiteSpace(input.Name))
+        if (string.IsNullOrWhiteSpace(input.City))
         {
-            TempData["BusStopError"] = "Vui lòng nhập Thành phố, Xã phường và ít nhất một tên điểm đón/trả.";
+            TempData["BusStopError"] = "Vui lòng nhập Thành phố, Xã phường";
             return RedirectToIndex(input);
         }
 
@@ -180,6 +182,8 @@ public class BusStopController : Controller
             CHR_COORDINATES = input.Coordinates?.Trim(),
             FLT_DISTANCE_TO_BIVN = input.DistanceToBivn,
             FLT_DISTANCE_TO_TTF = input.DistanceToTtf,
+            NVCHR_STOP_RETURN_ADDRESS = input.ReturnAddress?.Trim(),
+            FLT_DISTANCE_BIVN_TO_RETURN = input.DistanceBivnToReturn,
             BIT_IS_ACTIVE = input.IsActive
         };
 
@@ -286,7 +290,7 @@ public class BusStopController : Controller
         var headers = new[]
         {
             "STT", "Thành phố", "Xã phường", "Tên điểm", "Địa chỉ chi tiết",
-            "Tọa độ", "Khoảng cách tới BIVN", "Khoảng cách tới TTF", "Trạng thái", "Thời gian tạo", "Thời gian cập nhật", "Người cập nhật"
+            "Tọa độ", "Khoảng cách tới BIVN", "Khoảng cách tới TTF", "Địa chỉ điểm trả", "Khoảng cách từ BIVN về điểm trả", "Trạng thái", "Thời gian tạo", "Thời gian cập nhật", "Người cập nhật"
         };
 
         for (var i = 0; i < headers.Length; i++)
@@ -325,10 +329,12 @@ public class BusStopController : Controller
             sheet.Cell(row, 6).Value = item.CHR_COORDINATES;
             sheet.Cell(row, 7).Value = item.FLT_DISTANCE_TO_BIVN;
             sheet.Cell(row, 8).Value = item.FLT_DISTANCE_TO_TTF;
-            sheet.Cell(row, 9).Value = item.BIT_IS_ACTIVE == true ? "Đang hoạt động" : "Ngưng hoạt động";
-            sheet.Cell(row, 10).Value = item.DTM_CREATE.ToString("dd/MM/yyyy HH:mm:ss");
-            sheet.Cell(row, 11).Value = item.DTM_UPDATE?.ToString("dd/MM/yyyy HH:mm:ss") ?? string.Empty;
-            sheet.Cell(row, 12).Value = item.CHR_USER_UPDATE;
+            sheet.Cell(row, 9).Value = item.NVCHR_STOP_RETURN_ADDRESS;
+            sheet.Cell(row, 10).Value = item.FLT_DISTANCE_BIVN_TO_RETURN;
+            sheet.Cell(row, 11).Value = item.BIT_IS_ACTIVE == true ? "Đang hoạt động" : "Ngưng hoạt động";
+            sheet.Cell(row, 12).Value = item.DTM_CREATE.ToString("dd/MM/yyyy HH:mm:ss");
+            sheet.Cell(row, 13).Value = item.DTM_UPDATE?.ToString("dd/MM/yyyy HH:mm:ss") ?? string.Empty;
+            sheet.Cell(row, 14).Value = item.CHR_USER_UPDATE;
             row++;
             stt++;
         }
@@ -383,7 +389,7 @@ public class BusStopController : Controller
         {
             if (cells.Count < 7) return false;
 
-            var offset = 0;
+            var offset = 1;
             var firstCell = cells.ElementAtOrDefault(0)?.Trim();
             if (int.TryParse(firstCell, out _)
                 && !string.IsNullOrWhiteSpace(cells.ElementAtOrDefault(1))
@@ -401,28 +407,75 @@ public class BusStopController : Controller
 
             var distanceToBivnRaw = cells.ElementAtOrDefault(offset + 5);
             var distanceToTtfRaw = cells.ElementAtOrDefault(offset + 6);
+            var returnAddress = cells.ElementAtOrDefault(offset + 7)?.Trim();
+            var distanceBivnToReturnRaw = cells.ElementAtOrDefault(offset + 8);
 
-            if (string.IsNullOrWhiteSpace(cityValue) || string.IsNullOrWhiteSpace(wardValue))
+            if (string.IsNullOrWhiteSpace(cityValue))
             {
                 return false;
             }
 
-            var entity = new TM_BUS_STOP
+            // Check if stop with same name already exists
+            var existingFilters = new List<FilterOption>
             {
-                NVCHR_STOP_CITY = cityValue,
-                NVCHR_STOP_WARD = wardValue,
-                NVCHR_STOP_NAME = name,
-                NVCHR_STOP_ADDRESS = address,
-                CHR_COORDINATES = coordinates,
-                FLT_DISTANCE_TO_BIVN = ParseDouble(distanceToBivnRaw),
-                FLT_DISTANCE_TO_TTF = ParseDouble(distanceToTtfRaw),
-                BIT_IS_ACTIVE = true,
-                CHR_USER_CREATE = actor,
-                DTM_CREATE = DateTime.Now
+                new FilterOption { Field = "NVCHR_STOP_NAME", Operator = "=", Value = name }
             };
+            var existingResp = await _tmBusStopService.SearchByConditionAsync(new SearchOptions
+            {
+                PageNumber = 1,
+                PageSize = 1,
+                Filters = existingFilters
+            });
 
-            var addResp = await _tmBusStopService.AddAsyncV2(entity);
-            return addResp.Success;
+            var existingStop = existingResp?.Data?.Data?.FirstOrDefault();
+
+            if (existingStop != null)
+            {
+                // Update existing record
+                var entity = new TM_BUS_STOP
+                {
+                    ID = existingStop.ID,
+                    CHR_USER_CREATE = existingStop.CHR_USER_CREATE,
+                    DTM_CREATE = existingStop.DTM_CREATE,
+                    CHR_USER_UPDATE = actor,
+                    DTM_UPDATE = DateTime.Now,
+                    NVCHR_STOP_CITY = cityValue,
+                    NVCHR_STOP_WARD = wardValue,
+                    NVCHR_STOP_NAME = name,
+                    NVCHR_STOP_ADDRESS = address,
+                    CHR_COORDINATES = coordinates,
+                    FLT_DISTANCE_TO_BIVN = ParseDouble(distanceToBivnRaw),
+                    FLT_DISTANCE_TO_TTF = ParseDouble(distanceToTtfRaw),
+                    NVCHR_STOP_RETURN_ADDRESS = returnAddress,
+                    FLT_DISTANCE_BIVN_TO_RETURN = ParseDouble(distanceBivnToReturnRaw),
+                    BIT_IS_ACTIVE = existingStop.BIT_IS_ACTIVE ?? true
+                };
+
+                var updateResp = await _tmBusStopService.UpdateAsync(entity);
+                return updateResp.Success;
+            }
+            else
+            {
+                // Create new record
+                var entity = new TM_BUS_STOP
+                {
+                    NVCHR_STOP_CITY = cityValue,
+                    NVCHR_STOP_WARD = wardValue,
+                    NVCHR_STOP_NAME = name,
+                    NVCHR_STOP_ADDRESS = address,
+                    CHR_COORDINATES = coordinates,
+                    FLT_DISTANCE_TO_BIVN = ParseDouble(distanceToBivnRaw),
+                    FLT_DISTANCE_TO_TTF = ParseDouble(distanceToTtfRaw),
+                    NVCHR_STOP_RETURN_ADDRESS = returnAddress,
+                    FLT_DISTANCE_BIVN_TO_RETURN = ParseDouble(distanceBivnToReturnRaw),
+                    BIT_IS_ACTIVE = true,
+                    CHR_USER_CREATE = actor,
+                    DTM_CREATE = DateTime.Now
+                };
+
+                var addResp = await _tmBusStopService.AddAsyncV2(entity);
+                return addResp.Success;
+            }
         }
 
         var ext = Path.GetExtension(importFile.FileName)?.ToLowerInvariant();
@@ -453,7 +506,9 @@ public class BusStopController : Controller
                     sheet.Cell(r, 9).GetString(),
                     sheet.Cell(r, 10).GetString(),
                     sheet.Cell(r, 11).GetString(),
-                    sheet.Cell(r, 12).GetString()
+                    sheet.Cell(r, 12).GetString(),
+                    sheet.Cell(r, 13).GetString(),
+                    sheet.Cell(r, 14).GetString()
                 };
 
                 if (await TryImportCellsAsync(cells)) success++; else failed++;

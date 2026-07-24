@@ -17,5 +17,11 @@ public interface ITmCardService : IBaseService<TM_CARD, int, TM_CARDDTO>
     //List card taxi need usable
     Task<GenericResponse<List<TM_CARD>>> GetListCardTaxiUsableAsync();
     // Get list Card using
-    Task<GenericResponse<dynamic>> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10);
+    Task<GenericResponse<UsingCardViewModel>> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10);
+    // update card buss
+    Task<GenericResponse<bool>> UpdateCardBusAsync(TM_CARDDTO card);
+
+    // delete
+    Task<GenericResponse<bool>> DeleteCardAsync(int id);
+    Task<GenericResponse<bool>> DeleteCardsAsync(List<int> ids);
 }

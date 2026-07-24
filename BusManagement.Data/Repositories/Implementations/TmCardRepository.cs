@@ -166,7 +166,7 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
         var result = (await _conn.QueryAsync<TM_CARD>(sql)).ToList();
         return result;
     }
-    public async Task<dynamic> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10)
+    public async Task<UsingCardViewModel> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10)
     {
         var sql = @"
             SELECT 
@@ -229,13 +229,52 @@ public class TmCardRepository : BaseRepository<TM_CARD, int>, ITmCardRepository
 
         var data = (await _conn.QueryAsync<dynamic>(sql, parameters)).ToList();
 
-        return new
+        return new UsingCardViewModel
         {
-            TotalRecords = totalRecords,
+            TotalCount = totalRecords,
             PageNumber = page,
             PageSize = pageSize,
             TotalPages = (int)Math.Ceiling(totalRecords * 1.0 / pageSize),
-            Data = data
+            Cards = data
         };
+    }
+    // Update card buss
+    public async Task<bool> UpdateCardBusAsync(TM_CARD card)
+    {
+        var sql = @"UPDATE TM_CARD
+                    SET CHR_BUS_CODE = @BusCode,
+                        INT_BUS_ID = @BusId,
+                        INT_BUS_STOP_ID = @BusStopId,
+                        DTM_UPDATE = GETDATE(),
+                        CHR_USER_UPDATE = @UpdateBy   
+                    WHERE ID = @Id";
+        var parameters = new DynamicParameters();
+        parameters.Add("@BusCode", card.CHR_BUS_CODE);
+        parameters.Add("@BusId", card.INT_BUS_ID);
+        parameters.Add("@BusStopId", card.INT_BUS_STOP_ID);
+        parameters.Add("@Id", card.ID);
+        parameters.Add("@UpdateBy", card.CHR_USER_UPDATE);
+
+        var result = await _conn.ExecuteAsync(sql, parameters);
+        return result > 0;
+    }
+    // delete
+    public async Task<bool> DeleteCardAsync(int id)
+    {
+        var sql = @"UPDATE TM_CARD SET BIT_IS_ACTIVE = 0 WHERE ID = @Id";
+        var parameters = new DynamicParameters();
+        parameters.Add("@Id", id);
+
+        var result = await _conn.ExecuteAsync(sql, parameters);
+        return result > 0;
+    }
+    public async Task<bool> DeleteCardsAsync(List<int> ids)
+    {
+        var sql = @"UPDATE TM_CARD SET BIT_IS_ACTIVE = 0 WHERE ID IN @Ids";
+        var parameters = new DynamicParameters();
+        parameters.Add("@Ids", ids);
+
+        var result = await _conn.ExecuteAsync(sql, parameters);
+        return result > 0;
     }
 }

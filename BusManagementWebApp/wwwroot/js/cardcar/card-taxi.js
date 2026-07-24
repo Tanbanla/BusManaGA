@@ -15,7 +15,12 @@
     const addUsageUrl = cardRoot.dataset.addcardusageUrl;
     const updateUsageUrl = cardRoot.dataset.updatecardusageUrl;
     const detailUrl = cardRoot.dataset.detaicardusageUrl;
+    // thông tin section 
+    const sectionMap = {};
 
+    (sections || []).forEach(item => {
+        sectionMap[item.CHR_CODE] = item.CHR_NAME;
+    });
     //
     const tbody = table.querySelector('.js-taxi-tbody');
     const filters = Array.from(table.querySelectorAll('.js-column-filter'));
@@ -122,7 +127,10 @@
             pickValue(row, ['chr_card_code']) ?? '',
             pickValue(row, ['chr_employee_id']) ?? '',
             pickValue(row, ['nvchr_employee_name']) ?? '',
-            pickValue(row, ['chr_code_sec']) ?? '',
+            //pickValue(row, ['chr_code_sec']) ?? '',
+            sectionMap[
+                pickValue(row, ['chr_code_sec'])
+            ] ?? pickValue(row, ['chr_code_sec']) ?? '',
             formatDate(pickValue(row, ['dtm_borrow_time'])),
             pickValue(row, ['nvchr_reason']) ?? '',
             formatDate(pickValue(row, ['dtm_return_time'])),
@@ -560,7 +568,10 @@
             const employeeData = await loadEmployeeInfo(employeeCode);
             if (employeeData) {
                 document.getElementById('borrowEmployeeName').value = employeeData?.NVCHR_EMPLOYEE_NAME || '';
-                document.getElementById('borrowSection').value = employeeData?.CHR_CODE_SEC || '';
+                document.getElementById('borrowSection').value =
+                    sectionMap[employeeData?.CHR_CODE_SEC] ||
+                    employeeData?.CHR_CODE_SEC ||
+                    '';
             }
         }
     });

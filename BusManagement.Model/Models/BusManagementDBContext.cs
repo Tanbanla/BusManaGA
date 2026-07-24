@@ -24,6 +24,7 @@ public partial class BusManagementDBContext : DbContext
     public virtual DbSet<TM_ROLE> TM_ROLEs { get; set; }
     public virtual DbSet<Model.Entity.TM_EMPLOYEE> TM_EMPLOYEEs { get; set; }
     public virtual DbSet<TM_EMPLOYEE_ROUTE> TM_EMPLOYEE_ROUTEs { get; set; }
+    public virtual DbSet<TM_EMPLOYEE_ROUTE_OT> TM_EMPLOYEE_ROUTE_OTs { get; set; }
     public virtual DbSet<TM_EMPLOYEE_ROUTE_HISTORY> TM_EMPLOYEE_ROUTE_HISTORYs { get; set; }
     public virtual DbSet<TM_BUS_STOP> TM_BUS_STOPs { get; set; }
     public virtual DbSet<TM_BUS_ROUTE> TM_BUS_ROUTEs { get; set; }
@@ -41,6 +42,7 @@ public partial class BusManagementDBContext : DbContext
     public virtual DbSet<TM_APPROVAL_HISTORY> TM_APPROVAL_HISTORYs { get; set; }
     public virtual DbSet<TM_TRIP_REQUEST> TM_TRIP_REQUESTs { get; set; }
     public virtual DbSet<TM_BUS_OT> TM_BUS_OTs { get; set; }
+    public virtual DbSet<TM_BUS_OT_ASSIGN> TM_BUS_OT_ASSIGNs { get; set; }
     public virtual DbSet<TM_CARD> TM_CARDs { get; set; }
     public virtual DbSet<TM_CARD_USAGE> TM_CARD_USAGEs { get; set; }
     public virtual DbSet<TM_CARD_BORROW> TM_CARD_BORROWs { get; set; }

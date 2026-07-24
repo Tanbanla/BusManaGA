@@ -11,6 +11,8 @@ public class BusStopUpsertInputModel
     public string? Coordinates { get; set; }
     public double? DistanceToBivn { get; set; }
     public double? DistanceToTtf { get; set; }
+    public string? ReturnAddress { get; set; }
+    public double? DistanceBivnToReturn { get; set; }
     public bool? IsActive { get; set; } = true;
 
     public string? SearchCity { get; set; }

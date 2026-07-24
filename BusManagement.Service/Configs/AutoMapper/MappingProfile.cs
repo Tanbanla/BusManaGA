@@ -43,6 +43,7 @@ namespace BusManagement.Service.Configs.AutoMapper
             CreateMap<TM_APPROVAL_HISTORY, TM_APPROVAL_HISTORYDTO>().ReverseMap();
             CreateMap<TM_TRIP_REQUEST, TM_TRIP_REQUESTDTO>().ReverseMap();
             CreateMap<TM_BUS_OT, TM_BUS_OTDTO>().ReverseMap();
+            CreateMap<TM_BUS_OT_ASSIGN, TM_BUS_OT_ASSIGNDTO>().ReverseMap();
             CreateMap<TM_CARD, TM_CARDDTO>().ReverseMap();
             CreateMap<TM_CARD_USAGE, TM_CARD_USAGEDTO>().ReverseMap();
             CreateMap<TM_CARD_BORROW, TM_CARD_BORROWDTO>().ReverseMap();
@@ -51,6 +52,7 @@ namespace BusManagement.Service.Configs.AutoMapper
             CreateMap<TM_BUS_REQUEST_FAILED, TM_BUS_REQUEST_FAILEDDTO>().ReverseMap();
             CreateMap<TM_EMPLOYEE_ROUTE_HISTORY, TM_EMPLOYEE_ROUTE_HISTORYDTO>().ReverseMap();
             CreateMap<TM_EMPLOYEE_ROUTE, TM_EMPLOYEE_ROUTEDTO>().ReverseMap();
+            CreateMap<TM_EMPLOYEE_ROUTE_OT, TM_EMPLOYEE_ROUTE_OTDTO>().ReverseMap();
             CreateMap<TM_DRIVER_VIOLATION, TM_DRIVER_VIOLATIONDTO>().ReverseMap();
             CreateMap<TM_BUS_EVALUATION, TM_BUS_EVALUATIONDTO>().ReverseMap();
             CreateMap<TM_CITY, TM_CITYDTO>().ReverseMap();

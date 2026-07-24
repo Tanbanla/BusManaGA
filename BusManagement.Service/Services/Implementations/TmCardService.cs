@@ -160,12 +160,63 @@ public class TmCardService : BaseService<TM_CARD, int, TM_CARDDTO>, ITmCardServi
         return result;
     }
     // Get list Card using
-    public async Task<GenericResponse<dynamic>> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10)
+    public async Task<GenericResponse<UsingCardViewModel>> GetCardUsing(string? employeeId, string? department, int page = 1, int pageSize = 10)
     {
-        var result = new GenericResponse<dynamic>();
+        var result = new GenericResponse<UsingCardViewModel>();
         try
         {
             result.Data = await _repo.GetCardUsing(employeeId, department, page, pageSize);
+            result.Success = true;
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.Status = 500;
+            result.Message = ex.Message;
+        }
+        return result;
+    }
+    // update card buss
+    public async Task<GenericResponse<bool>> UpdateCardBusAsync(TM_CARDDTO card)
+    {
+        var result = new GenericResponse<bool>();
+        try
+        {
+            var c = _mapper.Map<TM_CARD>(card);
+            result.Data = await _repo.UpdateCardBusAsync(c);
+            result.Success = true;
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.Status = 500;
+            result.Message = ex.Message;
+        }
+        return result;
+    }
+    // delete
+    public async Task<GenericResponse<bool>> DeleteCardAsync(int id)
+    {
+        var result = new GenericResponse<bool>();
+        try
+        {
+            result.Data = await _repo.DeleteCardAsync(id);
+            result.Success = true;
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.Status = 500;
+            result.Message = ex.Message;
+        }
+        return result;
+    }
+    public async Task<GenericResponse<bool>> DeleteCardsAsync(List<int> ids)
+    {
+        var result = new GenericResponse<bool>();
+        try
+        {
+            result.Data = await _repo.DeleteCardsAsync(ids);
             result.Success = true;
         }
         catch (Exception ex)

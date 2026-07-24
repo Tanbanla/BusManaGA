@@ -4,6 +4,7 @@ using BusManagement.Model.Dtos;
 using BusManagement.Model.Entity;
 using BusManagement.Service.Services.Interfaces;
 using BusManagementWebApp.ViewModels.CardCar;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BusManagementWebApp.Controllers
@@ -17,10 +18,15 @@ namespace BusManagementWebApp.Controllers
         private readonly ITmEmployeeService _tmEmployeeService;
         private readonly ITmCardBorrowService _tmCardBorrowService;
         private readonly ITmCardUsageService _tmCardUsageService;
+        private readonly ITmBusService _tmBusService;
+        private readonly ITmBusStopService _tmBusStopService;
+        private readonly ITmCardPrintQueueService _tmCardPrintQueueService;
         private readonly IWebHostEnvironment _env;
 
         public CardCarController(ILogger<CardCarController> logger, ITmCardService tmCardService, ISectionService sectionService,
-            IWebHostEnvironment env, ITmEmployeeService tmEmployeeService, ITmCardBorrowService tmCardBorrowService, ITmCardUsageService tmCardUsageService)
+            IWebHostEnvironment env, ITmEmployeeService tmEmployeeService, ITmCardBorrowService tmCardBorrowService, ITmCardUsageService tmCardUsageService
+            , ITmBusService tmBusService, ITmBusStopService tmBusStopService, ITmCardPrintQueueService tmCardPrintQueueService
+            )
         {
             _logger = logger;
             _tmCardService = tmCardService;
@@ -29,6 +35,9 @@ namespace BusManagementWebApp.Controllers
             _tmCardUsageService = tmCardUsageService;
             _env = env;
             _tmCardBorrowService = tmCardBorrowService;
+            _tmBusService = tmBusService;
+            _tmBusStopService = tmBusStopService;
+            _tmCardPrintQueueService = tmCardPrintQueueService;
         }
 
         // MARK: Screen: Card Taxi
@@ -38,6 +47,112 @@ namespace BusManagementWebApp.Controllers
             ViewBag.Sections = sectionsResp?.Success == true ? sectionsResp.Data : null;
 
             return View();
+        }
+        // MARK: Screen: Card using for car
+        [HttpGet]
+        public async Task<IActionResult> CardUsingCar(
+            string? employeeId,
+            string? department,
+            int page = 1,
+            int pageSize = 10)
+        {
+            try
+            {
+                var sectionsResp = await _sectionService.GetAllAsync();
+                ViewBag.Sections = sectionsResp?.Success == true ? sectionsResp.Data : null;
+
+                page = page <= 0 ? 1 : page;
+                pageSize = pageSize <= 0 ? 10 : pageSize;
+
+                var cardResp = await _tmCardService.GetCardUsing(employeeId, department, page, pageSize);
+
+
+                var vm = new UsingCardViewModel
+                {
+                    EmployeeId = employeeId,
+                    Department = department,
+
+                    PageNumber = page,
+                    PageSize = pageSize,
+
+                    Cards = cardResp?.Data?.Cards?.ToList() ?? new List<dynamic>(),
+
+                    TotalCount = (int)(cardResp?.Data?.TotalCount ?? 0),
+                    TotalPages = (int)(cardResp?.Data?.TotalPages ?? 0)
+                };
+
+                if (vm.TotalPages <= 0)
+                {
+                    vm.TotalPages = vm.TotalCount > 0
+                        ? (int)Math.Ceiling(vm.TotalCount / (double)vm.PageSize)
+                        : 1;
+                }
+
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while loading CardUsingCar view.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+
+        // MARK: Screen: Not Card
+        public async Task<IActionResult> NotCard(string? employeeId,
+            string? department,
+            int page = 1,
+            int pageSize = 10)
+        {
+            try
+            {
+                var sectionsResp = await _sectionService.GetAllAsync();
+                ViewBag.Sections = sectionsResp?.Success == true ? sectionsResp.Data : null;
+
+                page = page <= 0 ? 1 : page;
+                pageSize = pageSize <= 0 ? 10 : pageSize;
+
+                var notCardResp = await _tmCardPrintQueueService.SearchCardPrintQueueAsync(new SearchCard
+                {
+                    EmployeeCode = employeeId,
+                    SectionCode = department,
+                    PageIndex = page,
+                    PageSize = pageSize
+                });
+
+                if (!notCardResp.Success)
+                {
+                    _logger.LogError("Failed to retrieve not card data: {Message}", notCardResp.Message);
+                    return StatusCode(notCardResp.Status ?? 500, notCardResp.Message ?? "An error occurred while processing your request.");
+                }
+
+                var vm = new NotCardViewModel
+                {
+                    EmployeeId = employeeId,
+                    Department = department,
+
+                    PageNumber = page,
+                    PageSize = pageSize,
+
+                    NotCards = notCardResp?.Data?.NotCards?.ToList() ?? new List<dynamic>(),
+
+                    TotalCount = (int)(notCardResp?.Data?.TotalCount ?? 0),
+                    TotalPages = (int)(notCardResp?.Data?.TotalPages ?? 0)
+                };
+
+                if (vm.TotalPages <= 0)
+                {
+                    vm.TotalPages = vm.TotalCount > 0
+                        ? (int)Math.Ceiling(vm.TotalCount / (double)vm.PageSize)
+                        : 1;
+                }
+
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while loading NotCard view.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
         }
         // Search Card Taxi
         [HttpPost]
@@ -178,51 +293,6 @@ namespace BusManagementWebApp.Controllers
             return Ok();
         }
 
-        // MARK: Screen: Card using for car
-        [HttpGet]
-        public async Task<IActionResult> CardUsingCar(
-            string? employeeId,
-            string? department,
-            int page = 1,
-            int pageSize = 10)
-        {
-            var sectionsResp = await _sectionService.GetAllAsync();
-            ViewBag.Sections = sectionsResp?.Success == true ? sectionsResp.Data : null;
-
-            page = page <= 0 ? 1 : page;
-            pageSize = pageSize <= 0 ? 10 : pageSize;
-
-            var cardResp = await _tmCardService.GetCardUsing(employeeId,department,page,pageSize);
-
-            var vm = new UsingCardViewModel
-            {
-                EmployeeId = employeeId,
-                Department = department,
-
-                PageNumber = page,
-                PageSize = pageSize,
-
-                Cards = cardResp?.Data?.Data?.ToList() ?? new List<dynamic>(),
-
-                TotalCount = (int)(cardResp?.Data?.TotalCount ?? 0),
-                TotalPages = (int)(cardResp?.Data?.TotalPages ?? 0)
-            };
-
-            if (vm.TotalPages <= 0)
-            {
-                vm.TotalPages = vm.TotalCount > 0
-                    ? (int)Math.Ceiling(vm.TotalCount / (double)vm.PageSize)
-                    : 1;
-            }
-
-            return View(vm);
-        }
-        // MARK: Screen: Not Card
-        public IActionResult NotCard()
-        {
-            return View();
-        }
-
         // Hàm lấy dữ liệu chung 
         [HttpGet]
         public async Task<IActionResult> GetListCardTaxiUsable() // Lấy thông tin thẻ xe taxi
@@ -306,6 +376,162 @@ namespace BusManagementWebApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"An error occurred while retrieving employee info for code: {employeeCode}");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+        [HttpGet]
+        public async Task<IActionResult> GetActiveBusStopsAsync()
+        {
+            try
+            {
+                var result = await _tmBusStopService.GetActiveBusStopsAsync();
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving active bus stops.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetActiveBusesAsync()
+        {
+            try
+            {
+                var result = await _tmBusService.GetActiveBusesAsync();
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving active buses.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+        [HttpPost]
+        public async Task<IActionResult> UpdateCardBusAsync([FromBody] TM_CARDDTO request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Request cannot be null.");
+            }
+            try
+            {
+                request.CHR_USER_UPDATE = User?.Claims?.FirstOrDefault(c => c.Type == "adid")?.Value ?? "vietdo bad";
+                request.DTM_UPDATE = DateTime.Now;
+
+                var result = await _tmCardService.UpdateCardBusAsync(request);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while updating card bus.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+        [HttpPost]
+        public async Task<IActionResult> DeleteCard([FromBody] int cardId)
+        {
+            if (cardId <= 0)
+            {
+                return BadRequest("Invalid card ID.");
+            }
+            try
+            {
+                var result = await _tmCardService.DeleteCardAsync(cardId);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while deleting card.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> DeleteCards([FromBody] List<int> cardIds)
+        {
+            if (cardIds == null || cardIds.Count == 0)
+            {
+                return BadRequest("Invalid card IDs.");
+            }
+            try
+            {
+                var result = await _tmCardService.DeleteCardsAsync(cardIds);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while deleting cards.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+        [HttpPost]
+        public async Task<IActionResult> DeleteCardPrintQueues([FromBody] List<int> ids)
+        {
+            if (ids == null || ids.Count == 0)
+            {
+                return BadRequest("Invalid card print queue IDs.");
+            }
+            try
+            {
+                var result = await _tmCardPrintQueueService.DeleteCardPrintQueuesAsync(ids);
+                if (!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while deleting card print queues.");
+                return StatusCode(500, "An error: " + ex.Message);
+            }
+        }
+        [HttpPost]
+
+        public async Task<IActionResult> PrintCards([FromBody] List<int> ids)
+        {
+            if (ids == null)
+            {
+                return BadRequest("Request cannot be null.");
+            }
+            try
+            {
+
+                var user = User?.Claims?.FirstOrDefault(c => c.Type == "adid")?.Value ?? "vietdo bad";
+                var result = await _tmCardPrintQueueService.PrintCardQueuesAsync(ids, user);
+
+                if(!result.Success)
+                {
+                    return StatusCode(result.Status ?? 500, result.Message ?? "An error occurred while processing your request.");
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while updating card print queue.");
                 return StatusCode(500, "An error: " + ex.Message);
             }
         }

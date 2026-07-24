@@ -1,4 +1,5 @@
-﻿@using BusManagementWebApp.ViewModels.CardCar
+﻿@using BusManagement.Model
+
 @model UsingCardViewModel
 @{
     ViewData["Title"] = "Thẻ sử dụng xe đi làm";
@@ -31,13 +32,16 @@
     .action-buttons .btn { min-width: 60px; }
 </style>
 
-<div class="using-card p-3 p-md-4">
+<div class="using-card p-3 p-md-4"
+     data-getBus-url="@Url.Action("GetActiveBuses", "CardCar")"
+     data-getBusStop-url="@Url.Action("GetActiveBusStops", "CardCar")"
+     data-getUpdateCard-url="@Url.Action("UpdateCardBus", "CardCar")">
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
         <div>
             <h5 class="m-0">Quản lý thẻ sử dụng xe đi làm</h5>
             <div class="small text-muted">Tra cứu và cập nhật danh sách công nhân viên đã có thẻ</div>
         </div>
-        <button id="btnBulkDelete" type="button" class="btn btn-danger js-action-button d-none"
+        <button id="btnBulkDelete" type="button" class="btn btn-danger d-none"
                 data-form-id="bulkDeleteForm"
                 data-confirm-title="Xóa nhiều thẻ"
                 data-confirm-message="Bạn có chắc chắn muốn xóa các thẻ đã chọn?"
@@ -113,6 +117,9 @@
                     var index = 0;
                     foreach (var card in Model.Cards)
                     {
+                        var sectionName = sections
+                                .FirstOrDefault(x => x.CHR_CODE == card.CHR_CODE_SEC)
+                                ?.CHR_NAME ?? card.CHR_CODE_SEC;
                         index++;
                         var stt = (Model.PageNumber - 1) * Model.PageSize + index;
 
@@ -123,11 +130,11 @@
                             </td>
                             <td class="text-center">@stt</td>
                             <td>@card.CHR_EMPLOYEE_ID</td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td class="confirm-cell"><span class='badge bg-success'>✔ Đã </span></td>
+                            <td>@sectionName</td>
+                            <td>@card.NVCHR_EMPLOYEE_NAME</td>
+                            <td>@card.BusCode</td>
+                            <td>@card.NVCHR_STOP_NAME</td>
+                            <td class="confirm-cell"><span class='badge bg-success'>✔ Đã có thẻ </span></td>
                             <td class="text-center action-buttons">
                                 <!-- Nút Sửa (mở modal) -->
                                 <button type="button" class="btn btn-sm btn-primary ms-1 mb-1" 
@@ -135,7 +142,7 @@
                                     <i class="fa-solid fa-pen"></i> Sửa
                                 </button>
                                 <!-- Form xóa đơn -->
-                                <form id="deleteCardForm-@card.ID" method="post" asp-controller="Admin" asp-action="DeleteCard" class="d-inline">
+                                <form id="deleteCardForm-@card.ID" method="post" asp-controller="CardCar" asp-action="DeleteCard" class="d-inline">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="id" value="@card.ID" />
                                     <input type="hidden" name="employeeId" value="@Model.EmployeeId" />
@@ -178,60 +185,64 @@
 <!-- Modal chỉnh sửa (lặp lại cho từng card) -->
 @foreach (var card in Model.Cards)
 {
-    // <div class="modal fade dragable-modal" id="editCardModal-@card.ID" tabindex="-1" aria-hidden="true">
-    //     <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    //         <div class="modal-content">
-    //             <div class="modal-header">
-    //                 <h5 class="modal-title">Chỉnh sửa thẻ - @card.CHR_CARD_CODE</h5>
-    //                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-    //             </div>
-    //             <form method="post" asp-controller="Admin" asp-action="UpdateCard" class="js-post-form">
-    //                 @Html.AntiForgeryToken()
-    //                 <div class="modal-body">
-    //                     <input type="hidden" name="id" value="@card.ID" />
-    //                     <input type="hidden" name="employeeId" value="@Model.EmployeeId" />
-    //                     <input type="hidden" name="department" value="@Model.Department" />
-    //                     <input type="hidden" name="page" value="@Model.PageNumber" />
-    //                     <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    var sectionName = sections
+        .FirstOrDefault(x => x.CHR_CODE == card.CHR_CODE_SEC)
+        ?.CHR_NAME ?? card.CHR_CODE_SEC;
+    <div class="modal fade dragable-modal" id="editCardModal-@card.ID" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chỉnh sửa thẻ - @card.CHR_CARD_CODE</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" asp-controller="CardCar" asp-action="UpdateCardBus" class="js-post-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <input type="hidden" name="id" value="@card.ID" />
+                        <input type="hidden" name="employeeId" value="@Model.EmployeeId" />
+                        <input type="hidden" name="department" value="@Model.Department" />
+                        <input type="hidden" name="page" value="@Model.PageNumber" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
 
-    //                     <div class="row g-3">
-    //                         <div class="col-12 col-md-6">
-    //                             <label class="form-label">Mã nhân viên</label>
-    //                             <input class="form-control" name="EmployeeId" value="@card.CHR_EMPLOYEE_ID" required />
-    //                         </div>
-    //                         <div class="col-12 col-md-6">
-    //                             <label class="form-label">Phòng ban</label>
-    //                             <input class="form-control" name="Department" value="@card.CHR_DEPARTMENT" />
-    //                         </div>
-    //                         <div class="col-12 col-md-6">
-    //                             <label class="form-label">Họ và tên</label>
-    //                             <input class="form-control" name="FullName" value="@card.NVCHR_NAME" required />
-    //                         </div>
-    //                         <div class="col-12 col-md-6">
-    //                             <label class="form-label">Số xe</label>
-    //                             <input class="form-control" name="BusNumber" value="@card.CHR_BUS_NUMBER" />
-    //                         </div>
-    //                         <div class="col-12 col-md-6">
-    //                             <label class="form-label">Điểm đón/trả</label>
-    //                             <input class="form-control" name="StopPoint" value="@card.CHR_STOP_POINT" />
-    //                         </div>
-    //                         <div class="col-12 col-md-6">
-    //                             <label class="form-label">Xác nhận</label>
-    //                             <select class="form-select" name="IsConfirmed">
-    //                                 <option value="true" @(card.BIT_IS_CONFIRMED == true ? "selected" : "")>Đã xác nhận</option>
-    //                                 <option value="false" @(card.BIT_IS_CONFIRMED == false ? "selected" : "")>Chưa xác nhận</option>
-    //                             </select>
-    //                         </div>
-    //                     </div>
-    //                 </div>
-    //                 <div class="modal-footer">
-    //                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-    //                     <button type="submit" class="btn btn-primary">Lưu</button>
-    //                 </div>
-    //             </form>
-    //         </div>
-    //     </div>
-    // </div>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Mã nhân viên</label>
+                                <input class="form-control" name="EmployeeId" value="@card.CHR_EMPLOYEE_ID" required readonly />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Phòng ban</label>
+                                <input class="form-control" name="Department" value="@sectionName" readonly />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Họ và tên</label>
+                                <input class="form-control" name="FullName" value="@card.NVCHR_EMPLOYEE_NAME" required readonly />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Số xe</label>
+                                <select class="form-select bus-number-select"
+                                        name="BusNumber"
+                                        data-selected="@card.INT_BUS_ID">
+                                    <option value="">-- Chọn xe --</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Điểm đón/trả</label>
+                                <select class="form-select stop-point-select"
+                                        name="StopPoint"
+                                        data-selected="@card.INT_BUS_STOP_ID">
+                                    <option value="">-- Chọn điểm đón/trả --</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 }
 @section Scripts {
     <script src="~/js/cardcar/card-using.js" asp-append-version="true"></script>

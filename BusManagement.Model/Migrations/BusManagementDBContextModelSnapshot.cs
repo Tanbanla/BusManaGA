@@ -177,6 +177,85 @@ namespace BusManagement.Model.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ID"));
 
+                    b.Property<bool?>("BIT_IS_ACTIVE")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CHR_ROUTE_TYPE")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CHR_SHIFT")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CHR_SHIFT_NOTE")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CHR_SHIFT_TIME")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CHR_TYPE")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CHR_USER_CREATE")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CHR_USER_UPDATE")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("DTM_CREATE")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DTM_UPDATE")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("INT_BUS_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_DRIVER_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_OT_TYPE")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_ROUTE_ID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NVCHR_BUS_OT_WORKING_NAME")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("ID");
+
+                    b.ToTable("TM_BUS_OT");
+                });
+
+            modelBuilder.Entity("BusManagement.Model.Entity.TM_BUS_OT_ASSIGN", b =>
+                {
+                    b.Property<int>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ID"));
+
+                    b.Property<bool?>("BIT_IS_ACTIVE")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CHR_ROUTE_TYPE")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CHR_SHIFT")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CHR_SHIFT_NOTE")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CHR_SHIFT_TIME")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CHR_TYPE")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("CHR_USER_CREATE")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -198,12 +277,30 @@ namespace BusManagement.Model.Migrations
                     b.Property<int?>("INT_BUS_ID")
                         .HasColumnType("int");
 
+                    b.Property<int?>("INT_BUS_OT_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_CAPACITY")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_CURRENT_USER")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_DRIVER_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_OT_TYPE")
+                        .HasColumnType("int");
+
                     b.Property<int?>("INT_ROUTE_ID")
                         .HasColumnType("int");
 
+                    b.Property<string>("NVCHR_BUS_OT_WORKING_NAME")
+                        .HasColumnType("nvarchar(max)");
+
                     b.HasKey("ID");
 
-                    b.ToTable("TM_BUS_OT");
+                    b.ToTable("TM_BUS_OT_ASSIGN");
                 });
 
             modelBuilder.Entity("BusManagement.Model.Entity.TM_BUS_REQUEST", b =>
@@ -500,6 +597,9 @@ namespace BusManagement.Model.Migrations
                     b.Property<DateTime?>("DTM_UPDATE")
                         .HasColumnType("datetime2");
 
+                    b.Property<double?>("FLT_DISTANCE_BIVN_TO_RETURN")
+                        .HasColumnType("float");
+
                     b.Property<double?>("FLT_DISTANCE_TO_BIVN")
                         .HasColumnType("float");
 
@@ -513,6 +613,9 @@ namespace BusManagement.Model.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NVCHR_STOP_NAME")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NVCHR_STOP_RETURN_ADDRESS")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NVCHR_STOP_WARD")
@@ -1182,6 +1285,51 @@ namespace BusManagement.Model.Migrations
                     b.HasKey("ID");
 
                     b.ToTable("TM_EMPLOYEE_ROUTE_HISTORY");
+                });
+
+            modelBuilder.Entity("BusManagement.Model.Entity.TM_EMPLOYEE_ROUTE_OT", b =>
+                {
+                    b.Property<int>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ID"));
+
+                    b.Property<bool>("BIT_IS_ACTIVE")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CHR_EMPLOYEE_ID")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CHR_USER_CREATE")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CHR_USER_UPDATE")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("DTM_CREATE")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DTM_UPDATE")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("INT_BUS_OT_ASSIGN_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("INT_BUS_STOP_ID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("INT_EMPLOYEE_ID")
+                        .HasColumnType("int");
+
+                    b.HasKey("ID");
+
+                    b.ToTable("TM_EMPLOYEE_ROUTE_OT");
                 });
 
             modelBuilder.Entity("BusManagement.Model.Entity.TM_MASTER_MAIL", b =>

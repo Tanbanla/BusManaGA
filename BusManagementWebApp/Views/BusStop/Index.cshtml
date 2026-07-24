@@ -4,7 +4,7 @@
     var canManage = (ViewBag.CanManage as bool?) == true;
     var startIndex = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize + 1);
     var endIndex = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount);
-    var emptyColspan = canManage ? 13 : 11;
+    var emptyColspan = canManage ? 15 : 13;
 }
 
 <style>
@@ -141,6 +141,10 @@
                         <th style="width:40px;"><input id="chkAllBusStops" type="checkbox" class="form-check-input" /></th>
                     }
                     <th>STT</th>
+                    @if (canManage)
+                    {
+                        <th class="text-end">Thao tác</th>
+                    }
                     <th>Thành phố</th>
                     <th>Xã phường</th>
                     <th>Tên điểm</th>
@@ -148,13 +152,11 @@
                     <th>Tọa độ</th>
                     <th>Khoảng cách tới BIVN</th>
                     <th>Khoảng cách tới TTF</th>
+                    <th>Địa chỉ điểm trả</th>
+                    <th>Khoảng cách từ BIVN về điểm trả</th>
                     <th>Thời gian tạo</th>
                     <th>Thời gian cập nhật</th>
                     <th>Người cập nhật</th>
-                    @if (canManage)
-                    {
-                        <th class="text-end">Thao tác</th>
-                    }
                 </tr>
             </thead>
             <tbody>
@@ -177,16 +179,6 @@
                                 </td>
                             }
                             <td>@(startIndex + i)</td>
-                            <td>@busStop.NVCHR_STOP_CITY</td>
-                            <td>@busStop.NVCHR_STOP_WARD</td>
-                            <td>@busStop.NVCHR_STOP_NAME</td>
-                            <td>@busStop.NVCHR_STOP_ADDRESS</td>
-                            <td>@busStop.CHR_COORDINATES</td>
-                            <td>@(busStop.FLT_DISTANCE_TO_BIVN?.ToString("0.##") ?? "-")</td>
-                            <td>@(busStop.FLT_DISTANCE_TO_TTF?.ToString("0.##") ?? "-")</td>
-                            <td>@busStop.DTM_CREATE.ToString("dd/MM/yyyy HH:mm")</td>
-                            <td>@(busStop.DTM_UPDATE?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
-                            <td>@(busStop.CHR_USER_UPDATE ?? "-")</td>
                             @if (canManage)
                             {
                                 <td class="text-end">
@@ -211,6 +203,18 @@
                                     </form>
                                 </td>
                             }
+                            <td>@busStop.NVCHR_STOP_CITY</td>
+                            <td>@busStop.NVCHR_STOP_WARD</td>
+                            <td>@busStop.NVCHR_STOP_NAME</td>
+                            <td>@busStop.NVCHR_STOP_ADDRESS</td>
+                            <td>@busStop.CHR_COORDINATES</td>
+                            <td>@(busStop.FLT_DISTANCE_TO_BIVN?.ToString("0.##") ?? "-")</td>
+                            <td>@(busStop.FLT_DISTANCE_TO_TTF?.ToString("0.##") ?? "-")</td>
+                            <td>@busStop.NVCHR_STOP_RETURN_ADDRESS</td>
+                            <td>@(busStop.FLT_DISTANCE_BIVN_TO_RETURN?.ToString("0.##") ?? "-")</td>
+                            <td>@busStop.DTM_CREATE.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@(busStop.DTM_UPDATE?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                            <td>@(busStop.CHR_USER_UPDATE ?? "-")</td>
                         </tr>
                     }
                 }
@@ -273,7 +277,7 @@
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Xã phường</label>
-                                <select class="form-select js-ward-select" name="Ward" required>
+                                <select class="form-select js-ward-select" name="Ward">
                                     <option value="">Chọn xã phường</option>
                                 </select>
                             </div>
@@ -296,6 +300,14 @@
                             <div class="col-12 col-md-3">
                                 <label class="form-label">Khoảng cách tới TTF</label>
                                 <input type="number" step="0.01" min="0" class="form-control" name="DistanceToTtf" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Địa chỉ điểm trả</label>
+                                <textarea class="form-control" name="ReturnAddress" rows="2"></textarea>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Khoảng cách từ BIVN về điểm trả</label>
+                                <input type="number" step="0.01" min="0" class="form-control" name="DistanceBivnToReturn" />
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Trạng thái</label>
@@ -362,7 +374,7 @@
                                 </div>
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Xã phường</label>
-                                    <select class="form-select js-ward-select" name="Ward" data-selected-ward="@busStop.NVCHR_STOP_WARD" required>
+                                    <select class="form-select js-ward-select" name="Ward" data-selected-ward="@busStop.NVCHR_STOP_WARD">
                                         <option value="">Chọn xã phường</option>
                                     </select>
                                 </div>
@@ -379,12 +391,20 @@
                                     <input class="form-control" name="Coordinates" value="@busStop.CHR_COORDINATES" />
                                 </div>
                                 <div class="col-12 col-md-3">
-                                    <label class="form-label">Khoảng cách tới BIVN</label>
+                                    <label class="form-label">Khoảng cách từ điểm đón tới BIVN</label>
                                     <input type="number" step="0.01" min="0" class="form-control" name="DistanceToBivn" value="@busStop.FLT_DISTANCE_TO_BIVN" />
                                 </div>
                                 <div class="col-12 col-md-3">
-                                    <label class="form-label">Khoảng cách tới TTF</label>
+                                    <label class="form-label">Khoảng cách từ điểm đón tới TTF</label>
                                     <input type="number" step="0.01" min="0" class="form-control" name="DistanceToTtf" value="@busStop.FLT_DISTANCE_TO_TTF" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Địa chỉ điểm trả</label>
+                                    <textarea class="form-control" name="ReturnAddress" rows="2">@busStop.NVCHR_STOP_RETURN_ADDRESS</textarea>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Khoảng cách từ BIVN về điểm trả</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" name="DistanceBivnToReturn" value="@busStop.FLT_DISTANCE_BIVN_TO_RETURN" />
                                 </div>
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Trạng thái</label>
@@ -436,7 +456,7 @@
                         <label class="form-label">Chọn file Excel/CSV</label>
                         <input type="file" name="importFile" class="form-control" accept=".xlsx,.csv" required />
                         <div class="small text-muted mt-2">
-                            Định dạng: <code>City,Ward,Name,Address,Coordinates,DistanceToBIVN,DistanceToTTF,IsActive</code>
+                            Định dạng: <code>City,Ward,Name,Address,Coordinates,DistanceToBIVN,DistanceToTTF,ReturnAddress,DistanceBIVNToReturn</code>
                         </div>
                     </div>
                     <div class="modal-footer">

@@ -1,6 +1,8 @@
-﻿@{
+﻿@using System.Text.Json
+@using BusManagement.Model.Dtos
+@{
     ViewData["Title"] = "Thẻ sử dụng taxi";
-    var sections = ViewBag.Sections as IEnumerable<BusManagement.Model.Dtos.TM_SECTIONDTO> ?? Enumerable.Empty<BusManagement.Model.Dtos.TM_SECTIONDTO>();
+    var sections = ViewBag.Sections as IEnumerable<TM_SECTIONDTO> ?? Enumerable.Empty<TM_SECTIONDTO>();
 }
 
 <style>
@@ -453,3 +455,10 @@
 @section Scripts {
     <script src="~/js/cardcar/card-taxi.js" asp-append-version="true"></script>
 }
+<script>
+    const sections = @Html.Raw(
+        JsonSerializer.Serialize(
+             ViewBag.Sections ?? new List<TM_SECTIONDTO>()
+        )
+    );
+</script>
